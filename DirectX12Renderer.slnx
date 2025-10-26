@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="DirectX12Renderer/DirectX12Renderer.vcxproj" Id="c2526f4b-4da5-493c-aa12-25717d210a3a" />
+</Solution>
