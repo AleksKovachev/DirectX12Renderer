@@ -9,19 +9,6 @@ Renderer::Renderer() {
 	PrepareForRendering();
 }
 
-Renderer::~Renderer() {
-	cmdList->Release();
-	cmdList = nullptr;
-	cmdAllocator->Release();
-	cmdAllocator = nullptr;
-	cmdQueue->Release();
-	cmdQueue = nullptr;
-	d3d12Device->Release();
-	d3d12Device = nullptr;
-	dxgiFactory->Release();
-	dxgiFactory = nullptr;
-}
-
 void Renderer::Render() {}
 
 void Renderer::PrepareForRendering() {
@@ -30,8 +17,8 @@ void Renderer::PrepareForRendering() {
 }
 
 void Renderer::AssignAdapter() {
-	std::vector<IDXGIAdapter1*> adapters{};
-	IDXGIAdapter1* adapter{};
+	std::vector<WRL::ComPtr<IDXGIAdapter1>> adapters{};
+	WRL::ComPtr<IDXGIAdapter1> adapter{};
 	std::vector<HardwareID> hwIDs{};
 	UINT adapterIdx{};
 
@@ -42,15 +29,11 @@ void Renderer::AssignAdapter() {
 		if ( FAILED( hr ) ) {
 			log( std::format( "Failed to get description for adapter index {}",
 				adapterIdx ) );
-			adapter->Release(); // Cleanup
-			adapter = nullptr;
 			continue;
 		}
 
 		// Skip Microsoft's Basic Render Driver (Software adapter)
 		if ( desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ) {
-			adapter->Release(); // Cleanup
-			adapter = nullptr;
 			++adapterIdx;
 			continue;
 		}
@@ -65,8 +48,6 @@ void Renderer::AssignAdapter() {
 		}
 
 		if ( exists ) {
-			adapter->Release(); // Cleanup
-			adapter = nullptr;
 			++adapterIdx;
 			continue;
 		}
@@ -107,12 +88,7 @@ void Renderer::CreateDevice() {
 	AssignAdapter();
 
 	hr = D3D12CreateDevice(
-		adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS( &d3d12Device ) );
-
-	// Adapter is no longer needed and needs to be released.
-	// Device holds its own reference to it.
-	adapter->Release();
-	adapter = nullptr;
+		adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&d3d12Device));
 
 	if ( FAILED( hr ) ) {
 		log( std::format( "Failed to create D3D12 Device. HRESULT: {:#x}", hr ),
@@ -158,10 +134,10 @@ void Renderer::CreateCommandsManagers() {
 	}
 
 	d3d12Device->CreateCommandList(
-		0,              // NodeMask: 0 for single GPU systems.
-		queueDesc.Type, // Type: Must match the Command Queue type (usually DIRECT).
-		cmdAllocator,   // Command Allocator: The memory pool to record commands into.
-		nullptr,        // Initial Pipeline State Object (PSO): Commonly set to nullptr at creation.
+		0,                    // NodeMask: 0 for single GPU systems.
+		queueDesc.Type,       // Type: Must match the Command Queue type (usually DIRECT).
+		cmdAllocator.Get(),   // Command Allocator: The memory pool to record commands into.
+		nullptr, // Initial Pipeline State Object (PSO): Commonly set to nullptr at creation.
 		IID_PPV_ARGS( &cmdList ) // The Interface ID and output pointer
 	);
 

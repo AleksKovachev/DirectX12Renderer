@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <Windows.h>
+#include <wrl/client.h>
 
 #include "Logger.hpp"
 
@@ -18,12 +19,13 @@
  * Project Properties under Linker -> Input -> Additional Dependencies.
  * This allows for more structured project configuration. */
 
+
+namespace WRL = Microsoft::WRL;
+
 // The main Renderer class managing the GPU commands.
 class Renderer {
 public:
 	Renderer();
-
-	~Renderer();
 
 	//! @brief Initiate the actual rendering.
 	void Render();
@@ -43,13 +45,13 @@ private:
 	//! for preparing and submitting GPU commands.
 	void CreateCommandsManagers();
 private:
-	IDXGIFactory4* dxgiFactory{ nullptr }; //!< Grants access to the GPUs on the machine
-	IDXGIAdapter1* adapter{ nullptr }; //!< Represents the video card used for rendering.
-	ID3D12Device* d3d12Device{ nullptr }; //!< Allows access to the GPU for the purpose of Direct3D API.
+	WRL::ComPtr<IDXGIFactory4> dxgiFactory{ nullptr }; //!< Grants access to the GPUs on the machine
+	WRL::ComPtr<IDXGIAdapter1> adapter{ nullptr }; //!< Represents the video card used for rendering.
+	WRL::ComPtr<ID3D12Device> d3d12Device{ nullptr }; //!< Allows access to the GPU for the purpose of Direct3D API.
 
-	ID3D12CommandQueue* cmdQueue{ nullptr }; //!< Holds the command lists and will be given to the GPU for execution
-	ID3D12CommandAllocator* cmdAllocator{ nullptr }; //!< Manages the GPU memoryfor the commands
-	ID3D12GraphicsCommandList* cmdList{ nullptr }; //!< The actual commands that will be executed by the GPU
+	WRL::ComPtr<ID3D12CommandQueue> cmdQueue{ nullptr }; //!< Holds the command lists and will be given to the GPU for execution
+	WRL::ComPtr<ID3D12CommandAllocator> cmdAllocator{ nullptr }; //!< Manages the GPU memoryfor the commands
+	WRL::ComPtr<ID3D12GraphicsCommandList> cmdList{ nullptr }; //!< The actual commands that will be executed by the GPU
 
 	Logger log{ std::cout }; //!< Logger instance for logging messages
 };
