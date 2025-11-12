@@ -26,6 +26,7 @@ namespace WRL = Microsoft::WRL;
 class Renderer {
 public:
 	Renderer();
+	~Renderer();
 
 	//! @brief Initiate the actual rendering.
 	void Render();
@@ -44,20 +45,64 @@ private:
 	//! @brief Creates ID3D12CommandQueue, ID3D12CommandAllocator and ID3D12GraphicsCommandList
 	//! for preparing and submitting GPU commands.
 	void CreateCommandsManagers();
+
+	//! @brief Creates ID3D12Resource, D3D12_RESOURCE_DESC and D3D12_HEAP_PROPERTIES.
+	//! Describes the 2D buffer, which will be used as a texture, and create its heap.
+	void CreateGPUTexture();
+
+	//! @brief Creates a descriptor for the render target, with which the texture
+	//! could be accessed for the next pipeline stages.
+	//! Creates a descriptor heap for this descriptor.
+	void CreateRenderTargetView();
+
+	//! @brief Adds commands in the command list to generate a solid color texture.
+	void GenerateConstColorTexture();
+
+	void CreateReadbackBuffer();
+
+	void CopyTexture( D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint );
+
+	void ExecuteCommandList();
+
+	void ReadTextureData( UINT64 totalBytes, D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint );
 private:
-	WRL::ComPtr<IDXGIFactory4> dxgiFactory{ nullptr }; //!< Grants access to the GPUs on the machine
-	WRL::ComPtr<IDXGIAdapter1> adapter{ nullptr }; //!< Represents the video card used for rendering.
-	WRL::ComPtr<ID3D12Device> d3d12Device{ nullptr }; //!< Allows access to the GPU for the purpose of Direct3D API.
+	//!< Grants access to the GPUs on the machine
+	WRL::ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
+	//!< Represents the video card used for rendering.
+	WRL::ComPtr<IDXGIAdapter1> m_adapter{ nullptr };
+	//!< Allows access to the GPU for the purpose of Direct3D API.
+	WRL::ComPtr<ID3D12Device> m_device{ nullptr };
 
-	WRL::ComPtr<ID3D12CommandQueue> cmdQueue{ nullptr }; //!< Holds the command lists and will be given to the GPU for execution
-	WRL::ComPtr<ID3D12CommandAllocator> cmdAllocator{ nullptr }; //!< Manages the GPU memoryfor the commands
-	WRL::ComPtr<ID3D12GraphicsCommandList> cmdList{ nullptr }; //!< The actual commands that will be executed by the GPU
+	//!< Holds the command lists and will be given to the GPU for execution
+	WRL::ComPtr<ID3D12CommandQueue> m_cmdQueue{ nullptr };
+	//!< Manages the GPU memoryfor the commands
+	WRL::ComPtr<ID3D12CommandAllocator> m_cmdAllocator{ nullptr };
+	//!< The actual commands that will be executed by the GPU
+	WRL::ComPtr<ID3D12GraphicsCommandList> m_cmdList{ nullptr };
 
-	Logger log{ std::cout }; //!< Logger instance for logging messages
+	//!< A GPU resource (like a buffer or texture).
+	//!< This is the Render Target used for the texture.
+	WRL::ComPtr<ID3D12Resource> m_renderTarget{ nullptr };
+	//!< Descriptor heap to hold the Render Target Descriptor of the texture.
+	WRL::ComPtr<ID3D12DescriptorHeap> m_descriptorHeap{ nullptr };
+
+	//< Readback buffer to copy the texture data from GPU to CPU
+	WRL::ComPtr<ID3D12Resource> m_readbackBuff{ nullptr };
+	//!< Fence for GPU-CPU synchronization
+	WRL::ComPtr<ID3D12Fence> m_fence{ nullptr };
+
+	//!< Hold the texture properties.
+	D3D12_RESOURCE_DESC m_textureDesc{};
+	// Handle for the descriptor of the texture, with which it could be used in the pipeline.
+	D3D12_CPU_DESCRIPTOR_HANDLE m_rtvHandle{};
+
+	UINT64 m_fenceValue{ 0 }; //!< Current fence value for synchronization.
+	HANDLE m_fenceEvent{ nullptr }; //!< Event handle for fence synchronization.
+	Logger log{ std::cout }; //!< Logger instance for logging messages.
 };
 
 
-// Simple struct to hold the unique hardware identifier (Vendor ID + Device ID)
+// Simple struct to hold the unique hardware identifier (Vendor ID + Device ID).
 struct HardwareID {
 	UINT DeviceId;
 	UINT VendorId;
