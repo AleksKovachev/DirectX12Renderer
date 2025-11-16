@@ -13,10 +13,8 @@ int main() {
 
 	const float redColor[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	renderer.PrepareForRendering();
-	for ( int i{}; i < 1'000; ++i ) {
-		renderer.RenderFrame( redColor );
-		renderer.WriteImageToFile( "output.ppm" );
-	}
+	renderer.RenderFrame( redColor );
+	renderer.WriteImageToFile( "output.ppm" );
 
 	std::chrono::high_resolution_clock::time_point stop{
 		std::chrono::high_resolution_clock::now() };
