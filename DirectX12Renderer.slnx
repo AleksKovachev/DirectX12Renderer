@@ -3,5 +3,10 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="DirectX12Renderer/DirectX12Renderer.vcxproj" Id="c2526f4b-4da5-493c-aa12-25717d210a3a" />
+  <Project Path="WolfApp/WolfApp.vcxproj" Id="09534c42-9a14-4618-bfec-0b65a1a4895e">
+    <BuildDependency Project="WolfRenderer/WolfRenderer.vcxproj" />
+    <Platform Project="x64" />
+    <Build Solution="*|x86" Project="false" />
+  </Project>
+  <Project Path="WolfRenderer/WolfRenderer.vcxproj" Id="c2526f4b-4da5-493c-aa12-25717d210a3a" />
 </Solution>
