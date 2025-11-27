@@ -12,6 +12,7 @@
 
 // Logging level. Can't use all caps for members because of conflict with Windows.h macros.
 enum class LogLevel {
+	Debug,
 	Info,
 	Warning,
 	Error,
@@ -22,7 +23,13 @@ enum class LogLevel {
 class Logger {
 public:
 	explicit Logger( std::ostream& os )
-		: m_os{ os }, m_minLevel{ LogLevel::Info } {}
+		: m_os{ os },
+#ifdef _DEBUG
+		m_minLevel{ LogLevel::Debug }
+#else
+		m_minLevel{ LogLevel::Info }
+#endif // DEBUG
+	{}
 
 	explicit Logger( std::ostream& os, LogLevel minLevel )
 		: m_os{ os }, m_minLevel{ minLevel } {}
@@ -33,7 +40,7 @@ public:
 	}
 
 	/// Thread-safely logs a message to the output stream.
-	void operator()( const std::string& message, LogLevel level = LogLevel::Info ) {
+	void operator()( const std::string& message, LogLevel level = LogLevel::Debug ) {
 		if ( level >= m_minLevel ) {
 			std::lock_guard<std::mutex> lock( m_mutex );
 			m_os << FormatLog( level, message ) << std::endl;

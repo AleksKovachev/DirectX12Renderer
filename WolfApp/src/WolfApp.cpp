@@ -18,7 +18,7 @@ bool WolfApp::init() {
 
 	m_mainWin->show();
 
-	m_renderer.PrepareForRendering();
+	m_renderer.PrepareForRendering( m_mainWin->viewport->GetNativeWindowHandle() );
 
 	m_idleTimer = new QTimer( m_mainWin );
 	connect( m_idleTimer, &QTimer::timeout, this, &WolfApp::OnIdleTick );
@@ -53,20 +53,7 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame();
+	m_renderer.RenderFrameWithSwapChain();
 
-	Core::RenderData renderData{ m_renderer.GetRenderData() };
-	QImage image(
-		renderData.byteData,
-		static_cast<int>(renderData.texWidth),
-		static_cast<int>(renderData.texHeight),
-		static_cast<int>(renderData.rowPitch),
-		QImage::Format::Format_RGBX8888
-	); // RGBX ignores the Aplha channel.
-
-	m_mainWin->UpdateViewport( image );
 	++m_frameIdxAtLastFPSCalc;
-
-	//! BAD DESIGN to leave Unmapping to the user! Leaving for demo.
-	m_renderer.UnmapReadback();
 }
