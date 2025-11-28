@@ -41,6 +41,7 @@ namespace Core {
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
 		void RenderFrame();
 
+		/// Executes the rendering cycle using the swap chain sending data to UI.
 		void RenderFrameWithSwapChain();
 
 		/// Maps the read-back buffer and writes the image to a file.
@@ -96,6 +97,7 @@ namespace Core {
 		/// Creates a swap chain for double buffering.
 		void CreateSwapChain( HWND hWnd );
 
+		/// Creates a descriptor heap for the swap chain render targets.
 		void CreateDescriptorHeapForSwapChain();
 
 		/// Creates a descriptors for the render targets, with which
@@ -133,6 +135,7 @@ namespace Core {
 		/// Fence for GPU-CPU synchronization.
 		ComPtr<ID3D12Fence> m_fence{ nullptr };
 
+		/// The swap chain for buffering (double/tripple/etc.).
 		ComPtr<IDXGISwapChain4> m_swapChain{ nullptr };
 
 		/// Hold the texture properties.

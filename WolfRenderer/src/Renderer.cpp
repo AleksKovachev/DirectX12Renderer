@@ -194,34 +194,6 @@ void Core::WolfRenderer::StopRendering() {
 	WaitForGPURenderFrame();
 }
 
-void Core::WolfRenderer::CreateSwapChain( HWND hWnd ) {
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-	swapChainDesc.Width = m_renderWidth;
-	swapChainDesc.Height = m_renderHeight;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
-	swapChainDesc.BufferCount = m_bufferCount; // Double buffering
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.SampleDesc.Count = 1; // No multi-sampling
-	//swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING; // Enable Tearing.
-
-	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT hr = m_dxgiFactory->CreateSwapChainForHwnd(
-		m_cmdQueue.Get(), // The command queue to associate with the swap chain
-		hWnd,             // The window handle
-		&swapChainDesc,   // The swap chain description
-		nullptr,          // No full-screen descriptor
-		nullptr,          // No restrict to output
-		&swapChain1       // The resulting swap chain
-	);
-	checkHR( "Failed to create a Swap Chain.", hr, log );
-
-	hr = swapChain1->QueryInterface( IID_PPV_ARGS( &m_swapChain ) );
-	checkHR( "Failed to convert Swap Chain output to newer version.", hr, log );
-
-	log( "Swap Chain created successfully!" );
-}
-
 void Core::WolfRenderer::CreateDevice() {
 	HRESULT hr = CreateDXGIFactory1( IID_PPV_ARGS( &m_dxgiFactory ) );
 	checkHR( "Failed to create DXGI Factory.", hr, log );
@@ -478,6 +450,34 @@ void Core::WolfRenderer::FrameBegin() {
 void Core::WolfRenderer::FrameEnd() {
 	++m_frameIdx;
 	m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
+}
+
+void Core::WolfRenderer::CreateSwapChain( HWND hWnd ) {
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+	swapChainDesc.Width = m_renderWidth;
+	swapChainDesc.Height = m_renderHeight;
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
+	swapChainDesc.BufferCount = m_bufferCount; // Double buffering
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.SampleDesc.Count = 1; // No multi-sampling
+	//swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING; // Enable Tearing.
+
+	ComPtr<IDXGISwapChain1> swapChain1;
+	HRESULT hr = m_dxgiFactory->CreateSwapChainForHwnd(
+		m_cmdQueue.Get(), // The command queue to associate with the swap chain
+		hWnd,             // The window handle
+		&swapChainDesc,   // The swap chain description
+		nullptr,          // No full-screen descriptor
+		nullptr,          // No restrict to output
+		&swapChain1       // The resulting swap chain
+	);
+	checkHR( "Failed to create a Swap Chain.", hr, log );
+
+	hr = swapChain1->QueryInterface( IID_PPV_ARGS( &m_swapChain ) );
+	checkHR( "Failed to convert Swap Chain output to newer version.", hr, log );
+
+	log( "Swap Chain created successfully!" );
 }
 
 void Core::WolfRenderer::CreateDescriptorHeapForSwapChain() {
