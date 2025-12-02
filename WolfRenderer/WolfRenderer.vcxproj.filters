@@ -32,5 +32,24 @@
     <ClInclude Include="inc\utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ext\d3dx12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\d3dx12_core.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\d3dx12_default.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\d3d12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\Common.hlsli" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\ConstColor.hlsl" />
+    <FxCompile Include="shaders\ConstColorVS.hlsl" />
   </ItemGroup>
 </Project>

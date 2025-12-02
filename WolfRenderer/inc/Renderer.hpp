@@ -1,17 +1,18 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include <iostream>
+#include <vector>
+#include <wrl/client.h>
+
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 // #pragma comment(lib, "dxgi.lib d3d12.lib") is also valid
 
-#include <iostream>
-#include <vector>
-#include <wrl/client.h>
-
 #include "Logger.hpp"
+
 
 /* While #pragma comment(lib, ...) is perfectly valid and common, especially in
  * small projects or single source files, the professional standard for large
@@ -29,7 +30,7 @@ namespace Core {
 		/// Constructor
 		/// @param[in] renderWidth   Render resolution width.
 		/// @param[in] renderHeight   Render resolution height.
-		WolfRenderer( int renderWidth = 1920, int renderHeight = 1080, UINT bufferCount = 2 );
+		WolfRenderer( int renderWidth = 800, int renderHeight = 800, UINT bufferCount = 2 );
 		~WolfRenderer();
 
 		/// Sets the minimum logging level for the logger.
@@ -40,9 +41,6 @@ namespace Core {
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
 		void RenderFrame();
-
-		/// Executes the rendering cycle using the swap chain sending data to UI.
-		void RenderFrameWithSwapChain();
 
 		/// Maps the read-back buffer and writes the image to a file.
 		/// @param[in] fileName  Path to the output file.
@@ -104,6 +102,21 @@ namespace Core {
 		/// the texture could be accessed for the next pipeline stages.
 		/// Creates a descriptor heap for these descriptors.
 		void CreateRenderTargetViewsFromSwapChain();
+
+		/// Creates the vertices that will be rendered by the pipeline for the frame.
+		/// Uses an upload heap to store the vertices on the CPU memory, the
+		/// GPU will access them using the PCIe.
+		void CreateVertexBuffer();
+
+		/// Creates a root signature, which defines what resources are bound to the pipeline.
+		void CreateRootSignature();
+
+		/// Creates the pipeline state object, which holds the configuration
+		void CreatePipelineState();
+
+		/// Creates the viewport and scissor rectangle for rendering.
+		void CreateViewport();
+
 	private: // Members
 		/// Grants access to the GPUs on the machine.
 		ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
@@ -143,6 +156,20 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
+		/// The vertices that will be rendered.
+		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
+		/// The vertex buffer descriptor.
+		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
+		/// The root signature defining the resources bound to the pipeline.
+		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
+		/// The pipeline state object holding the pipeline configuration.
+		ComPtr<ID3D12PipelineState> m_pipelineState{ nullptr };
+
+		/// Viewport for rendering.
+		D3D12_VIEWPORT m_viewport{};
+		/// Scissor rectangle for rendering.
+		D3D12_RECT m_scissorRect{};
+
 		/// The fence value, which the GPU sets when done.
 		UINT64 m_fenceValue{ 0 };
 		/// Event handle for fence synchronization, fired when GPU is done.
@@ -157,6 +184,11 @@ namespace Core {
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
+	};
+
+	struct Vertex {
+		float x;
+		float y;
 	};
 }
 

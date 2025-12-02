@@ -53,7 +53,7 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrameWithSwapChain();
+	m_renderer.RenderFrame();
 
 	++m_frameIdxAtLastFPSCalc;
 }
