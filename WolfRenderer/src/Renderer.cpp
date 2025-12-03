@@ -7,6 +7,7 @@
 #include "ConstColorVS.hlsl.h"
 
 #include <cassert>
+#include <cmath> // cosf, sinf
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -406,6 +407,37 @@ namespace Core {
 
 		// Set which Render Target will be used for rendering.
 		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
+		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+	
+		// The below code contains preview animations. Needs float m_xOffset to be defined.
+		/*
+		// Triangle Movement.
+		float step{1.f / 1400.f};
+		m_xOffset += step;
+
+		Vertex triangleVertices[] = {
+			{  0.0f + m_xOffset,  0.5f },
+			{  0.5f + m_xOffset, -0.5f },
+			{ -0.5f + m_xOffset, -0.5f }
+		};
+
+		// Triangle Rotation.
+		float angle = static_cast<float>(m_frameIdx) * 0.0001f;
+		float cosA = cosf( angle );
+		float sinA = sinf( angle );
+		Vertex triangleVertices[] = {
+			{  0.0f * cosA -  0.5f * sinA,  0.0f * sinA +  0.5f * cosA },
+			{  0.5f * cosA - -0.5f * sinA,  0.5f * sinA + -0.5f * cosA },
+			{ -0.5f * cosA - -0.5f * sinA, -0.5f * sinA + -0.5f * cosA }
+		};
+
+		void* pVertexData;
+		m_vertexBuffer->Map( 0, nullptr, &pVertexData );
+		memcpy( pVertexData, triangleVertices, sizeof( triangleVertices ) );
+		m_vertexBuffer->Unmap( 0, nullptr );
+		*/
+
 	}
 
 	void WolfRenderer::FrameEnd() {
@@ -498,9 +530,34 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
+		// A checker pattern demonstration.
+		/*
+		Vertex triangleVertices[32 * 2 * 3];
+		int v{};
+		for ( int row{}; row < 8; ++row ) {
+			for ( int col{}; col < 8; ++col ) {
+				if ( (row + col) % 2 != 1 ) {
+					float squareSize = 2.f / 8.f;
+					float x = -1.f + col * squareSize;
+					float y = -1.f + row * squareSize;
+
+					triangleVertices[v++] = { x, y };
+					triangleVertices[v++] = { x, y + squareSize };
+					triangleVertices[v++] = { x + squareSize, y + squareSize };
+
+					triangleVertices[v++] = { x, y };
+					triangleVertices[v++] = { x + squareSize, y + squareSize };
+					triangleVertices[v++] = { x + squareSize, y };
+				}
+			}
+		}
+		// This also means that the drawInstanced call in RenderFrame must change.
+		m_cmdList->DrawInstanced( 32 * 2 * 3, 1, 0, 0 );
+		*/
+
 		Vertex triangleVertices[] = {
-			{ 0.0f, 0.5f },
-			{ 0.5f, -0.5f },
+			{  0.0f,  0.5f },
+			{  0.5f, -0.5f },
 			{ -0.5f, -0.5f }
 		};
 

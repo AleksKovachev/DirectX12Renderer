@@ -184,6 +184,8 @@ namespace Core {
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
+
+		//float m_xOffset{ 0.0f }; ///< Just for preview animation.
 	};
 
 	struct Vertex {
