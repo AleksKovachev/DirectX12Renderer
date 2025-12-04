@@ -24,6 +24,11 @@
 using Microsoft::WRL::ComPtr;
 
 namespace Core {
+	struct Vertex {
+		float x;
+		float y;
+	};
+
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public:
@@ -145,52 +150,43 @@ namespace Core {
 
 		/// Readback buffer to hold the rendered image.
 		ComPtr<ID3D12Resource> m_readbackBuff{ nullptr };
-		/// Fence for GPU-CPU synchronization.
-		ComPtr<ID3D12Fence> m_fence{ nullptr };
+		ComPtr<ID3D12Fence> m_fence{ nullptr }; ///< Fence for GPU-CPU synchronization.
 
 		/// The swap chain for buffering (double/tripple/etc.).
 		ComPtr<IDXGISwapChain4> m_swapChain{ nullptr };
 
-		/// Hold the texture properties.
-		D3D12_RESOURCE_DESC m_textureDesc{};
+		D3D12_RESOURCE_DESC m_textureDesc{}; ///< Hold the texture properties.
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
 		/// The vertices that will be rendered.
 		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
-		/// The vertex buffer descriptor.
-		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
+		D3D12_VERTEX_BUFFER_VIEW m_vbView{}; ///< The vertex buffer descriptor.
 		/// The root signature defining the resources bound to the pipeline.
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
 		/// The pipeline state object holding the pipeline configuration.
 		ComPtr<ID3D12PipelineState> m_pipelineState{ nullptr };
 
-		/// Viewport for rendering.
-		D3D12_VIEWPORT m_viewport{};
-		/// Scissor rectangle for rendering.
-		D3D12_RECT m_scissorRect{};
+		D3D12_VIEWPORT m_viewport{}; ///< Viewport for rendering.
+		D3D12_RECT m_scissorRect{}; ///< Scissor rectangle for rendering.
 
-		/// The fence value, which the GPU sets when done.
-		UINT64 m_fenceValue{ 0 };
+		UINT64 m_fenceValue{ 0 }; ///< The fence value, which the GPU sets when done.
 		/// Event handle for fence synchronization, fired when GPU is done.
 		HANDLE m_fenceEvent{ nullptr };
 
 		float m_rendColor[4]{};
-		size_t m_frameIdx{ 0 };
+		size_t m_frameIdx{};
 		bool m_isPrepared{ false };
 		Logger log{ std::cout }; ///< Logger instance for logging messages.
 		int m_renderWidth{};
 		int m_renderHeight{};
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
-		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
+		UINT m_scFrameIdx{}; ///< Swap Chain frame index.
+		int m_vertexCount{ 3 };
+		Vertex m_vertices[3]{}; ///< The vertices to render.
 
-		//float m_xOffset{ 0.0f }; ///< Just for preview animation.
-	};
-
-	struct Vertex {
-		float x;
-		float y;
+		float m_xOffset{ 0.0f }; ///< Just for preview animation.
 	};
 }
 
