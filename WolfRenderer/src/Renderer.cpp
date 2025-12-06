@@ -458,6 +458,9 @@ namespace Core {
 		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
 		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to present the frame!", hr, log, LogLevel::Error );
 
+		// Increment m_fenceValue for every operation
+		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
+
 		WaitForGPURenderFrame();
 
 		++m_frameIdx;
