@@ -1,6 +1,16 @@
 #include "Common.hlsli"
 
-float4 PSMain(PSInput input) : SV_TARGET
-{
-    return float4(0.5, 0.0, 0.0, 1.0);
+cbuffer RootConstants : register( b0 ) {
+    int frameIdx;
+};
+
+float4 PSMain( PSInput input ) : SV_TARGET {
+    float4 redColor = float4( 1.0, 0.0, 0.0, 1.0 );
+    float4 purpleColor = float4( 0.5, 0.0, 0.5, 1.0 );
+
+    if ( frameIdx % 100 >= 0 && frameIdx % 100 <= 50 ) {
+        return redColor;
+    } else {
+        return purpleColor;
+    }
 }

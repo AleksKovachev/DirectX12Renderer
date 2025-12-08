@@ -156,7 +156,7 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
-		/// The vertices that will be rendered.
+		/// The vertices that will be rendered (Stored in GPU Default Heap).
 		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
 		/// The vertex buffer descriptor.
 		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
@@ -184,8 +184,6 @@ namespace Core {
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
-
-		//float m_xOffset{ 0.0f }; ///< Just for preview animation.
 	};
 
 	struct Vertex {

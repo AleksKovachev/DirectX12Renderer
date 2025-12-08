@@ -42,6 +42,7 @@ public:
 protected:
 	void paintEvent( QPaintEvent* event ) override {
 		QPainter painter( this );
+
 		// Faster scaling
 		painter.setRenderHint( QPainter::SmoothPixmapTransform, false );
 
@@ -53,11 +54,6 @@ protected:
 
 		painter.drawImage( rect(), m_image );
 	}
-
-	// Override and disable Paint Engine when rendering with DirectX directly.
-	 QPaintEngine* paintEngine() const override {
-		return nullptr; // We're handling painting ourselves
-	 }
 
 private:
 	QImage m_image;
