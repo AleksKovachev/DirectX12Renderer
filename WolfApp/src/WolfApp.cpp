@@ -16,6 +16,10 @@ bool WolfApp::init() {
 	if ( InitWindow() == false )
 		return false;
 
+	connect( m_mainWin->viewport, &WolfViewportWidget::mouseOffsetChanged,
+		this, &WolfApp::OnViewportOffsetChanged
+	);
+
 	m_mainWin->show();
 
 	m_renderer.PrepareForRendering( m_mainWin->viewport->GetNativeWindowHandle() );
@@ -56,4 +60,8 @@ void WolfApp::RenderFrame() {
 	m_renderer.RenderFrame();
 
 	++m_frameIdxAtLastFPSCalc;
+}
+
+void WolfApp::OnViewportOffsetChanged( float ndcX, float ndcY ) {
+	m_renderer.AddToTargetOffset( ndcX, ndcY );
 }

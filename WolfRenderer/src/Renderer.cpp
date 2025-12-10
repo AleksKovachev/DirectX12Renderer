@@ -6,13 +6,16 @@
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
 
+#include <algorithm> // clamp
 #include <cassert>
-#include <cmath> // cosf, sinf
+#include <chrono> // high_resolution_clock, duration
+#include <cmath> // cosf, sinf, min, fminf
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <vector>
 
+using hrClock = std::chrono::high_resolution_clock;
 
 //!< Simple struct to hold the unique hardware identifier (Vendor ID + Device ID).
 struct HardwareID {
@@ -73,6 +76,7 @@ namespace Core {
 		CreateFence();
 
 		CreateVertexBuffer();
+		CreateTransformConstantBuffer();
 		CreateRootSignature();
 		CreatePipelineState();
 		CreateViewport();
@@ -85,7 +89,10 @@ namespace Core {
 
 		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
 
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, m_frameIdx, 0 );
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
+		// Bind transform CBV at root parameter 1
+		m_cmdList->SetGraphicsRootConstantBufferView(
+			1, m_transformCB->GetGPUVirtualAddress() );
 
 		m_cmdList->SetPipelineState( m_pipelineState.Get() );
 
@@ -118,7 +125,7 @@ namespace Core {
 		UINT rowPitch{ m_renderTargetFootprint.Footprint.RowPitch };
 
 		// Use the RowPitch (footprint.Footprint.RowPitch) when reading the pixel data
-		// as it's  larger than the texture width * pixel size due to alignment.
+		// as it's larger than the texture width * pixel size due to alignment.
 		uint8_t* byteData = reinterpret_cast<uint8_t*>(renderData);
 		const uint8_t RGBA_COLOR_CHANNELS_COUNT{ 4 };
 
@@ -154,6 +161,11 @@ namespace Core {
 	void WolfRenderer::StopRendering() {
 		log( "Stopping renderer!" );
 		WaitForGPURenderFrame();
+	}
+
+	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
+		m_targetOffsetX += dx;
+		m_targetOffsetY += dy;
 	}
 
 	void WolfRenderer::CreateDevice() {
@@ -401,6 +413,13 @@ namespace Core {
 	}
 
 	void WolfRenderer::FrameBegin() {
+		UpdateSmoothOffset();
+		static auto last = hrClock::now();
+		auto now = hrClock::now();
+
+		m_deltaTime = std::chrono::duration<float>( now - last ).count();
+		last = now;
+
 		ResetCommandAllocatorAndList();
 
 		D3D12_RESOURCE_BARRIER barrier{};
@@ -594,12 +613,20 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER rootParams[1];
+		D3D12_ROOT_PARAMETER rootParams[2]{};
+
+		// Param 0 - frameIdx
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[0].Constants.ShaderRegister = 0;
 		rootParams[0].Constants.RegisterSpace = 0;
 		rootParams[0].Constants.Num32BitValues = 1;
+
+		// Param 1 - transform matrix
+		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[1].Constants.ShaderRegister = 1;
+		rootParams[1].Constants.RegisterSpace = 0;
 
 		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -676,4 +703,54 @@ namespace Core {
 		m_scissorRect.bottom = m_renderHeight;
 	}
 
+	void WolfRenderer::CreateTransformConstantBuffer() {
+		// Constant buffer must be 256-byte aligned.
+		const UINT cbSize = (sizeof( TransformData ) + 255) & ~255;
+
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbSize );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_transformCB )
+		);
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to create Transform Constant Buffer", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_transformCB->Map( 0, nullptr, reinterpret_cast<void**>(&m_transformCBMappedPtr) );
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to map Transform Constant Buffer", hr, log );
+
+		// Initialize to identity matrix
+		DirectX::XMStoreFloat4x4( &m_transformData.mat, DirectX::XMMatrixIdentity() );
+		memcpy( m_transformCBMappedPtr, &m_transformData, sizeof( m_transformData ) );
+	}
+
+	void WolfRenderer::UpdateSmoothOffset() {
+		// Control interpolation speed.
+		const float lambda_ = 2.f;
+
+		// Safety clamp for large dt spikes.
+		const float clampedDt = std::fminf( m_deltaTime, 0.05f );
+
+		// Compute smoothing factor (frame-rate independent).
+		const float sFactor = 1.f - std::exp( -lambda_ * clampedDt );
+
+		// Linear interpolation toward the target.
+		m_currOffsetX += (m_targetOffsetX - m_currOffsetX) * sFactor;
+		m_currOffsetY += (m_targetOffsetY - m_currOffsetY) * sFactor;
+
+		// Don't allow the center of the geometry to leave the screen when moving around.
+		m_currOffsetX = std::clamp( m_currOffsetX, -1.f, 1.f );
+		m_currOffsetY = std::clamp( m_currOffsetY, -1.f, 1.f );
+
+		DirectX::XMMATRIX T = DirectX::XMMatrixTranslation( m_currOffsetX, m_currOffsetY, 0.0f );
+		XMStoreFloat4x4( &m_transformData.mat, DirectX::XMMatrixTranspose( T ) );
+
+		memcpy( m_transformCBMappedPtr, &m_transformData, sizeof( m_transformData ) );
+
+	}
 }

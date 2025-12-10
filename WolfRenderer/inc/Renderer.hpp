@@ -1,6 +1,7 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include <DirectXMath.h>
 #include <iostream>
 #include <vector>
 #include <wrl/client.h>
@@ -52,6 +53,7 @@ namespace Core {
 		/// Lets the GPU finihs rendering before closing the application.
 		void StopRendering();
 
+		void AddToTargetOffset( float dx, float dy );
 	private: // Functions
 
 		/// Create ID3D12Device, an interface which allows access to the GPU
@@ -117,6 +119,9 @@ namespace Core {
 		/// Creates the viewport and scissor rectangle for rendering.
 		void CreateViewport();
 
+		void CreateTransformConstantBuffer();
+
+		void UpdateSmoothOffset();
 	private: // Members
 		/// Grants access to the GPUs on the machine.
 		ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
@@ -164,6 +169,8 @@ namespace Core {
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
 		/// The pipeline state object holding the pipeline configuration.
 		ComPtr<ID3D12PipelineState> m_pipelineState{ nullptr };
+		/// The transform matrix used in the constant buffer to update object position.
+		ComPtr<ID3D12Resource> m_transformCB{ nullptr };
 
 		/// Viewport for rendering.
 		D3D12_VIEWPORT m_viewport{};
@@ -184,6 +191,18 @@ namespace Core {
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
+
+		UINT8* m_transformCBMappedPtr = nullptr;
+
+		float m_currOffsetX{};
+		float m_currOffsetY{};
+		float m_targetOffsetX{};
+		float m_targetOffsetY{};
+		float m_deltaTime{};
+
+		struct alignas(256) TransformData {
+			DirectX::XMFLOAT4X4 mat;
+		} m_transformData;
 	};
 
 	struct Vertex {
