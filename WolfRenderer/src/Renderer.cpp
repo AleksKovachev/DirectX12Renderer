@@ -164,8 +164,14 @@ namespace Core {
 	}
 
 	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
-		m_targetOffsetX += dx;
-		m_targetOffsetY += dy;
+		// Add mouse offset to target offset.
+		// Clamp values to prevent offscreen value accumulation.
+		m_targetOffsetX = std::clamp( m_targetOffsetX + dx, -1.f, 1.f );
+		m_targetOffsetY = std::clamp( m_targetOffsetY + dy, -1.f, 1.f );
+	}
+
+	void WolfRenderer::AddToTargetRotation( float deltaAngle ) {
+		m_targetRotation += deltaAngle * m_rotationSensitivity;
 	}
 
 	void WolfRenderer::CreateDevice() {
@@ -731,24 +737,37 @@ namespace Core {
 
 	void WolfRenderer::UpdateSmoothOffset() {
 		// Control interpolation speed.
-		const float lambda_ = 2.f;
+		const float lerpLambda = 2.f;
+		const float rotationSmoothLambda = 6.f;
 
 		// Safety clamp for large dt spikes.
 		const float clampedDt = std::fminf( m_deltaTime, 0.05f );
 
-		// Compute smoothing factor (frame-rate independent).
-		const float sFactor = 1.f - std::exp( -lambda_ * clampedDt );
+		// Compute smoothing factor for movement (frame-rate independent).
+		const float sTransFactor = 1.f - std::exp( -lerpLambda * clampedDt );
 
 		// Linear interpolation toward the target.
-		m_currOffsetX += (m_targetOffsetX - m_currOffsetX) * sFactor;
-		m_currOffsetY += (m_targetOffsetY - m_currOffsetY) * sFactor;
+		m_currOffsetX += (m_targetOffsetX - m_currOffsetX) * sTransFactor;
+		m_currOffsetY += (m_targetOffsetY - m_currOffsetY) * sTransFactor;
+
+		// Compute smoothing factor for rotation (frame-rate independent).
+		const float sRotFactor = 1.f - std::exp( -rotationSmoothLambda * clampedDt );
+
+		// Linear interpolation toward the target.
+		m_currRotation += (m_targetRotation - m_currRotation) * sRotFactor;
 
 		// Don't allow the center of the geometry to leave the screen when moving around.
 		m_currOffsetX = std::clamp( m_currOffsetX, -1.f, 1.f );
 		m_currOffsetY = std::clamp( m_currOffsetY, -1.f, 1.f );
 
-		DirectX::XMMATRIX T = DirectX::XMMatrixTranslation( m_currOffsetX, m_currOffsetY, 0.0f );
-		XMStoreFloat4x4( &m_transformData.mat, DirectX::XMMatrixTranspose( T ) );
+		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation( m_currOffsetX, m_currOffsetY, 0.0f );
+		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationZ( m_currRotation );
+
+		// Multiplication order matters!
+		// Translation then rotation around geometry own center. Otherwise - around world origin.
+		DirectX::XMMATRIX M = Rot * Trans;
+
+		XMStoreFloat4x4( &m_transformData.mat, DirectX::XMMatrixTranspose( M ) );
 
 		memcpy( m_transformCBMappedPtr, &m_transformData, sizeof( m_transformData ) );
 

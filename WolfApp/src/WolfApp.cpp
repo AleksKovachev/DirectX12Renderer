@@ -20,6 +20,9 @@ bool WolfApp::init() {
 		this, &WolfApp::OnViewportOffsetChanged
 	);
 
+	connect( m_mainWin->viewport, &WolfViewportWidget::mouseRotationChanged,
+		this, &WolfApp::OnViewportRotationChanged );
+
 	m_mainWin->show();
 
 	m_renderer.PrepareForRendering( m_mainWin->viewport->GetNativeWindowHandle() );
@@ -64,4 +67,8 @@ void WolfApp::RenderFrame() {
 
 void WolfApp::OnViewportOffsetChanged( float ndcX, float ndcY ) {
 	m_renderer.AddToTargetOffset( ndcX, ndcY );
+}
+
+void WolfApp::OnViewportRotationChanged( float deltaAngle ) {
+	m_renderer.AddToTargetRotation( deltaAngle );
 }

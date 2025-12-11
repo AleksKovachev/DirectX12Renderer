@@ -58,9 +58,14 @@ protected:
 
 	void mousePressEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
+			// Save current mouse coordinates as last mouse position on left click.
 			m_LMBDown = true;
-			m_initialClickPos = event->pos();
 			m_lastPos = event->pos();
+		}
+		else if ( event->button() == Qt::RightButton ) {
+			// Save current mouse coordinates as last mouse position on right click.
+			m_RMBDown = true;
+			m_lastRMBPos = event->pos();
 		}
 
 		// Allow propagation if parent needs events.
@@ -69,6 +74,7 @@ protected:
 
 	void mouseMoveEvent( QMouseEvent* event ) override {
 		if ( m_LMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
 			QPoint offset{ event->pos() - m_lastPos };
 			m_lastPos = event->pos();
 
@@ -77,6 +83,16 @@ protected:
 			float ndcY = -((static_cast<float>( offset.y() ) / height()) * 2.f);
 
 			emit mouseOffsetChanged( ndcX, ndcY );
+		}
+		else if ( m_RMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
+			QPoint delta{ event->pos() - m_lastRMBPos };
+			m_lastRMBPos = event->pos();
+
+			// Horizontal mouse movement controls Z rotation (Z = from-towards screen).
+			float deltaAngle{ static_cast<float>(delta.x()) * 0.01f };
+
+			emit mouseRotationChanged( deltaAngle );
 		}
 
 		// Allow propagation if parent needs events.
@@ -87,18 +103,24 @@ protected:
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
 		}
+		else if ( event->button() == Qt::RightButton ) {
+			m_RMBDown = false;
+		}
+
 
 		// Allow propagation if parent needs events.
 		QWidget::mouseReleaseEvent( event );
 	}
 private:
 	QImage m_image;
-	QPoint m_initialClickPos;
 	bool m_LMBDown{ false };
+	bool m_RMBDown{ false };
 	QPoint m_lastPos{};
+	QPoint m_lastRMBPos{};
 
 signals:
 	void mouseOffsetChanged( float offsetX, float offsetY );
+	void mouseRotationChanged( float deltaAngle );
 
 };
 

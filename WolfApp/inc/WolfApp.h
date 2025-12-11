@@ -42,6 +42,7 @@ private: // Members
 
 private slots:
 	void OnViewportOffsetChanged( float ndcX, float ndcY );
+	void OnViewportRotationChanged( float deltaAngle );
 };
 
 

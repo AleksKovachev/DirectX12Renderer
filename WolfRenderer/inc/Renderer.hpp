@@ -53,7 +53,13 @@ namespace Core {
 		/// Lets the GPU finihs rendering before closing the application.
 		void StopRendering();
 
+		/// Recieves mouse offset coordinates and clamp-adds them to the target offset.
+		/// @param[in] dx   The X-axis offset.
+		/// @param[in] dy   The Y-axis offset.
 		void AddToTargetOffset( float dx, float dy );
+
+		/// Recieves mouse offset coordinates and adds them to the target rotation.
+		void AddToTargetRotation( float deltaAngle );
 	private: // Functions
 
 		/// Create ID3D12Device, an interface which allows access to the GPU
@@ -192,12 +198,16 @@ namespace Core {
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
 
+		// Members related to geometry transform with mouse movemet.
 		UINT8* m_transformCBMappedPtr = nullptr;
 
 		float m_currOffsetX{};
 		float m_currOffsetY{};
 		float m_targetOffsetX{};
 		float m_targetOffsetY{};
+		float m_currRotation{};   // Radians
+		float m_targetRotation{}; // Radians
+		float m_rotationSensitivity{ 1.f };
 		float m_deltaTime{};
 
 		struct alignas(256) TransformData {
