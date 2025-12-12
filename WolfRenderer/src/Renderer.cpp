@@ -2,6 +2,7 @@
 #include "utils.hpp" // checkHR, wideStrToUTF8
 
 #include "d3dx12_core.h"
+#include "d3dx12_root_signature.h"
 
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
@@ -57,50 +58,6 @@ namespace Core {
 		log.SetMinLevel( level );
 	}
 
-	void WolfRenderer::PrepareForRendering( HWND hWnd ) {
-		if ( m_isPrepared ) {
-			log( "GPU already prepared." );
-			return;
-		}
-		log( "Starting renderer initialization..." );
-
-		CreateDevice(); // Creates Factory, Adapter, Device
-		CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
-		CreateSwapChain( hWnd );
-		CreateDescriptorHeapForSwapChain();
-		CreateRenderTargetViewsFromSwapChain();
-
-		CreateFence();
-
-		CreateVertexBuffer();
-		CreateRootSignature();
-		CreatePipelineState();
-		CreateViewport();
-
-		m_isPrepared = true;
-	}
-
-	void WolfRenderer::RenderFrame() {
-		FrameBegin();
-
-		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
-
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, m_frameIdx, 0 );
-
-		m_cmdList->SetPipelineState( m_pipelineState.Get() );
-
-		// IA stands for Input Assembler
-		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
-
-		m_cmdList->RSSetViewports( 1, &m_viewport );
-		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
-
-		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
-
-		FrameEnd();
-	}
-
 	void WolfRenderer::WriteImageToFile( const char* fileName ) {
 		void* renderData;
 		HRESULT hr = m_readbackBuff->Map( 0, nullptr, &renderData );
@@ -151,9 +108,97 @@ namespace Core {
 		m_readbackBuff->Unmap( 0, nullptr );
 	}
 
+	void WolfRenderer::PrepareForRendering( HWND hWnd ) {
+		if ( m_isPrepared ) {
+			log( "GPU already prepared." );
+			return;
+		}
+		log( "Starting renderer initialization..." );
+
+		CreateDevice(); // Creates Factory, Adapter, Device
+		CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
+		CreateSwapChain( hWnd );
+		CreateDescriptorHeapForSwapChain();
+		CreateRenderTargetViewsFromSwapChain();
+
+		CreateFence();
+
+		CreateVertexBuffer();
+		CreateRootSignature();
+		CreatePipelineState();
+		CreateViewport();
+
+		m_isPrepared = true;
+	}
+
 	void WolfRenderer::StopRendering() {
 		log( "Stopping renderer!" );
 		WaitForGPURenderFrame();
+	}
+
+	void WolfRenderer::RenderFrame( float offsetX, float offsetY ) {
+		FrameBegin();
+
+		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
+
+		// IA stands for Input Assembler
+		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
+
+		m_cmdList->RSSetViewports( 1, &m_viewport );
+		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
+
+		// Mask the offset float values as uint values.
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>( m_frameIdx ), 0 );
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetX), 1);
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetY), 2);
+
+		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
+
+		FrameEnd();
+	}
+
+	void WolfRenderer::FrameBegin() {
+		ResetCommandAllocatorAndList();
+
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
+		// Set which Render Target will be used for rendering.
+		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
+		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+	}
+
+	void WolfRenderer::FrameEnd() {
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
+		HRESULT hr{ m_cmdList->Close() };
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to close command list!", hr, log, LogLevel::Error );
+
+		// Execute the command list.
+		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
+		m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+
+		// Present the frame.
+		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to present the frame!", hr, log, LogLevel::Error );
+
+		// Increment m_fenceValue for every operation
+		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
+
+		WaitForGPURenderFrame();
+
+		++m_frameIdx;
+		m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
 	}
 
 	void WolfRenderer::CreateDevice() {
@@ -400,48 +445,6 @@ namespace Core {
 		}
 	}
 
-	void WolfRenderer::FrameBegin() {
-		ResetCommandAllocatorAndList();
-
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		m_cmdList->ResourceBarrier( 1, &barrier );
-
-		// Set which Render Target will be used for rendering.
-		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
-		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
-		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
-	}
-
-	void WolfRenderer::FrameEnd() {
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		m_cmdList->ResourceBarrier( 1, &barrier );
-
-		HRESULT hr{ m_cmdList->Close() };
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to close command list!", hr, log, LogLevel::Error );
-
-		// Execute the command list.
-		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
-		m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
-
-		// Present the frame.
-		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to present the frame!", hr, log, LogLevel::Error );
-
-		// Increment m_fenceValue for every operation
-		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
-
-		WaitForGPURenderFrame();
-
-		++m_frameIdx;
-		m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
-	}
-
 	void WolfRenderer::CreateSwapChain( HWND hWnd ) {
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
 		swapChainDesc.Width = m_renderWidth;
@@ -594,31 +597,24 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER rootParams[1];
-		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[0].Constants.ShaderRegister = 0;
-		rootParams[0].Constants.RegisterSpace = 0;
-		rootParams[0].Constants.Num32BitValues = 1;
+		CD3DX12_ROOT_PARAMETER1 rootParam;
+		rootParam.InitAsConstants( 3, 0, 0, D3D12_SHADER_VISIBILITY_ALL );
 
-		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
-		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSignatureDesc.NumParameters = _countof( rootParams );
-		rootSignatureDesc.pParameters = rootParams;
+		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
+		rootSignatureDesc.Init_1_1( 1, &rootParam, 0, nullptr,
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT );
 
 		ComPtr<ID3DBlob> signatureBlob;
 		ComPtr<ID3DBlob> errorBlob;
-		HRESULT hr = D3D12SerializeRootSignature(
+		HRESULT hr = D3D12SerializeVersionedRootSignature(
 			&rootSignatureDesc,
-			D3D_ROOT_SIGNATURE_VERSION_1,
 			&signatureBlob,
 			&errorBlob
 		);
 
 		if ( errorBlob ) {
-			std::string msg{ std::format( "Root Signature Error: {}",
-				(char*)errorBlob->GetBufferPointer() ) };
-			log( msg, LogLevel::Error );
+			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
+			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
 		}
 		checkHR( "Failed to serialize root signature.", hr, log );
 

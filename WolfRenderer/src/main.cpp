@@ -12,7 +12,7 @@ int main() {
 		std::chrono::high_resolution_clock::now() };
 
 	//renderer.PrepareForRendering();
-	renderer.RenderFrame();
+	renderer.RenderFrame( 0.f, 0.f );
 	renderer.WriteImageToFile( "output.ppm" );
 
 	std::chrono::high_resolution_clock::time_point stop{

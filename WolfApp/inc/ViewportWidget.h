@@ -2,6 +2,7 @@
 #define VIEWPORT_WIDGET_H
 
 #include <QImage>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QWidget>
 
@@ -55,8 +56,50 @@ protected:
 		painter.drawImage( rect(), m_image );
 	}
 
+	void mousePressEvent( QMouseEvent* event ) override {
+		if ( event->button() == Qt::LeftButton ) {
+			m_LMBDown = true;
+			m_initialPos = event->pos();
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::mousePressEvent( event );
+	}
+
+	void mouseMoveEvent( QMouseEvent* event ) override {
+		if ( m_LMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
+			QPoint offset{ event->pos() - m_initialPos };
+
+			// Convert to NDC (Normalized Device Coordinates): [-1, 1]
+			emit onCameraPan(
+				static_cast<float>(offset.x() + m_lastPos.x()) / width() * 2.f,
+				static_cast<float>(offset.y() + m_lastPos.y()) / height() * 2.f
+			);
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::mouseMoveEvent( event );
+	}
+
+	void mouseReleaseEvent( QMouseEvent* event ) override {
+		if ( event->button() == Qt::LeftButton ) {
+			m_LMBDown = false;
+			m_lastPos = m_lastPos + event->pos() - m_initialPos;
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::mouseReleaseEvent( event );
+	}
+
 private:
 	QImage m_image;
+	QPoint m_initialPos;
+	QPoint m_lastPos;
+	bool m_LMBDown{ false };
+
+signals:
+	void onCameraPan( float offsetX, float offsetY );
 };
 
 #endif // VIEWPORT_WIDGET_H
