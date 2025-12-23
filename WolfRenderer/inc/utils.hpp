@@ -5,6 +5,8 @@
 
 #include "Logger.hpp" // Logger
 
+#define CHECK_HR(msg, hr, log) checkHR( std::format("{}\n[{}, {}]", msg, __func__, __LINE__), hr, log );
+
 
 /// Checks an HRESULT and thread-safely logs an error if needed. Terminates the program.
 void checkHR(
