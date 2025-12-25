@@ -23,6 +23,8 @@ public slots:
 	/// Close the editor properly, wait for the current GPU tasks.
 	void OnQuit();
 
+	void OnRenderModeChanged( bool );
+
 private: // Functions
 	/// Create the main window for the editor.
 	bool InitWindow();
@@ -32,6 +34,9 @@ private: // Functions
 
 	/// Update the rendering stats based on the FPS timer.
 	void UpdateRenderStats();
+
+	/// Set the rendering mode both in the renderer and the GUI.
+	void SetRenderMode( Core::RenderMode );
 
 private: // Members
 	Core::WolfRenderer m_renderer; //!< The actual GPU DX12 renderer.
@@ -43,7 +48,7 @@ private: // Members
 	float m_offsetY{};
 
 private slots:
-	void onCameraPan( float offsetX, float offsetY );
+	void onCameraPan( float, float );
 };
 
 

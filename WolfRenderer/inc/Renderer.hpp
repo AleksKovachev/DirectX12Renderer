@@ -26,14 +26,25 @@ struct IDxcBlob;
 
 namespace Core {
 
+	// The mode to use for rendering.
 	enum class RenderMode {
 		Rasterization,
 		RayTracing
 	};
 
+	// The preparation needed before rendering. Use Both to switch between modes.
+	enum class RenderPreparation {
+		Rasterization,
+		RayTracing,
+		Both
+	};
+
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
-	public:
+	public: // Memebrs.
+		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
+
+	public: // Functions.
 		/// Constructor
 		/// @param[in] renderWidth   Render resolution width.
 		/// @param[in] renderHeight  Render resolution height.
@@ -63,6 +74,8 @@ namespace Core {
 		/// @param[in] offsetY  Offset in pixels to pass to the geometry for the Y axis.
 		void RenderFrame( float, float );
 
+		/// Sets the rendering mode to the provided one.
+		void SetRenderMode( RenderMode );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -287,19 +300,21 @@ namespace Core {
 		// Descriptions for the ray tracing pipeline state sub-objects.
 		//
 		D3D12_EXPORT_DESC m_rayGenExportDesc{};
+		D3D12_DXIL_LIBRARY_DESC m_rayGenLibDesc{};
 		D3D12_EXPORT_DESC m_missExportDesc{};
+		D3D12_DXIL_LIBRARY_DESC m_missLibDesc{};
 		D3D12_RAYTRACING_SHADER_CONFIG m_shaderConfig{};
 		D3D12_RAYTRACING_PIPELINE_CONFIG m_pipelineConfig{};
 		D3D12_GLOBAL_ROOT_SIGNATURE m_globalRootSignatureDesc{};
 
-
+		// Shader blobs for ray tracing library sub-objects.
 		ComPtr<IDxcBlob> m_rayGenBlob{ nullptr };
 		ComPtr<IDxcBlob> m_missBlob{ nullptr };
+
+		/// Shader Binding Table resources and dispatch description.
 		ComPtr<ID3D12Resource> m_sbtUploadBuff{ nullptr };
 		ComPtr<ID3D12Resource> m_sbtDefaultBuff{ nullptr };
 		D3D12_DISPATCH_RAYS_DESC m_dispatchRaysDesc{};
-		D3D12_DXIL_LIBRARY_DESC m_rayGenLibDesc{};
-		D3D12_DXIL_LIBRARY_DESC m_missLibDesc{};
 
 		size_t m_frameIdx{ 0 };     ///< Current frame index.
 		bool m_isPrepared{ false }; ///< Flag indicating if the renderer is prepared.
@@ -309,7 +324,7 @@ namespace Core {
 		UINT m_bufferCount{};       ///< Number of buffers in the swap chain.
 		UINT m_rtvDescriptorSize{}; ///< Size of the RTV descriptor.
 		UINT m_scFrameIdx{ 0 };     ///< Swap Chain frame index.
-		RenderMode m_renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
+		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
 	};
 
 	/// Simple vertex structure with 2D position.
@@ -318,6 +333,7 @@ namespace Core {
 		float y;
 	};
 
+	/// Calculates the aligned size for a given size and alignment.
 	inline UINT alignedSize( UINT size, UINT alignBytes ) {
 		return alignBytes * (size / alignBytes + (size % alignBytes ? 1 : 0));
 	}

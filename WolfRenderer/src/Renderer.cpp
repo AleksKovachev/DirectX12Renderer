@@ -45,6 +45,7 @@ namespace Core {
 			debugController->EnableDebugLayer();
 			debugController->Release();
 		}
+		log( "Debug layer initialized." );
 #endif // _DEBUG
 	// Fill the render targets and RTV handles vectors.
 		for ( UINT i{}; i < bufferCount; ++i ) {
@@ -54,13 +55,32 @@ namespace Core {
 	}
 
 	WolfRenderer::~WolfRenderer() {
-		log( "\n    => Closing application." );
+		log( "    => Closing application." );
 		if ( m_fenceEvent != nullptr )
 			CloseHandle( m_fenceEvent );
 	}
 
 	void WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
 		log.SetMinLevel( level );
+		std::string logLevel{};
+		switch (level) {
+			case LogLevel::Debug:
+				logLevel = "Debug";
+				break;
+			case LogLevel::Info:
+				logLevel = "Info";
+				break;
+			case LogLevel::Warning:
+				logLevel = "Warning";
+				break;
+			case LogLevel::Error:
+				logLevel = "Error";
+				break;
+			case LogLevel::Critical:
+				logLevel = "Critical";
+				break;
+		}
+		log( "Minimum loggig level set to: " + logLevel);
 	}
 
 	void WolfRenderer::WriteImageToFile( const char* fileName ) {
@@ -127,9 +147,13 @@ namespace Core {
 		CreateDescriptorHeapForSwapChain();
 		CreateRenderTargetViewsFromSwapChain();
 
-		if ( m_renderMode == RenderMode::Rasterization )
+		if ( m_prepMode == RenderPreparation::Both
+			|| m_prepMode == RenderPreparation::Rasterization
+		)
 			PrepareForRasterization();
-		else if ( m_renderMode == RenderMode::RayTracing )
+		if ( m_prepMode == RenderPreparation::Both
+			|| m_prepMode == RenderPreparation::RayTracing
+		)
 			PrepareForRayTracing();
 
 		m_isPrepared = true;
@@ -141,16 +165,21 @@ namespace Core {
 	}
 
 	void WolfRenderer::RenderFrame( float offsetX, float offsetY ) {
-		if ( m_renderMode == RenderMode::RayTracing ) {
+		if ( renderMode == RenderMode::RayTracing ) {
 			FrameBeginRayTracing();
 			RenderFrameRayTracing();
 			FrameEndRayTracing();
-		} else if ( m_renderMode == RenderMode::Rasterization ) {
+		} else if ( renderMode == RenderMode::Rasterization ) {
 			FrameBeginRasterization();
 			RenderFrameRasterization( offsetX, offsetY );
 			FrameEndRasterization();
 		}
 		FrameEnd();
+	}
+
+	void WolfRenderer::SetRenderMode( RenderMode newRenderMode ) {
+		WaitForGPUSync();
+		renderMode = newRenderMode;
 	}
 
 	/*  #####     ###    ##   ##    ######  #####     ###    ######  ######
@@ -164,6 +193,7 @@ namespace Core {
 		CreateRayTracingPipelineState();
 		CreateRayTracingShaderTexture();
 		CreateShaderBindingTable();
+		log( "[ Ray Tracing ] Successful preparation." );
 	}
 
 	void WolfRenderer::FrameBeginRayTracing() {
@@ -258,6 +288,8 @@ namespace Core {
 			IID_PPV_ARGS( &m_globalRootSignature )
 		);
 		CHECK_HR( "CreateRootSignature failed.", hr, log );
+
+		log( "[ Ray Tracing ] Global root signature created." );
 	}
 
 	void WolfRenderer::CreateRayTracingPipelineState() {
@@ -288,6 +320,8 @@ namespace Core {
 			IID_PPV_ARGS( &m_rtStateObject )
 		);
 		CHECK_HR( "Failed to create ray tracing pipeline state object.", hr, log );
+
+		log( "[ Ray Tracing ] Pipeline state created." );
 	}
 
 	D3D12_STATE_SUBOBJECT WolfRenderer::CreateRayGenLibSubObject() {
@@ -308,6 +342,8 @@ namespace Core {
 		D3D12_STATE_SUBOBJECT rayGenLibSubobject{};
 		rayGenLibSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
 		rayGenLibSubobject.pDesc = &m_rayGenLibDesc;
+
+		log( "[ Ray Tracing ] Ray generation library pipeline state sub-object created." );
 
 		return rayGenLibSubobject;
 	}
@@ -331,6 +367,8 @@ namespace Core {
 		missLibSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
 		missLibSubobject.pDesc = &m_missLibDesc;
 
+		log( "[ Ray Tracing ] Miss shader library pipeline state sub-object created." );
+
 		return missLibSubobject;
 	}
 
@@ -344,6 +382,8 @@ namespace Core {
 		shaderConfigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
 		shaderConfigSubobject.pDesc = &m_shaderConfig;
 
+		log( "[ Ray Tracing ] Shader configuration pipeline state sub-object created." );
+
 		return shaderConfigSubobject;
 	}
 
@@ -355,6 +395,8 @@ namespace Core {
 		pipelineConfigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
 		pipelineConfigSubobject.pDesc = &m_pipelineConfig;
 
+		log( "[ Ray Tracing ] Pipeline configuration pipeline state sub-object created." );
+
 		return pipelineConfigSubobject;
 	}
 
@@ -364,6 +406,8 @@ namespace Core {
 		D3D12_STATE_SUBOBJECT rootSignatureSubobject{};
 		rootSignatureSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 		rootSignatureSubobject.pDesc = &m_globalRootSignatureDesc;
+
+		log( "[ Ray Tracing ] Global root signature pipeline state sub-object created." );
 
 		return rootSignatureSubobject;
 	}
@@ -411,6 +455,8 @@ namespace Core {
 			&uavDesc,
 			m_uavHeap->GetCPUDescriptorHandleForHeapStart()
 		);
+
+		log( "[ Ray Tracing ] Shader output texture created." );
 	}
 
 	void WolfRenderer::CreateShaderBindingTable() {
@@ -435,6 +481,8 @@ namespace Core {
 		CopySBTDataToUploadHeap( rayGenShaderID );
 		CopySBTDataToDefaultHeap();
 		PrepareDispatchRayDesc( sbtSize );
+
+		log( "[ Ray Tracing ] Shader binding table created." );
 	}
 
 	void WolfRenderer::CreateSBTUploadHeap( UINT sbtSize ) {
@@ -451,6 +499,8 @@ namespace Core {
 			IID_PPV_ARGS( &m_sbtUploadBuff )
 		);
 		CHECK_HR( "Failed to create SBT upload buffer.", hr, log );
+
+		log( "[ Ray Tracing ] SBT upload heap created." );
 	}
 
 	void WolfRenderer::CreateSBTDefaultHeap( UINT sbtSize ) {
@@ -467,6 +517,8 @@ namespace Core {
 			IID_PPV_ARGS( &m_sbtDefaultBuff )
 		);
 		CHECK_HR( "Failed to create SBT upload buffer.", hr, log );
+
+		log( "[ Ray Tracing ] SBT default heap created." );
 	}
 
 	void WolfRenderer::CopySBTDataToUploadHeap( void* rayGenShaderID ) {
@@ -476,6 +528,8 @@ namespace Core {
 
 		memcpy( pData, rayGenShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES );
 		m_sbtUploadBuff->Unmap( 0, nullptr );
+
+		log( "[ Ray Tracing ] SBT data copied to upload heap." );
 	}
 
 	void WolfRenderer::CopySBTDataToDefaultHeap() {
@@ -496,6 +550,8 @@ namespace Core {
 		m_cmdQueue->ExecuteCommandLists( _countof( ppCmdLists ), ppCmdLists );
 
 		WaitForGPUSync();
+
+		log( "[ Ray Tracing ] SBT data copied from upload heap to default heap." );
 	}
 
 	void WolfRenderer::PrepareDispatchRayDesc( UINT sbtSize ) {
@@ -508,6 +564,8 @@ namespace Core {
 		m_dispatchRaysDesc.MissShaderTable = {};
 		m_dispatchRaysDesc.HitGroupTable = {};
 		m_dispatchRaysDesc.CallableShaderTable = {};
+
+		log( "[ Ray Tracing ] Dispatch ray description prepared." );
 	}
 
 	ComPtr<IDxcBlob> WolfRenderer::CompileShader(
@@ -580,6 +638,9 @@ namespace Core {
 		hr = result->GetResult( &shaderBlob );
 		CHECK_HR( "Failed to get compiled shader blob.", hr, log );
 
+		log( std::format( "[ Ray Tracing ] Copiled shader: {} with entry point: {}.",
+			filePathStr, wideStrToUTF8( entryPoint ) ) );
+
 		return shaderBlob;
 	}
 
@@ -636,6 +697,7 @@ namespace Core {
 		CreatePipelineState();
 		CreateVertexBuffer();
 		CreateViewport();
+		log( "[ Rasterization ] Successful preparation." );
 	}
 
 	void WolfRenderer::CreateRootSignature() {
@@ -667,7 +729,7 @@ namespace Core {
 			IID_PPV_ARGS( &m_rootSignature )
 		);
 		CHECK_HR( "CreateRootSignature failed.", hr, log );
-		log( "Root Signature created successfully." );
+		log( "[ Rasterization ] Root signature created." );
 	}
 
 	void WolfRenderer::CreatePipelineState() {
@@ -698,6 +760,7 @@ namespace Core {
 			IID_PPV_ARGS( &m_pipelineState )
 		);
 		CHECK_HR( "Failed to create pipeline state.", hr, log );
+		log( "[ Rasterization ] Pipeline state created." );
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
@@ -782,7 +845,7 @@ namespace Core {
 		m_vbView.StrideInBytes = sizeof( Vertex );
 		m_vbView.SizeInBytes = vertSize;
 
-		log( "Vertex Buffer successfully uploaded to GPU Default Heap." );
+		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
 	}
 
 	void WolfRenderer::CreateViewport() {
@@ -797,6 +860,7 @@ namespace Core {
 		m_scissorRect.top = 0;
 		m_scissorRect.right = m_renderWidth;
 		m_scissorRect.bottom = m_renderHeight;
+		log( "[ Rasterization ] Viewport set up." );
 	}
 
 	/*  ######  ######  ###     ###	 ###     ###  ######  ###     ##
@@ -892,7 +956,7 @@ namespace Core {
 		HRESULT hr = m_adapter->GetDesc1( &desc );
 		CHECK_HR( "Failed to get adapter description.", hr, log );
 
-		log( wideStrToUTF8( std::format( L"Adapter: {}\n", desc.Description ) ) );
+		log( wideStrToUTF8( std::format( L"Adapter: {}", desc.Description ) ) );
 		log( std::format( "Dedicated Video Memory: {} MB",
 			desc.DedicatedVideoMemory / (1024 * 1024) ) );
 		log( std::format( "Device ID: {}", desc.DeviceId ) );
@@ -943,7 +1007,6 @@ namespace Core {
 	void WolfRenderer::CreateFence() {
 		// Create a fence for GPU-CPU synchronization
 		HRESULT hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &m_fence ) );
-
 		CHECK_HR( "Failed creating a Fence.", hr, log );
 
 		// Create an event handle for the fence ( wait )
@@ -993,7 +1056,7 @@ namespace Core {
 		hr = swapChain1->QueryInterface( IID_PPV_ARGS( &m_swapChain ) );
 		CHECK_HR( "Failed to convert Swap Chain output to newer version.", hr, log );
 
-		log( "Swap Chain created successfully!" );
+		log( "Swap Chain created." );
 	}
 
 	void WolfRenderer::CreateDescriptorHeapForSwapChain() {
@@ -1031,7 +1094,7 @@ namespace Core {
 				m_rtvHandles[scBuffIdx]
 			);
 		}
-		log( "Render target views created successfully." );
+		log( "Render target views created from swap chain." );
 	}
 
 	void WolfRenderer::ResetCommandAllocatorAndList() {

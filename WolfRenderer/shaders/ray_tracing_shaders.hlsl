@@ -2,12 +2,17 @@ RWTexture2D<float4> frameTexture : register( u0 );
 
 [shader("raygeneration")]
 void rayGen() {
-    float width = 800.f;
-    float height = 800.f;
+    // Render resolution. Z channel is depth.
+    // DispatchRaysDimensions() gets the dimensions specified in DispatchRays call.
+    uint2 res = DispatchRaysDimensions().xy;
+    float width = float( res.x );
+    float height = float( res.y );
 
+    // RayDesc struct is built-in HLSL struct for ray description.
     RayDesc cameraRay;
     cameraRay.Origin = float3( 0.f, 0.f, 0.f );
 
+    // Get raster coords of the current pixel being processed.
     uint2 pixelRasterCoord = DispatchRaysIndex().xy;
 
     // Fill the frame with blue color on hit.
@@ -16,9 +21,9 @@ void rayGen() {
     float x = pixelRasterCoord.x;
     float y = pixelRasterCoord.y;
 
-    // Create a simple gradient based on pixel coordinates.
-    // float rasterR = ( x % 256 ) / 255.f;
-    // float rasterG = ( y % 256 ) / 255.f;
+    // Create a gradient represented by the pixel raster coordinates.
+    // float rasterR = ( x % 100 ) / 255.f;
+    // float rasterG = ( y % 100 ) / 255.f;
     // cameraRay.Direction = float3( rasterR, rasterG, 0.f );
     // frameTexture[pixelRasterCoord] = float4( cameraRay.Direction, 1.f );
 
@@ -30,7 +35,7 @@ void rayGen() {
     x /= width;
     y /= height;
 
-    // Distribute gradient to all pixels for full screen gradient.
+    // Now the gradient is one - for the whole screen, not per pixel.
     // cameraRay.Direction = float3( x, y, 0.f );
     // frameTexture[pixelRasterCoord] = float4( cameraRay.Direction, 1.f );
 
