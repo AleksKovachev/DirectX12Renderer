@@ -60,7 +60,7 @@ void Renderer::AssignAdapter() {
 
 	while ( m_dxgiFactory->EnumAdapters1( adapterIdx, &adapter ) != DXGI_ERROR_NOT_FOUND ) {
 		DXGI_ADAPTER_DESC1 desc{};
-		HRESULT hr = adapter->GetDesc1( &desc );
+		HRESULT hr = m_adapter->GetDesc1( &desc );
 
 		checkHR( std::format( "Failed to get description for adapter index {}", adapterIdx ), hr, log );
 
@@ -85,7 +85,7 @@ void Renderer::AssignAdapter() {
 		}
 
 		hwIDs.emplace_back( desc.DeviceId, desc.VendorId );
-		adapters.push_back( adapter );
+		adapters.push_back( m_adapter );
 		++adapterIdx;
 	}
 
@@ -403,4 +403,78 @@ void Renderer::WriteImageToFile( const char* fileName ) {
 
 void Renderer::SetLoggerMinLevel( LogLevel level ) {
 	log.SetMinLevel( level );
+}
+
+void Renderer::CreateGPUTexture() {
+	m_textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2D texture
+	m_textureDesc.Width = 1920;                        // Width in pixels
+	m_textureDesc.Height = 1080;                       // Height in pixels
+	m_textureDesc.DepthOrArraySize = 1;                // Single texture (not an array)
+	m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit RGBA format (8-bit per channel)
+	m_textureDesc.SampleDesc.Count = 1;                // No multisampling
+	m_textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET; // No special flags
+	m_textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // Let the system choose the layout
+
+	D3D12_HEAP_PROPERTIES heapProps{};
+	heapProps.Type = D3D12_HEAP_TYPE_DEFAULT; // Default heap for GPU access
+
+	HRESULT hr{ m_device->CreateCommittedResource(
+		&heapProps,           // Heap properties defining the memory type and location.
+		D3D12_HEAP_FLAG_NONE, // Heap flags (none for standard usage).
+		&m_textureDesc,        // Resource description (size, format, usage, etc.).
+		D3D12_RESOURCE_STATE_RENDER_TARGET, // Initial resource state.
+		nullptr,              // Optimized clear value (optional, nullptr if not needed).
+		IID_PPV_ARGS( &m_renderTarget ) // The Interface ID and output pointer.
+	) };
+
+	if ( FAILED( hr ) ) {
+		log( std::format( "Failed to create GPU Resource. HRESULT: {:#x}", hr ),
+			LogLevel::Critical );
+		return;
+	}
+}
+
+void Renderer::CreateRenderTargetView() {
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // Render Target View heap
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // No special flags
+	heapDesc.NodeMask = 0; // Single GPU
+
+	HRESULT hr{ m_device->CreateDescriptorHeap(
+		&heapDesc,                      // Descriptor heap description
+		IID_PPV_ARGS( &m_descriptorHeap ) // The Interface ID and output pointer
+	) };
+
+	if ( FAILED( hr ) ) {
+		log( std::format( "Failed to create Descriptor Heap. HRESULT: {:#x}", hr ),
+			LogLevel::Critical );
+		return;
+	}
+
+	m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+	m_device->CreateRenderTargetView(
+		m_renderTarget.Get(), // The resource for which the RTV is created.
+		nullptr,              // RTV description (nullptr for default).
+		m_rtvHandle           // CPU descriptor handle where the RTV will be stored.
+	);
+}
+
+void Renderer::GenerateConstColorTexture() {
+	m_cmdList->OMSetRenderTargets(
+		1,          // Number of render targets
+		&m_rtvHandle, // Array of render target handles
+		FALSE,      // Whether to use a single handle for all render targets
+		nullptr     // Optional depth-stencil view handle
+	);
+
+	const float clearColor[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+
+	m_cmdList->ClearRenderTargetView(
+		m_rtvHandle,  // Render target handle
+		clearColor, // Clear color
+		0,          // Number of rectangles to clear
+		nullptr     // Optional array of rectangles to clear
+	);
 }
