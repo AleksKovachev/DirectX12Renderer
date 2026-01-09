@@ -32,7 +32,21 @@ bool WolfApp::init() {
 	connect( m_fpsTimer, &QTimer::timeout, this, &WolfApp::UpdateRenderStats );
 	m_fpsTimer->start( 1'000 ); // Update FPS every second.
 
+	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled, this,
+		&WolfApp::OnRenderModeChanged );
+
 	return true;
+}
+
+void WolfApp::OnRenderModeChanged( bool rayTracingEnabled ) {
+	m_idleTimer->stop();
+	m_fpsTimer->stop();
+
+	SetRenderMode( rayTracingEnabled
+		? Core::RenderMode::RayTracing : Core::RenderMode::Rasterization );
+
+	m_idleTimer->start( 0 );
+	m_fpsTimer->start( 1'000 );
 }
 
 void WolfApp::OnQuit() {
@@ -50,9 +64,17 @@ void WolfApp::UpdateRenderStats() {
 	m_frameIdxAtLastFPSCalc = 0;
 }
 
+void WolfApp::SetRenderMode( Core::RenderMode renderMode ) {
+	m_renderer.SetRenderMode( renderMode );
+	m_mainWin->SetRenderMode( renderMode );
+}
+
 bool WolfApp::InitWindow() {
 	m_mainWin = new WolfMainWindow;
 	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
+	connect( m_mainWin->GetActionExit(), &QAction::triggered, this, [this]() {
+		OnQuit(); QApplication::quit(); } );
+	m_mainWin->SetRenderMode( m_renderer.renderMode );
 	return true;
 }
 

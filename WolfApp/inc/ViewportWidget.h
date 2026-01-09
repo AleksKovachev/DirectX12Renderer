@@ -1,6 +1,8 @@
 #ifndef VIEWPORT_WIDGET_H
 #define VIEWPORT_WIDGET_H
 
+#include "Renderer.hpp"
+
 #include <QImage>
 #include <QMouseEvent>
 #include <QPainter>
@@ -15,18 +17,17 @@ public:
 		// Assure no alpha will be used.
 		setAttribute( Qt::WA_OpaquePaintEvent );
 
-		// Reduce unnecessary painting in the background
+		// Reduce unnecessary painting in the background.
 		setAttribute( Qt::WA_NoSystemBackground );
 
 		// Use native window handle. HWND could be passed to DirectX for direct rendering.
 		setAttribute( Qt::WA_NativeWindow );
-		// HWND hwnd = (HWND)winId(); Get the actual handle.
 
 		// Disable system for automatic background filling.
 		setAutoFillBackground( false );
 
-		// Bypass Qt's paint system if using DirectX interop later
-		 setAttribute( Qt::WA_PaintOnScreen, true );
+		// Bypass Qt's paint system if using DirectX interop.
+		setAttribute( Qt::WA_PaintOnScreen, true );
 	}
 
 	/// Change the viewport image with the given one
@@ -40,22 +41,11 @@ public:
 		return reinterpret_cast<HWND>( winId() );
 	}
 
-protected:
-	void paintEvent( QPaintEvent* event ) override {
-		QPainter painter( this );
-
-		// Faster scaling
-		painter.setRenderHint( QPainter::SmoothPixmapTransform, false );
-
-		// If no image, fill with a solid red color to indicate an issue.
-		if ( m_image.isNull() ) {
-			painter.fillRect( rect(), Qt::red );
-			return;
-		}
-
-		painter.drawImage( rect(), m_image );
+	void SetRenderMode( Core::RenderMode renderMode ) {
+		m_renderMode = renderMode;
 	}
 
+protected:
 	void mousePressEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = true;
@@ -71,11 +61,13 @@ protected:
 			// Calculate the offset of current mouse position from last one saved.
 			QPoint offset{ event->pos() - m_initialPos };
 
-			// Convert to NDC (Normalized Device Coordinates): [-1, 1]
-			emit onCameraPan(
-				static_cast<float>(offset.x() + m_lastPos.x()) / width() * 2.f,
-				static_cast<float>(offset.y() + m_lastPos.y()) / height() * 2.f
-			);
+			// Convert to NDC (Normalized Device Coordinates): [-1, 1].
+			// Don't emit in RT mode as the data is only sent to Rasterization.
+			if ( m_renderMode == Core::RenderMode::Rasterization )
+				emit onCameraPan(
+					static_cast<float>(offset.x() + m_lastPos.x()) / width() * 2.f,
+					static_cast<float>(offset.y() + m_lastPos.y()) / height() * 2.f
+				);
 		}
 
 		// Allow propagation if parent needs events.
@@ -85,7 +77,9 @@ protected:
 	void mouseReleaseEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
-			m_lastPos = m_lastPos + event->pos() - m_initialPos;
+			// Don't change position in RT mode as the data is only used in Rasterization.
+			if ( m_renderMode == Core::RenderMode::Rasterization )
+				m_lastPos = m_lastPos + event->pos() - m_initialPos;
 		}
 
 		// Allow propagation if parent needs events.
@@ -97,6 +91,7 @@ private:
 	QPoint m_initialPos;
 	QPoint m_lastPos;
 	bool m_LMBDown{ false };
+	Core::RenderMode m_renderMode;
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );

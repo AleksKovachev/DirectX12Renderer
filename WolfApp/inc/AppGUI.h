@@ -8,7 +8,7 @@
 class WolfMainWindow : public QMainWindow {
 	Q_OBJECT
 
-public:
+public: // Members
 	WolfViewportWidget* viewport{ nullptr };
 
 public:
@@ -24,9 +24,17 @@ public:
 	/// Close the editor properly, wait for the current GPU tasks.
 	void closeEvent( QCloseEvent* event ) override;
 
+	QCheckBox* GetRenderModeSwitch() const;
+
+	WolfViewportWidget* GetViewport() const;
+
+	void SetRenderMode( Core::RenderMode mode );
+
+	QAction* GetActionExit() const;
+
 signals:
 	void requestQuit();
 
-private: // Members
+private:
 	Ui::AppGUI ui;
 };
