@@ -101,6 +101,9 @@ namespace Core {
 		/// Creates a DXIL library sub-object for the ray generation shader.
 		D3D12_STATE_SUBOBJECT CreateRayGenLibSubObject();
 
+		/// Creates a DXIL library sub-object for the closest hit shader.
+		D3D12_STATE_SUBOBJECT CreateClosestHitLibSubObject();
+
 		/// Creates a DXIL library sub-object for the miss shader.
 		D3D12_STATE_SUBOBJECT CreateMissLibSubObject();
 
@@ -112,6 +115,9 @@ namespace Core {
 
 		/// Creates a root signature sub-object for the ray tracing pipeline.
 		D3D12_STATE_SUBOBJECT CreateRootSignatureSubObject();
+
+		/// Creates a hit group sub-object for the ray tracing pipeline.
+		D3D12_STATE_SUBOBJECT CreateHitGroupSubObject();
 
 		/// Creates the output texture for the ray tracing shader.
 		void CreateRayTracingShaderTexture();
@@ -128,15 +134,28 @@ namespace Core {
 		void CreateSBTDefaultHeap( UINT );
 
 		/// Copies the shader binding table data to the upload heap.
+		/// @param[in] rayGenOffset  Offset from the start to the ray generation shader.
+		/// @param[in] missOffset  Offset from the start to the miss shader.
+		/// @param[in] hitGroupOffset  Offset from the start to the hit group.
 		/// @param[in] rayGenShaderID  Pointer to the ray generation shader identifier.
-		void CopySBTDataToUploadHeap( void* );
+		/// @param[in] missShaderID  Pointer to the miss shader identifier.
+		/// @param[in] hitGroupID  Pointer to the hit group identifier.
+		void CopySBTDataToUploadHeap( const UINT, const UINT, const UINT, void*, void*, void* );
 
 		/// Copies the shader binding table data from the upload heap to the default heap.
 		void CopySBTDataToDefaultHeap();
 
 		/// Prepares the D3D12_DISPATCH_RAYS_DESC structure for dispatching rays.
-		/// @param[in] sbtSize  Size of the shader binding table.
-		void PrepareDispatchRayDesc( UINT );
+		/// @param[in] recordSize  Size of any record in the shader binding table.
+		/// @param[in] rayGenOffset  Offset from the start to the ray generation shader.
+		/// @param[in] missOffset  Offset from the start to the miss shader.
+		/// @param[in] hitGroupOffset  Offset from the start to the hit group.
+		void PrepareDispatchRayDesc( const UINT, const UINT, const UINT, const UINT );
+
+		/// Creates the vertices that will be rendered by the pipeline for the frame.
+		/// Uses an upload heap to store the vertices on the CPU memory, the
+		/// GPU will access them using the PCIe.
+		void CreateVertexBufferRT();
 
 		/// Compiles a shader from file.
 		/// @param[in] filePath    Path to the shader file.
@@ -144,6 +163,14 @@ namespace Core {
 		/// @param[in] target      Shader target profile (e.g., "vs_6_0", "ps_6_0", "lib_6_8").
 		ComPtr<IDxcBlob> CompileShader(
 			const std::wstring&, const std::wstring&, const std::wstring& );
+
+		void CreateAccelerationStructures();
+
+		void CreateBLAS();
+
+		void CreateTLAS();
+
+		void CreateTLASShaderResourceView();
 
 		//! Rasterization specific functions.
 
@@ -268,6 +295,8 @@ namespace Core {
 
 		/// The vertices that will be rendered (Stored in GPU Default Heap).
 		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
+		/// The vertices that will be rendered in RT (Stored in GPU Default Heap).
+		ComPtr<ID3D12Resource> m_vertexBufferRT{ nullptr };
 		/// The vertex buffer descriptor.
 		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
 		/// The root signature defining the resources bound to the pipeline.
@@ -291,46 +320,66 @@ namespace Core {
 		/// Handle to the descriptor heap of the output texture.
 		ComPtr<ID3D12DescriptorHeap> m_uavHeap{ nullptr };
 
+		/// Handle to the descriptor heap of the TLAS.
+		ComPtr<ID3D12DescriptorHeap> m_srvHeap{ nullptr };
+
 		/// The global root signature for the ray tracing pipeline.
 		ComPtr<ID3D12RootSignature> m_globalRootSignature{ nullptr };
 
 		/// Handle to the ray tracing pipeline state object.
 		ComPtr<ID3D12StateObject> m_rtStateObject{ nullptr };
 
-		// Descriptions for the ray tracing pipeline state sub-objects.
-		//
+		/* Descriptions for the ray tracing pipeline state sub - objects. */
 		D3D12_EXPORT_DESC m_rayGenExportDesc{};
 		D3D12_DXIL_LIBRARY_DESC m_rayGenLibDesc{};
+		D3D12_EXPORT_DESC m_closestHitExportDesc{};
+		D3D12_DXIL_LIBRARY_DESC m_closestHitLibDesc{};
 		D3D12_EXPORT_DESC m_missExportDesc{};
 		D3D12_DXIL_LIBRARY_DESC m_missLibDesc{};
 		D3D12_RAYTRACING_SHADER_CONFIG m_shaderConfig{};
 		D3D12_RAYTRACING_PIPELINE_CONFIG m_pipelineConfig{};
 		D3D12_GLOBAL_ROOT_SIGNATURE m_globalRootSignatureDesc{};
+		D3D12_HIT_GROUP_DESC m_hitGroupDesc{};
 
 		// Shader blobs for ray tracing library sub-objects.
 		ComPtr<IDxcBlob> m_rayGenBlob{ nullptr };
+		ComPtr<IDxcBlob> m_closestHitBlob{ nullptr };
 		ComPtr<IDxcBlob> m_missBlob{ nullptr };
 
-		/// Shader Binding Table resources and dispatch description.
+		// Shader Binding Table resources and dispatch description.
 		ComPtr<ID3D12Resource> m_sbtUploadBuff{ nullptr };
 		ComPtr<ID3D12Resource> m_sbtDefaultBuff{ nullptr };
 		D3D12_DISPATCH_RAYS_DESC m_dispatchRaysDesc{};
 
-		size_t m_frameIdx{ 0 };     ///< Current frame index.
+		/* Acceleration Structures members. */
+		ComPtr<ID3D12Resource> m_blasResult{ nullptr };
+		ComPtr<ID3D12Resource> m_blasScratch{ nullptr };
+		ComPtr<ID3D12Resource> m_tlasResult{ nullptr };
+
+		// General members.
+		size_t m_frameIdx{};        ///< Current frame index.
 		bool m_isPrepared{ false }; ///< Flag indicating if the renderer is prepared.
 		Logger log{ std::cout };    ///< Logger instance for logging messages.
 		int m_renderWidth{};        ///< Render resolution width.
 		int m_renderHeight{};       ///< Render resolution height.
 		UINT m_bufferCount{};       ///< Number of buffers in the swap chain.
 		UINT m_rtvDescriptorSize{}; ///< Size of the RTV descriptor.
-		UINT m_scFrameIdx{ 0 };     ///< Swap Chain frame index.
+		UINT m_scFrameIdx{};        ///< Swap Chain frame index.
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
+		uint32_t m_vertexCount{};   ///< Number of vertices to render.
 	};
 
 	/// Simple vertex structure with 2D position.
-	struct Vertex {
+	struct Vertex2D {
 		float x;
 		float y;
+	};
+
+	/// Simple vertex structure with 3D position.
+	struct Vertex3D {
+		float x;
+		float y;
+		float z;
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

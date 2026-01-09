@@ -53,6 +53,9 @@
     <ClInclude Include="ext\d3dx12_core.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ext\d3dx12_barriers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\Common.hlsli" />
