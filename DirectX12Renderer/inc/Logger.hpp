@@ -7,6 +7,7 @@
 #include <mutex> // mutex, lock_guard
 #include <ostream> // ostream
 #include <string> // string
+#include <windows.h> // HRESULT
 
 
 // Logging level. Can't use all caps for members because of conflict with Windows.h macros.
@@ -23,17 +24,35 @@ public:
 	explicit Logger( std::ostream& os )
 		: m_os{ os }, m_minLevel{ LogLevel::Info } {}
 
-	void setMinLevel( LogLevel level ) {
-		m_minLevel = level;
+	explicit Logger( std::ostream& os, LogLevel minLevel )
+		: m_os{ os }, m_minLevel{ minLevel } {}
+
+	//! @brief Sets the minimum logging level. Messages below this level will be ignored.
+	void SetMinLevel( LogLevel minLevel ) {
+		m_minLevel = minLevel;
 	}
 
+	//! @brief Thread-safely logs a message to the output stream.
 	void operator()( const std::string& message, LogLevel level = LogLevel::Info ) {
 		if ( level >= m_minLevel ) {
 			std::lock_guard<std::mutex> lock( m_mutex );
-			m_os << formatLog( level, message ) << std::endl;
+			m_os << FormatLog( level, message ) << std::endl;
 		}
 	}
 
+	LogLevel GetLevel() const {
+		return m_minLevel;
+	}
+
+	std::ostream& GetStream() const {
+		return m_os;
+	}
+
+	std::mutex& GetMutex() {
+		return m_mutex;
+	}
+
+	//! @brief Static convenience method to log a message without creating a Logger instance.
 	static void log(
 		const std::string& message,
 		std::ostream& outStream,
@@ -43,12 +62,7 @@ public:
 		logger( message, level );
 	}
 
-private:
-	std::ostream& m_os;
-	std::mutex m_mutex;
-	LogLevel m_minLevel;
-
-	std::string formatLog( LogLevel level, const std::string& message ) {
+	std::string FormatLog( LogLevel level, const std::string& message ) {
 		std::string levelStr;
 		switch ( level ) {
 			case LogLevel::Info:
@@ -70,6 +84,11 @@ private:
 
 		return "[" + levelStr + "] " + "[" + timeStr + "] " + message;
 	}
+
+private:
+	std::ostream& m_os;
+	std::mutex m_mutex;
+	LogLevel m_minLevel;
 };
 
 
