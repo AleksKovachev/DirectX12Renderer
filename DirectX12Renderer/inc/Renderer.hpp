@@ -20,7 +20,7 @@
  * This allows for more structured project configuration. */
 
 
-namespace WRL = Microsoft::WRL;
+using Microsoft::WRL::ComPtr;
 
 // The main Renderer class managing the GPU commands.
 class Renderer {
@@ -30,7 +30,7 @@ public:
 	//! @brief Initiate the actual rendering.
 	void Render();
 
-private:
+private: // Functions
 	//! @brief Creates the necessary DirectX infrastructure and rendering resources.
 	void PrepareForRendering();
 
@@ -44,14 +44,44 @@ private:
 	//! @brief Creates ID3D12CommandQueue, ID3D12CommandAllocator and ID3D12GraphicsCommandList
 	//! for preparing and submitting GPU commands.
 	void CreateCommandsManagers();
-private:
-	WRL::ComPtr<IDXGIFactory4> dxgiFactory{ nullptr }; //!< Grants access to the GPUs on the machine
-	WRL::ComPtr<IDXGIAdapter1> adapter{ nullptr }; //!< Represents the video card used for rendering.
-	WRL::ComPtr<ID3D12Device> d3d12Device{ nullptr }; //!< Allows access to the GPU for the purpose of Direct3D API.
 
-	WRL::ComPtr<ID3D12CommandQueue> cmdQueue{ nullptr }; //!< Holds the command lists and will be given to the GPU for execution
-	WRL::ComPtr<ID3D12CommandAllocator> cmdAllocator{ nullptr }; //!< Manages the GPU memoryfor the commands
-	WRL::ComPtr<ID3D12GraphicsCommandList> cmdList{ nullptr }; //!< The actual commands that will be executed by the GPU
+	//! @brief Creates ID3D12Resource, D3D12_RESOURCE_DESC and D3D12_HEAP_PROPERTIES.
+	//! Describes the 2D buffer, which will be used as a texture, and create its heap.
+	void CreateGPUTexture();
+
+	//! @brief Creates a descriptor for the render target, with which the texture
+	//! could be accessed for the next pipeline stages.
+	//! Creates a descriptor heap for this descriptor.
+	void CreateRenderTargetView();
+
+	//! @brief Adds commands in the command list to generate a solid color texture.
+	void GenerateConstColorTexture();
+
+private: // Variables
+	//!< Grants access to the GPUs on the machine.
+	ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
+	//!< Represents the video card used for rendering.
+	ComPtr<IDXGIAdapter1> m_adapter{ nullptr };
+	//!< Allows access to the GPU for the purpose of Direct3D API.
+	ComPtr<ID3D12Device> m_device{ nullptr };
+
+	//!< Holds the command lists and will be given to the GPU for execution.
+	ComPtr<ID3D12CommandQueue> m_cmdQueue{ nullptr };
+	//!< Manages the GPU memoryfor the commands.
+	ComPtr<ID3D12CommandAllocator> m_cmdAllocator{ nullptr };
+	//!< The actual commands that will be executed by the GPU.
+	ComPtr<ID3D12GraphicsCommandList> m_cmdList{ nullptr };
+
+	//!< A GPU resource (like a buffer or texture).
+	//!< This is the Render Target used for the texture.
+	ComPtr<ID3D12Resource> m_renderTarget{ nullptr };
+	//!< Descriptor heap to hold the Render Target Descriptor of the texture.
+	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap{ nullptr };
+
+	//!< Hold the texture properties.
+	D3D12_RESOURCE_DESC m_textureDesc{};
+	// Handle for the descriptor of the texture, with which it could be used in the pipeline.
+	D3D12_CPU_DESCRIPTOR_HANDLE m_rtvHandle{};
 
 	Logger log{ std::cout }; //!< Logger instance for logging messages
 };
