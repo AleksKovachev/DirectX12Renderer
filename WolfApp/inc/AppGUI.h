@@ -2,10 +2,14 @@
 
 #include "Renderer.hpp"
 #include "ui_AppGUI.h"
+#include "ViewportWidget.h"
 #include <QtWidgets/QMainWindow>
 
 class WolfMainWindow : public QMainWindow {
 	Q_OBJECT
+
+public:
+	WolfViewportWidget* viewport{ nullptr };
 
 public:
 	WolfMainWindow( QWidget* parent = nullptr );

@@ -25,13 +25,18 @@ public:
 		setAutoFillBackground( false );
 
 		// Bypass Qt's paint system if using DirectX interop later
-		// setAttribute( Qt::WA_PaintOnScreen, true );
+		 setAttribute( Qt::WA_PaintOnScreen, true );
 	}
 
 	/// Change the viewport image with the given one
 	void UpdateImage( const QImage& image ) {
 		m_image = image;
 		update(); // Trigger a repaint
+	}
+
+	/// Returns the native window handle that represents the underlying window for this widget.
+	HWND GetNativeWindowHandle() {
+		return reinterpret_cast<HWND>( winId() );
 	}
 
 protected:
@@ -49,10 +54,10 @@ protected:
 		painter.drawImage( rect(), m_image );
 	}
 
-	//! Override and disable Paint Engine when rendering with DirectX directly.
-	// QPaintEngine* paintEngine() const override {
-	//	return nullptr; // We're handling painting ourselves
-	// }
+	// Override and disable Paint Engine when rendering with DirectX directly.
+	 QPaintEngine* paintEngine() const override {
+		return nullptr; // We're handling painting ourselves
+	 }
 
 private:
 	QImage m_image;

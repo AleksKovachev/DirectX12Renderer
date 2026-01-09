@@ -8,6 +8,7 @@
 // #pragma comment(lib, "dxgi.lib d3d12.lib") is also valid
 
 #include <iostream>
+#include <vector>
 #include <wrl/client.h>
 
 #include "Logger.hpp"
@@ -22,34 +23,30 @@
 using Microsoft::WRL::ComPtr;
 
 namespace Core {
-	struct RenderData;
-
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public:
-		WolfRenderer( int renderWidth = 1920, int renderHeight = 1080 )
-			: m_renderWidth{ renderWidth }, m_renderHeight{ renderHeight } {};
+		/// Constructor
+		/// @param[in] renderWidth   Render resolution width.
+		/// @param[in] renderHeight   Render resolution height.
+		WolfRenderer( int renderWidth = 1920, int renderHeight = 1080, UINT bufferCount = 2 );
 		~WolfRenderer();
-
-		/// Initiate the actual rendering.
-		void Render();
 
 		/// Sets the minimum logging level for the logger.
 		void SetLoggerMinLevel( LogLevel level );
 
 		/// Creates the necessary DirectX infrastructure and rendering resources.
-		void PrepareForRendering();
+		void PrepareForRendering( HWND hWnd );
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
 		void RenderFrame();
 
+		/// Executes the rendering cycle using the swap chain sending data to UI.
+		void RenderFrameWithSwapChain();
+
 		/// Maps the read-back buffer and writes the image to a file.
 		/// @param[in] fileName  Path to the output file.
 		void WriteImageToFile( const char* fileName = "output.ppm" );
-
-		/// The returned RenderData::byteData pointer is valid only until UnmapReadback()
-		/// is called. The caller is responsible for calling UnmapReadback() after use.
-		RenderData GetRenderData();
 
 		/// Unmaps the read-back buffer previously mapped by GetRenderData().
 		void UnmapReadback();
@@ -77,20 +74,12 @@ namespace Core {
 		/// Describes the 2D buffer, which will be used as a texture, and create its heap.
 		void CreateGPUTexture();
 
-		/// Creates a descriptor for the render target, with which
-		/// the texture could be accessed for the next pipeline stages.
-		/// Creates a descriptor heap for this descriptor.
-		void CreateRenderTargetView();
-
 		/// Creates a read-back heap and a read-back buffer, based on the
 		/// texture for rendering. Stores the memory layout information for the texture.
 		void CreateReadbackBuffer();
 
 		/// Resets the command allocator and command list for recording new commands.
 		void ResetCommandAllocatorAndList();
-
-		/// Adds commands in the command list to generate a solid color texture.
-		void GenerateConstColorTexture();
 
 		/// Prepares texture source, destination and barrier and adds commands
 		/// in the command list to copy the texture from GPU.
@@ -105,6 +94,16 @@ namespace Core {
 		/// Finalizes the frame rendering.
 		void FrameEnd( /* const char* fileName */ );
 
+		/// Creates a swap chain for double buffering.
+		void CreateSwapChain( HWND hWnd );
+
+		/// Creates a descriptor heap for the swap chain render targets.
+		void CreateDescriptorHeapForSwapChain();
+
+		/// Creates a descriptors for the render targets, with which
+		/// the texture could be accessed for the next pipeline stages.
+		/// Creates a descriptor heap for these descriptors.
+		void CreateRenderTargetViewsFromSwapChain();
 	private: // Members
 		/// Grants access to the GPUs on the machine.
 		ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
@@ -123,20 +122,26 @@ namespace Core {
 		/// A GPU resource (like a buffer or texture).
 		/// This is the Render Target used for the texture.
 		ComPtr<ID3D12Resource> m_renderTarget{ nullptr };
-		/// Descriptor heap to hold the Render Target Descriptor of the texture.
-		ComPtr<ID3D12DescriptorHeap> m_descriptorHeap{ nullptr };
+
+		/// Render Targets from the swap chain.
+		std::vector<ComPtr<ID3D12Resource>> m_renderTargets{};
+		/// Descriptor heap to hold the Render Target Descriptor of the swap chain.
+		ComPtr<ID3D12DescriptorHeap> m_rtvHeap{ nullptr };
+		/// CPU descriptor handles for the render targets of the swap chain.
+		std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> m_rtvHandles{};
 
 		/// Readback buffer to hold the rendered image.
 		ComPtr<ID3D12Resource> m_readbackBuff{ nullptr };
 		/// Fence for GPU-CPU synchronization.
 		ComPtr<ID3D12Fence> m_fence{ nullptr };
 
+		/// The swap chain for buffering (double/tripple/etc.).
+		ComPtr<IDXGISwapChain4> m_swapChain{ nullptr };
+
 		/// Hold the texture properties.
 		D3D12_RESOURCE_DESC m_textureDesc{};
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
-		/// Handle for the descriptor of the texture, with which it could be used in the pipeline.
-		D3D12_CPU_DESCRIPTOR_HANDLE m_rtvHandle{};
 
 		/// The fence value, which the GPU sets when done.
 		UINT64 m_fenceValue{ 0 };
@@ -149,16 +154,10 @@ namespace Core {
 		Logger log{ std::cout }; ///< Logger instance for logging messages.
 		int m_renderWidth{};
 		int m_renderHeight{};
+		UINT m_bufferCount{};
+		UINT m_rtvDescriptorSize{};
+		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
 	};
-
-	struct RenderData {
-		UINT64 texWidth{};
-		UINT64 texHeight{};
-		UINT rowPitch{};
-		uint8_t colorChannels{};
-		uint8_t* byteData{ nullptr };
-	};
-
 }
 
 #endif // RENDERER_HPP

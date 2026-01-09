@@ -1,5 +1,6 @@
 #include "Renderer.hpp"
 
+#include <cassert>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -23,23 +24,36 @@ struct HardwareID {
 	}
 };
 
-WolfRenderer::~WolfRenderer() {
+Core::WolfRenderer::WolfRenderer( int renderWidth, int renderHeight, UINT bufferCount )
+	: m_renderWidth{ renderWidth }, m_renderHeight{ renderHeight }, m_bufferCount{ bufferCount }
+{
+	log( "WolfRenderer instance created." );
+#ifdef _DEBUG
+	// Enable the D3D12 debug layer.
+	ID3D12Debug* debugController;
+	if ( SUCCEEDED( D3D12GetDebugInterface( IID_PPV_ARGS( &debugController ) ) ) ) {
+		debugController->EnableDebugLayer();
+		debugController->Release();
+	}
+#endif // _DEBUG
+	// Fill the render targets and RTV handles vectors.
+	for ( UINT i{}; i < bufferCount; ++i ) {
+		m_renderTargets.emplace_back();
+		m_rtvHandles.emplace_back();
+	}
+}
+
+Core::WolfRenderer::~WolfRenderer() {
 	log( "\n    => Closing application." );
 	if ( m_fenceEvent != nullptr )
 		CloseHandle( m_fenceEvent );
 }
 
-void WolfRenderer::Render() {
-	PrepareForRendering();
-	RenderFrame();
-	FrameEnd( /* "red.ppm" */ );
-}
-
-void WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
+void Core::WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
 	log.SetMinLevel( level );
 }
 
-void WolfRenderer::PrepareForRendering() {
+void Core::WolfRenderer::PrepareForRendering( HWND hWnd ) {
 	if ( m_isPrepared ) {
 		log( "GPU already prepared." );
 		return;
@@ -48,15 +62,15 @@ void WolfRenderer::PrepareForRendering() {
 
 	CreateDevice(); // Creates Factory, Adapter, Device
 	CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
+	CreateSwapChain( hWnd );
+	CreateDescriptorHeapForSwapChain();
+	CreateRenderTargetViewsFromSwapChain();
 	CreateFence();
 
-	CreateGPUTexture();
-	CreateRenderTargetView();
-	CreateReadbackBuffer();
 	m_isPrepared = true;
 }
 
-void WolfRenderer::RenderFrame() {
+void Core::WolfRenderer::RenderFrame() {
 	log( "Starting render frame." );
 
 	FrameBegin();
@@ -67,7 +81,6 @@ void WolfRenderer::RenderFrame() {
 	}
 
 	ResetCommandAllocatorAndList();
-	GenerateConstColorTexture();
 	CopyTexture();
 
 	// Array of command lists to be executed by the GPU.
@@ -88,7 +101,45 @@ void WolfRenderer::RenderFrame() {
 	FrameEnd();
 }
 
-void WolfRenderer::WriteImageToFile( const char* fileName ) {
+void Core::WolfRenderer::RenderFrameWithSwapChain() {
+	FrameBegin();
+
+	if ( !m_isPrepared ) {
+		log( "Can't render a frame without preparing the GPU.", LogLevel::Warning );
+		return;
+	}
+
+	ResetCommandAllocatorAndList();
+
+	D3D12_RESOURCE_BARRIER barrier{};
+	barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_cmdList->ResourceBarrier( 1, &barrier );
+
+	// Set which Render Target will be used for rendering.
+	m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
+	m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], m_rendColor, 0, nullptr );
+
+	barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	m_cmdList->ResourceBarrier( 1, &barrier );
+
+	m_cmdList->Close();
+	ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
+	m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+
+	// Change the first 0 to 1 to enable vsync.
+	// Change the second 0 to DXGI_PRESENT_ALLOW_TEARING to enable tearing.
+	m_swapChain->Present( 0, 0 );
+
+	WaitForGPURenderFrame();
+
+	FrameEnd();
+}
+
+void Core::WolfRenderer::WriteImageToFile( const char* fileName ) {
 	void* renderData;
 	HRESULT hr = m_readbackBuff->Map( 0, nullptr, &renderData );
 	checkHR( "Failed to map GPU data to CPU pointer!", hr, log, LogLevel::Error );
@@ -133,30 +184,17 @@ void WolfRenderer::WriteImageToFile( const char* fileName ) {
 	m_readbackBuff->Unmap( 0, nullptr );
 }
 
-Core::RenderData Core::WolfRenderer::GetRenderData() {
-	void* renderData;
-	HRESULT hr = m_readbackBuff->Map( 0, nullptr, &renderData );
-	checkHR( "Failed to map GPU data to CPU pointer!", hr, log, LogLevel::Error );
-
-	Core::RenderData renderDatastruct{};
-	renderDatastruct.texWidth = m_textureDesc.Width;
-	renderDatastruct.texHeight = m_textureDesc.Height;
-	renderDatastruct.rowPitch = m_renderTargetFootprint.Footprint.RowPitch;
-	renderDatastruct.colorChannels = 4; // RGBA
-	renderDatastruct.byteData = reinterpret_cast<uint8_t*>(renderData);
-
-	return renderDatastruct;
-}
-
 void Core::WolfRenderer::UnmapReadback() {
+	log( "Unmapping readback buffer!" );
 	m_readbackBuff->Unmap( 0, nullptr );
 }
 
 void Core::WolfRenderer::StopRendering() {
+	log( "Stopping renderer!" );
 	WaitForGPURenderFrame();
 }
 
-void WolfRenderer::CreateDevice() {
+void Core::WolfRenderer::CreateDevice() {
 	HRESULT hr = CreateDXGIFactory1( IID_PPV_ARGS( &m_dxgiFactory ) );
 	checkHR( "Failed to create DXGI Factory.", hr, log );
 	log( "Factory created." );
@@ -170,7 +208,7 @@ void WolfRenderer::CreateDevice() {
 	log( "Device created successfully!" );
 }
 
-void WolfRenderer::AssignAdapter() {
+void Core::WolfRenderer::AssignAdapter() {
 	std::vector<ComPtr<IDXGIAdapter1>> adapters{};
 	ComPtr<IDXGIAdapter1> adapter{};
 	std::vector<HardwareID> hwIDs{};
@@ -229,7 +267,7 @@ void WolfRenderer::AssignAdapter() {
 	log( std::format( "Vendor ID: {}", desc.VendorId ) );
 }
 
-void WolfRenderer::CreateCommandsManagers() {
+void Core::WolfRenderer::CreateCommandsManagers() {
 	HRESULT hr{};
 
 	// Define a command queue descriptor.
@@ -270,7 +308,7 @@ void WolfRenderer::CreateCommandsManagers() {
 	log( "Command List created." );
 }
 
-void WolfRenderer::CreateFence() {
+void Core::WolfRenderer::CreateFence() {
 	// Create a fence for GPU-CPU synchronization
 	HRESULT hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &m_fence ) );
 
@@ -287,7 +325,7 @@ void WolfRenderer::CreateFence() {
 	log( "Fence and fence event created." );
 }
 
-void WolfRenderer::CreateGPUTexture() {
+void Core::WolfRenderer::CreateGPUTexture() {
 	m_textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2D texture.
 	m_textureDesc.Width = m_renderWidth;               // Width in pixels.
 	m_textureDesc.Height = m_renderHeight;             // Height in pixels.
@@ -313,31 +351,7 @@ void WolfRenderer::CreateGPUTexture() {
 	log( "GPU HEAP and Texture created." );
 }
 
-void WolfRenderer::CreateRenderTargetView() {
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // Render Target View heap.
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // No special flags.
-	heapDesc.NodeMask = 0; // Single GPU.
-
-	HRESULT hr{ m_device->CreateDescriptorHeap(
-		&heapDesc,                        // Descriptor heap description.
-		IID_PPV_ARGS( &m_descriptorHeap ) // The Interface ID and output pointer.
-	) };
-	checkHR( "Failed to create Descriptor Heap.", hr, log );
-
-	m_rtvHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
-
-	m_device->CreateRenderTargetView(
-		m_renderTarget.Get(), // The resource for which the RTV is created.
-		nullptr,              // RTV description (nullptr for default).
-		m_rtvHandle           // CPU descriptor handle where the RTV will be stored.
-	);
-
-	log( "Render target created." );
-}
-
-void WolfRenderer::CreateReadbackBuffer() {
+void Core::WolfRenderer::CreateReadbackBuffer() {
 	UINT64 readbackBufferSize{};
 
 	m_device->GetCopyableFootprints( &m_textureDesc, 0, 1, 0,
@@ -370,32 +384,17 @@ void WolfRenderer::CreateReadbackBuffer() {
 	log( "Readback buffer created." );
 }
 
-void WolfRenderer::ResetCommandAllocatorAndList() {
+void Core::WolfRenderer::ResetCommandAllocatorAndList() {
 	HRESULT hr = m_cmdAllocator->Reset();
-	checkHR( "Failed resetting command allocator.", hr, log );
+	assert( SUCCEEDED( hr ) );
+	//checkHR( "Failed resetting command allocator.", hr, log );
 
 	hr = m_cmdList->Reset( m_cmdAllocator.Get(), nullptr );
-	checkHR( "Failed resetting command list.", hr, log );
+	assert( SUCCEEDED( hr ) );
+	//checkHR( "Failed resetting command list.", hr, log );
 }
 
-void WolfRenderer::GenerateConstColorTexture() {
-	m_cmdList->OMSetRenderTargets(
-		1,            // Number of render targets.
-		&m_rtvHandle, // Array of render target handles.
-		FALSE,        // Whether to use a single handle for all render targets.
-		nullptr       // Optional depth-stencil view handle.
-	);
-
-	m_cmdList->ClearRenderTargetView(
-		m_rtvHandle, // Render target handle.
-		m_rendColor, // Clear color.
-		0,           // Number of rectangles to clear.
-		nullptr      // Optional array of rectangles to clear.
-	);
-	log( "Const color commands added." );
-}
-
-void WolfRenderer::CopyTexture() {
+void Core::WolfRenderer::CopyTexture() {
 	// Create a Resource Barrier to transition from Render Target to Copy Source.
 	D3D12_RESOURCE_BARRIER barrier{};
 	barrier.Transition.pResource = m_renderTarget.Get();
@@ -428,17 +427,18 @@ void WolfRenderer::CopyTexture() {
 	log( "Texture copy commands added. Command list closed." );
 }
 
-void WolfRenderer::WaitForGPURenderFrame() {
+void Core::WolfRenderer::WaitForGPURenderFrame() {
 	log( "Waiting for GPU to render frame." );
 	// Wait for the GPU to finish
 	if ( m_fence->GetCompletedValue() < m_fenceValue ) {
 		HRESULT hr = m_fence->SetEventOnCompletion( m_fenceValue, m_fenceEvent );
-		checkHR( "Failed setting fence value on GPU competion.", hr, log );
+		assert( SUCCEEDED( hr ) );
+		//checkHR( "Failed setting fence value on GPU competion.", hr, log );
 		WaitForSingleObject( m_fenceEvent, INFINITE );
 	}
 }
 
-void WolfRenderer::FrameBegin() {
+void Core::WolfRenderer::FrameBegin() {
 	float frameCoef{ static_cast<float>(m_frameIdx % 1000) / 1000.0f };
 
 	m_rendColor[0] = frameCoef;
@@ -447,8 +447,72 @@ void WolfRenderer::FrameBegin() {
 	m_rendColor[3] = 1.f;
 }
 
-void WolfRenderer::FrameEnd( /* const char* fileName */) {
-	//WriteImageToFile( fileName );
-
+void Core::WolfRenderer::FrameEnd() {
 	++m_frameIdx;
+	m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
+}
+
+void Core::WolfRenderer::CreateSwapChain( HWND hWnd ) {
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+	swapChainDesc.Width = m_renderWidth;
+	swapChainDesc.Height = m_renderHeight;
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
+	swapChainDesc.BufferCount = m_bufferCount; // Double buffering
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.SampleDesc.Count = 1; // No multi-sampling
+	//swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING; // Enable Tearing.
+
+	ComPtr<IDXGISwapChain1> swapChain1;
+	HRESULT hr = m_dxgiFactory->CreateSwapChainForHwnd(
+		m_cmdQueue.Get(), // The command queue to associate with the swap chain
+		hWnd,             // The window handle
+		&swapChainDesc,   // The swap chain description
+		nullptr,          // No full-screen descriptor
+		nullptr,          // No restrict to output
+		&swapChain1       // The resulting swap chain
+	);
+	checkHR( "Failed to create a Swap Chain.", hr, log );
+
+	hr = swapChain1->QueryInterface( IID_PPV_ARGS( &m_swapChain ) );
+	checkHR( "Failed to convert Swap Chain output to newer version.", hr, log );
+
+	log( "Swap Chain created successfully!" );
+}
+
+void Core::WolfRenderer::CreateDescriptorHeapForSwapChain() {
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+	rtvHeapDesc.NumDescriptors = m_bufferCount; // Double buffering
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+	HRESULT hr = m_device->CreateDescriptorHeap(
+		&rtvHeapDesc,
+		IID_PPV_ARGS( &m_rtvHeap )
+	);
+	checkHR( "Failed creating a descriptor heap for the swap chain.", hr, log );
+	log( "Descriptor heap created for the swap chain." );
+
+	m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(
+		D3D12_DESCRIPTOR_HEAP_TYPE_RTV );
+}
+
+void Core::WolfRenderer::CreateRenderTargetViewsFromSwapChain() {
+	for ( UINT scBuffIdx{}; scBuffIdx < m_bufferCount; ++scBuffIdx ) {
+		const HRESULT hr{ m_swapChain->GetBuffer(
+			scBuffIdx,
+			IID_PPV_ARGS( &m_renderTargets[scBuffIdx] )
+		) };
+		checkHR( "Failed getting a buffer.", hr, log );
+		log( "Successfully got a buffer." );
+
+		m_rtvHandles[scBuffIdx] = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		m_rtvHandles[scBuffIdx].ptr += scBuffIdx * m_rtvDescriptorSize;
+
+		m_device->CreateRenderTargetView(
+			m_renderTargets[scBuffIdx].Get(),
+			nullptr,
+			m_rtvHandles[scBuffIdx]
+		);
+	}
 }

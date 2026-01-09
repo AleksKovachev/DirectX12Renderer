@@ -5,6 +5,7 @@
 WolfMainWindow::WolfMainWindow( QWidget* parent )
 	: QMainWindow( parent ) {
 	ui.setupUi( this );
+	viewport = ui.viewport;
 
 	statusBar()->addPermanentWidget( ui.fpsLbl );
 	statusBar()->addPermanentWidget( ui.fpsVal );
