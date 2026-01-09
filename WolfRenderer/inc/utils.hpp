@@ -1,7 +1,7 @@
-#include <Windows.h> // FAILED
-#include <string> // string
 #include <format> // format
 #include <iostream> // endl
+#include <string> // string
+#include <Windows.h> // FAILED
 
 #include "Logger.hpp" // Logger
 
