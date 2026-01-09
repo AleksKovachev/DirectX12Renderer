@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>icons/WolfApp.ico</file>
+    </qresource>
+</RCC>
