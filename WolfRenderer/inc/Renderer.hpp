@@ -36,12 +36,6 @@ namespace Core {
 		/// Sets the minimum logging level for the logger.
 		void SetLoggerMinLevel( LogLevel level );
 
-		/// Creates the necessary DirectX infrastructure and rendering resources.
-		void PrepareForRendering( HWND hWnd );
-
-		/// Executes the rendering commands and handles GPU-CPU synchronization.
-		void RenderFrame();
-
 		/// Maps the read-back buffer and writes the image to a file.
 		/// @param[in] fileName  Path to the output file.
 		void WriteImageToFile( const char* fileName = "output.ppm" );
@@ -49,10 +43,23 @@ namespace Core {
 		/// Unmaps the read-back buffer previously mapped by GetRenderData().
 		void UnmapReadback();
 
+		/// Creates the necessary DirectX infrastructure and rendering resources.
+		void PrepareForRendering( HWND hWnd );
+
 		/// Lets the GPU finihs rendering before closing the application.
 		void StopRendering();
 
+		/// Executes the rendering commands and handles GPU-CPU synchronization.
+		/// @param offsetX  Offset in pixels to pass to the geometry for the X axis.
+		/// @param offsetY  Offset in pixels to pass to the geometry for the Y axis.
+		void RenderFrame( float offsetX, float offsetY );
+
 	private: // Functions
+		/// Sets up frame-specific data before rendering.
+		void FrameBegin();
+
+		/// Finalizes the frame rendering.
+		void FrameEnd( /* const char* fileName */ );
 
 		/// Create ID3D12Device, an interface which allows access to the GPU
 		/// for the purpose of Direct3D API
@@ -85,12 +92,6 @@ namespace Core {
 
 		/// Stall the CPU until the GPU has finished processing the commands.
 		void WaitForGPURenderFrame();
-
-		/// Sets up frame-specific data before rendering.
-		void FrameBegin();
-
-		/// Finalizes the frame rendering.
-		void FrameEnd( /* const char* fileName */ );
 
 		/// Creates a swap chain for double buffering.
 		void CreateSwapChain( HWND hWnd );
@@ -156,7 +157,7 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
-		/// The vertices that will be rendered.
+		/// The vertices that will be rendered (Stored in GPU Default Heap).
 		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
 		/// The vertex buffer descriptor.
 		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
@@ -184,8 +185,6 @@ namespace Core {
 		UINT m_bufferCount{};
 		UINT m_rtvDescriptorSize{};
 		UINT m_scFrameIdx{ 0 }; ///< Swap Chain frame index.
-
-		//float m_xOffset{ 0.0f }; ///< Just for preview animation.
 	};
 
 	struct Vertex {

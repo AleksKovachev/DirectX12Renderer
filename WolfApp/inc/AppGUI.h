@@ -27,10 +27,6 @@ public:
 signals:
 	void requestQuit();
 
-private: // Functions
-	void RenderFrame();
-
 private: // Members
 	Ui::AppGUI ui;
-
 };

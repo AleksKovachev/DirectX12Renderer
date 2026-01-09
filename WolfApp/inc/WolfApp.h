@@ -39,6 +39,11 @@ private: // Members
 	QTimer* m_idleTimer;           //!< Timer for implementing the rendering loop.
 	QTimer* m_fpsTimer;            //!< Timer to track the FPS value.
 	int m_frameIdxAtLastFPSCalc{}; //!< Updated each second.
+	float m_offsetX{};
+	float m_offsetY{};
+
+private slots:
+	void onCameraPan( float offsetX, float offsetY );
 };
 
 

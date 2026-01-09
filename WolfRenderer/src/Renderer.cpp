@@ -2,6 +2,7 @@
 #include "utils.hpp" // checkHR, wideStrToUTF8
 
 #include "d3dx12_core.h"
+#include "d3dx12_root_signature.h"
 
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
@@ -57,46 +58,6 @@ namespace Core {
 		log.SetMinLevel( level );
 	}
 
-	void WolfRenderer::PrepareForRendering( HWND hWnd ) {
-		if ( m_isPrepared ) {
-			log( "GPU already prepared." );
-			return;
-		}
-		log( "Starting renderer initialization..." );
-
-		CreateDevice(); // Creates Factory, Adapter, Device
-		CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
-		CreateSwapChain( hWnd );
-		CreateDescriptorHeapForSwapChain();
-		CreateRenderTargetViewsFromSwapChain();
-
-		CreateVertexBuffer();
-		CreateRootSignature();
-		CreatePipelineState();
-		CreateViewport();
-
-		CreateFence();
-
-		m_isPrepared = true;
-	}
-
-	void WolfRenderer::RenderFrame() {
-		FrameBegin();
-
-		m_cmdList->SetPipelineState( m_pipelineState.Get() );
-		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
-
-		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
-
-		m_cmdList->RSSetViewports( 1, &m_viewport );
-		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
-
-		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
-
-		FrameEnd();
-	}
-
 	void WolfRenderer::WriteImageToFile( const char* fileName ) {
 		void* renderData;
 		HRESULT hr = m_readbackBuff->Map( 0, nullptr, &renderData );
@@ -147,9 +108,97 @@ namespace Core {
 		m_readbackBuff->Unmap( 0, nullptr );
 	}
 
+	void WolfRenderer::PrepareForRendering( HWND hWnd ) {
+		if ( m_isPrepared ) {
+			log( "GPU already prepared." );
+			return;
+		}
+		log( "Starting renderer initialization..." );
+
+		CreateDevice(); // Creates Factory, Adapter, Device
+		CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
+		CreateSwapChain( hWnd );
+		CreateDescriptorHeapForSwapChain();
+		CreateRenderTargetViewsFromSwapChain();
+
+		CreateFence();
+
+		CreateVertexBuffer();
+		CreateRootSignature();
+		CreatePipelineState();
+		CreateViewport();
+
+		m_isPrepared = true;
+	}
+
 	void WolfRenderer::StopRendering() {
 		log( "Stopping renderer!" );
 		WaitForGPURenderFrame();
+	}
+
+	void WolfRenderer::RenderFrame( float offsetX, float offsetY ) {
+		FrameBegin();
+
+		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
+
+		// IA stands for Input Assembler
+		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
+
+		m_cmdList->RSSetViewports( 1, &m_viewport );
+		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
+
+		// Mask the offset float values as uint values.
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>( m_frameIdx ), 0 );
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetX), 1);
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetY), 2);
+
+		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
+
+		FrameEnd();
+	}
+
+	void WolfRenderer::FrameBegin() {
+		ResetCommandAllocatorAndList();
+
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
+		// Set which Render Target will be used for rendering.
+		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
+		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+	}
+
+	void WolfRenderer::FrameEnd() {
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
+		HRESULT hr{ m_cmdList->Close() };
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to close command list!", hr, log, LogLevel::Error );
+
+		// Execute the command list.
+		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
+		m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+
+		// Present the frame.
+		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to present the frame!", hr, log, LogLevel::Error );
+
+		// Increment m_fenceValue for every operation
+		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
+
+		WaitForGPURenderFrame();
+
+		++m_frameIdx;
+		m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
 	}
 
 	void WolfRenderer::CreateDevice() {
@@ -250,7 +299,7 @@ namespace Core {
 		hr = m_device->CreateCommandAllocator( queueDesc.Type, IID_PPV_ARGS( &m_cmdAllocator ) );
 		checkHR( "Failed to create Command Allocator.", hr, log );
 
-		m_device->CreateCommandList(
+		hr = m_device->CreateCommandList(
 			0,                    // NodeMask: 0 for single GPU systems.
 			queueDesc.Type,       // Type: Must match the Command Queue type (usually DIRECT).
 			m_cmdAllocator.Get(),   // Command Allocator: The memory pool to record commands into.
@@ -260,7 +309,7 @@ namespace Core {
 		checkHR( "Failed to create Command List.", hr, log );
 
 		// Good practice to close the command list right after creation. Reset() opens it.
-		m_cmdList->Close();
+		hr = m_cmdList->Close();
 		checkHR( "Failed to close the Command List.", hr, log );
 
 		log( "Command List created." );
@@ -386,7 +435,7 @@ namespace Core {
 	}
 
 	void WolfRenderer::WaitForGPURenderFrame() {
-		log( "Waiting for GPU to render frame." );
+		//log( "Waiting for GPU to render frame." );
 		// Wait for the GPU to finish
 		if ( m_fence->GetCompletedValue() < m_fenceValue ) {
 			HRESULT hr = m_fence->SetEventOnCompletion( m_fenceValue, m_fenceEvent );
@@ -394,77 +443,6 @@ namespace Core {
 			//checkHR( "Failed setting fence value on GPU competion.", hr, log );
 			WaitForSingleObject( m_fenceEvent, INFINITE );
 		}
-	}
-
-	void WolfRenderer::FrameBegin() {
-		ResetCommandAllocatorAndList();
-
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		m_cmdList->ResourceBarrier( 1, &barrier );
-
-		// Set which Render Target will be used for rendering.
-		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
-		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
-		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
-	
-		// The below code contains preview animations. Needs float m_xOffset to be defined.
-		/*
-		// Triangle Movement.
-		float step{1.f / 1400.f};
-		m_xOffset += step;
-
-		Vertex triangleVertices[] = {
-			{  0.0f + m_xOffset,  0.5f },
-			{  0.5f + m_xOffset, -0.5f },
-			{ -0.5f + m_xOffset, -0.5f }
-		};
-
-		// Triangle Rotation.
-		float angle = static_cast<float>(m_frameIdx) * 0.0001f;
-		float cosA = cosf( angle );
-		float sinA = sinf( angle );
-		Vertex triangleVertices[] = {
-			{  0.0f * cosA -  0.5f * sinA,  0.0f * sinA +  0.5f * cosA },
-			{  0.5f * cosA - -0.5f * sinA,  0.5f * sinA + -0.5f * cosA },
-			{ -0.5f * cosA - -0.5f * sinA, -0.5f * sinA + -0.5f * cosA }
-		};
-
-		void* pVertexData;
-		m_vertexBuffer->Map( 0, nullptr, &pVertexData );
-		memcpy( pVertexData, triangleVertices, sizeof( triangleVertices ) );
-		m_vertexBuffer->Unmap( 0, nullptr );
-		*/
-
-	}
-
-	void WolfRenderer::FrameEnd() {
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		m_cmdList->ResourceBarrier( 1, &barrier );
-
-		HRESULT hr{ m_cmdList->Close() };
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to close command list!", hr, log, LogLevel::Error );
-
-		// Execute the command list.
-		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
-		m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
-
-		// Present the frame.
-		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to present the frame!", hr, log, LogLevel::Error );
-
-		// Increment m_fenceValue for every operation
-		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
-
-		WaitForGPURenderFrame();
-
-		++m_frameIdx;
-		m_scFrameIdx = m_swapChain->GetCurrentBackBufferIndex();
 	}
 
 	void WolfRenderer::CreateSwapChain( HWND hWnd ) {
@@ -530,84 +508,124 @@ namespace Core {
 				m_rtvHandles[scBuffIdx]
 			);
 		}
+		log( "Render target views created successfully." );
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
-		// A checker pattern demonstration.
-		/*
-		Vertex triangleVertices[32 * 2 * 3];
-		int v{};
-		for ( int row{}; row < 8; ++row ) {
-			for ( int col{}; col < 8; ++col ) {
-				if ( (row + col) % 2 != 1 ) {
-					float squareSize = 2.f / 8.f;
-					float x = -1.f + col * squareSize;
-					float y = -1.f + row * squareSize;
-
-					triangleVertices[v++] = { x, y };
-					triangleVertices[v++] = { x, y + squareSize };
-					triangleVertices[v++] = { x + squareSize, y + squareSize };
-
-					triangleVertices[v++] = { x, y };
-					triangleVertices[v++] = { x + squareSize, y + squareSize };
-					triangleVertices[v++] = { x + squareSize, y };
-				}
-			}
-		}
-		// This also means that the drawInstanced call in RenderFrame must change.
-		m_cmdList->DrawInstanced( 32 * 2 * 3, 1, 0, 0 );
-		*/
-
 		Vertex triangleVertices[] = {
 			{  0.0f,  0.5f },
 			{  0.5f, -0.5f },
 			{ -0.5f, -0.5f }
 		};
+		const UINT vertSize{ sizeof( triangleVertices ) };
 
-		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
-		D3D12_RESOURCE_DESC bufferDesc{ CD3DX12_RESOURCE_DESC::Buffer( sizeof( triangleVertices ) ) };
+		// Create the "Intermediate" Upload Buffer (Staging).
+		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
+
+		// Upload heap used so the CPU can write to it.
+		D3D12_HEAP_PROPERTIES heapPropsUp{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
+		D3D12_RESOURCE_DESC bufferDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
 
 		HRESULT hr{ m_device->CreateCommittedResource(
-			&heapProps,
+			&heapPropsUp,
 			D3D12_HEAP_FLAG_NONE,
-			&bufferDesc,
+			&bufferDescUp,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS( &m_vertexBuffer )
+			IID_PPV_ARGS( &uploadBuffer )
 		) };
-		checkHR( "Failed to create vertex buffer.", hr, log );
+		checkHR( "Failed to create upload vertex buffer.", hr, log );
 
+		// Copy data from CPU to Upload Buffer
 		void* pVertexData;
-		m_vertexBuffer->Map( 0, nullptr, &pVertexData );
-		memcpy( pVertexData, triangleVertices, sizeof( triangleVertices ) );
-		m_vertexBuffer->Unmap( 0, nullptr );
+		hr = uploadBuffer->Map( 0, nullptr, &pVertexData );
+		checkHR( "Failed to map upload buffer.", hr, log );
+		memcpy( pVertexData, triangleVertices, vertSize );
+		uploadBuffer->Unmap( 0, nullptr );
+
+		// Create the destination Vertex Buffer (Default Heap).
+		// Default heap used (GPU VRAM) that CPU can't access directly.
+		D3D12_HEAP_PROPERTIES heapPropsDf{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
+		D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
+
+		hr = m_device->CreateCommittedResource(
+			&heapPropsDf,
+			D3D12_HEAP_FLAG_NONE,
+			&bufferDescDf,
+			// Start in COPY_DEST so data can be copied to it immediately.
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS( &m_vertexBuffer )
+		);
+		checkHR( "Failed to create default vertex buffer.", hr, log );
+
+		// Name the buffer for easier debugging using PIX/NSIGHT.
+		m_vertexBuffer->SetName( L"Vertex Buffer Default Resource" );
+
+		ResetCommandAllocatorAndList();
+
+		// Copy data.
+		m_cmdList->CopyBufferRegion( m_vertexBuffer.Get(), 0, uploadBuffer.Get(), 0, vertSize );
+
+		// Transition the Default Buffer from COPY_DEST to VERTEX_AND_CONSTANT_BUFFER
+		// so the Input Assembled (IA) can read it during rendering.
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Transition.pResource = m_vertexBuffer.Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
+		hr = m_cmdList->Close();
+		checkHR( "Failed to close command list for Vertex Buffer upload..", hr, log );
+
+		// Execute the commands
+		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
+		m_cmdQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+
+		// Wait for the GPU to finish the copy BEFORE the 'uploadBuffer' ComPtr
+		// goes out of scope. Otherwise, is's destroyed while the GPU is
+		// trying to read from it, causing a crash/device removal.
+		m_cmdQueue->Signal( m_fence.Get(), ++m_fenceValue );
+		WaitForGPURenderFrame();
 
 		m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
 		m_vbView.StrideInBytes = sizeof( Vertex );
-		m_vbView.SizeInBytes = sizeof( triangleVertices );
+		m_vbView.SizeInBytes = vertSize;
+
+		log( "Vertex Buffer successfully uploaded to GPU Default Heap." );
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc{};
-		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		CD3DX12_ROOT_PARAMETER1 rootParam;
+		rootParam.InitAsConstants( 3, 0, 0, D3D12_SHADER_VISIBILITY_ALL );
 
-		ComPtr<ID3DBlob> signature;
-		ComPtr<ID3DBlob> error;
-		HRESULT hr = D3D12SerializeRootSignature(
+		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
+		rootSignatureDesc.Init_1_1( 1, &rootParam, 0, nullptr,
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT );
+
+		ComPtr<ID3DBlob> signatureBlob;
+		ComPtr<ID3DBlob> errorBlob;
+		HRESULT hr = D3D12SerializeVersionedRootSignature(
 			&rootSignatureDesc,
-			D3D_ROOT_SIGNATURE_VERSION_1,
-			&signature,
-			&error
+			&signatureBlob,
+			&errorBlob
 		);
+
+		if ( errorBlob ) {
+			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
+			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
+		}
 		checkHR( "Failed to serialize root signature.", hr, log );
 
 		hr = m_device->CreateRootSignature(
 			0,
-			signature->GetBufferPointer(),
-			signature->GetBufferSize(),
+			signatureBlob->GetBufferPointer(),
+			signatureBlob->GetBufferSize(),
 			IID_PPV_ARGS( &m_rootSignature )
 		);
-		checkHR( "Failed to create root signature.", hr, log );
+		checkHR( "CreateRootSignature failed.", hr, log );
+		log( "Root Signature created successfully." );
 	}
 
 	void WolfRenderer::CreatePipelineState() {

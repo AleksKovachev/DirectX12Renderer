@@ -72,6 +72,9 @@ public:
 	std::string FormatLog( LogLevel level, const std::string& message ) {
 		std::string levelStr;
 		switch ( level ) {
+			case LogLevel::Debug:
+				levelStr = "DEBUG";
+				break;
 			case LogLevel::Info:
 				levelStr = "INFO";
 				break;
@@ -88,7 +91,6 @@ public:
 
 		std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 		std::string timeStr{ std::format( "{:%d.%m.%Y %H:%M:%S}", now ) };
-
 		return "[" + levelStr + "] " + "[" + timeStr + "] " + message;
 	}
 

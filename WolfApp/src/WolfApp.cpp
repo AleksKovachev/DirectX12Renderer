@@ -16,6 +16,10 @@ bool WolfApp::init() {
 	if ( InitWindow() == false )
 		return false;
 
+	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
+		this, &WolfApp::onCameraPan
+	);
+
 	m_mainWin->show();
 
 	m_renderer.PrepareForRendering( m_mainWin->viewport->GetNativeWindowHandle() );
@@ -53,7 +57,12 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame();
+	m_renderer.RenderFrame( m_offsetX, m_offsetY );
 
 	++m_frameIdxAtLastFPSCalc;
+}
+
+void WolfApp::onCameraPan( float offsetX, float offsetY ) {
+	m_offsetX = offsetX;
+	m_offsetY = offsetY;
 }

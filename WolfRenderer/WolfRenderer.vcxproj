@@ -155,6 +155,7 @@
     <ClInclude Include="ext\d3dx12.h" />
     <ClInclude Include="ext\d3dx12_core.h" />
     <ClInclude Include="ext\d3dx12_default.h" />
+    <ClInclude Include="ext\d3dx12_root_signature.h" />
     <ClInclude Include="inc\Logger.hpp" />
     <ClInclude Include="inc\Renderer.hpp" />
     <ClInclude Include="inc\utils.hpp" />
