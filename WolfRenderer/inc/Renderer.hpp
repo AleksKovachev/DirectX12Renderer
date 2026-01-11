@@ -13,6 +13,7 @@
 // #pragma comment(lib, "dxgi.lib d3d12.lib, dxcompiler.lib") is also valid
 
 #include "Logger.hpp"
+#include "Scene.hpp"
 
 
 /* While #pragma comment(lib, ...) is perfectly valid and common, especially in
@@ -357,29 +358,16 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_tlasResult{ nullptr };
 
 		// General members.
+		Scene m_scene{ "../rsc/scene1.crtscene" };
 		size_t m_frameIdx{};        ///< Current frame index.
 		bool m_isPrepared{ false }; ///< Flag indicating if the renderer is prepared.
 		Logger log{ std::cout };    ///< Logger instance for logging messages.
-		int m_renderWidth{};        ///< Render resolution width.
-		int m_renderHeight{};       ///< Render resolution height.
 		UINT m_bufferCount{};       ///< Number of buffers in the swap chain.
 		UINT m_rtvDescriptorSize{}; ///< Size of the RTV descriptor.
 		UINT m_scFrameIdx{};        ///< Swap Chain frame index.
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
-		uint32_t m_vertexCount{};   ///< Number of vertices to render.
-	};
-
-	/// Simple vertex structure with 2D position.
-	struct Vertex2D {
-		float x;
-		float y;
-	};
-
-	/// Simple vertex structure with 3D position.
-	struct Vertex3D {
-		float x;
-		float y;
-		float z;
+		size_t m_vertexCount{};     ///< Number of vertices to render.
+		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

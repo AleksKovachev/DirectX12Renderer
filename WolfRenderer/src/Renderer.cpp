@@ -1,3 +1,4 @@
+#include "Geometry.hpp" // Vertex2D, Vertex3D
 #include "Renderer.hpp"
 #include "utils.hpp" // CHECK_HR, wideStrToUTF8
 
@@ -12,7 +13,6 @@
 #include "ConstColorVS.hlsl.h"
 
 #include <cassert>
-#include <cmath> // cosf, sinf
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -37,11 +37,11 @@ namespace Core {
 	dxc::DxcDllSupport gDxcDllHelper{};
 
 	WolfRenderer::WolfRenderer( int renderWidth, int renderHeight, UINT bufferCount )
-		: m_renderWidth{ renderWidth }, m_renderHeight{ renderHeight }, m_bufferCount{ bufferCount } {
+		: m_bufferCount{ bufferCount } {
 		log( "WolfRenderer instance created." );
 #ifdef _DEBUG
 //#define D3D12_ENABLE_DEBUG_LAYER 1
-	// Enable the D3D12 debug layer.
+		// Enable the D3D12 debug layer.
 		ID3D12Debug* debugController;
 		if ( SUCCEEDED( D3D12GetDebugInterface( IID_PPV_ARGS( &debugController ) ) ) ) {
 			debugController->EnableDebugLayer();
@@ -49,11 +49,15 @@ namespace Core {
 		}
 		log( "Debug layer initialized." );
 #endif // _DEBUG
-	// Fill the render targets and RTV handles vectors.
+		// Fill the render targets and RTV handles vectors.
 		for ( UINT i{}; i < bufferCount; ++i ) {
 			m_renderTargets.emplace_back();
 			m_rtvHandles.emplace_back();
 		}
+
+		m_scene.settings.renderWidth = renderWidth;
+		m_scene.settings.renderHeight = renderHeight;
+		m_scene.ParseSceneFile();
 	}
 
 	WolfRenderer::~WolfRenderer() {
@@ -220,8 +224,14 @@ namespace Core {
 		ID3D12DescriptorHeap* heaps[] = { m_uavHeap.Get() };
 		m_cmdList->SetDescriptorHeaps( _countof( heaps ), heaps );
 		m_cmdList->SetComputeRootSignature( m_globalRootSignature.Get() );
+
+		// Slot 0: Description Table
 		m_cmdList->SetComputeRootDescriptorTable(
 			0, m_uavHeap->GetGPUDescriptorHandleForHeapStart() );
+
+		// Slot 1: Root Constant.
+		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
+
 		m_cmdList->SetPipelineState1( m_rtStateObject.Get() );
 		m_cmdList->DispatchRays( &m_dispatchRaysDesc );
 	}
@@ -264,16 +274,22 @@ namespace Core {
 		ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		// Describe the root parameter that will be stored in the Root Signature.
-		D3D12_ROOT_PARAMETER1 rootParam{};
-		rootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParam.DescriptorTable.NumDescriptorRanges = 2;
-		rootParam.DescriptorTable.pDescriptorRanges = ranges;
+		D3D12_ROOT_PARAMETER1 rootParams[2] = {};
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[0].DescriptorTable.NumDescriptorRanges = 2;
+		rootParams[0].DescriptorTable.pDescriptorRanges = ranges;
+
+		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[1].Constants.Num32BitValues = 1;
+		rootParams[1].Constants.ShaderRegister = 0; // b0
+		rootParams[1].Constants.RegisterSpace = 0;
 
 		// Pass the Root Signature Parameter to the Root Signature Description.
 		D3D12_ROOT_SIGNATURE_DESC1 rootSigDesc{};
-		rootSigDesc.NumParameters = 1;
-		rootSigDesc.pParameters = &rootParam;
+		rootSigDesc.NumParameters = 2;
+		rootSigDesc.pParameters = rootParams;
 		rootSigDesc.NumStaticSamplers = 0;
 		rootSigDesc.pStaticSamplers = nullptr;
 		rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -472,8 +488,14 @@ namespace Core {
 	void WolfRenderer::CreateRayTracingShaderTexture() {
 		// Describe the output texture.
 		D3D12_RESOURCE_DESC texDesc{ CD3DX12_RESOURCE_DESC::Tex2D(
-			DXGI_FORMAT_R8G8B8A8_UNORM, m_renderWidth, m_renderHeight, 1, 1 ) };
+			DXGI_FORMAT_R8G8B8A8_UNORM,
+			m_scene.settings.renderWidth,
+			m_scene.settings.renderHeight,
+			1,
+			1
+		) };
 		texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		
 
 		// Describe the heap that will contain the resource.
 		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
@@ -649,8 +671,8 @@ namespace Core {
 		m_dispatchRaysDesc.HitGroupTable.SizeInBytes = recordSize;
 		m_dispatchRaysDesc.HitGroupTable.StrideInBytes = recordSize;
 
-		m_dispatchRaysDesc.Width = m_renderWidth;
-		m_dispatchRaysDesc.Height = m_renderHeight;
+		m_dispatchRaysDesc.Width = m_scene.settings.renderWidth;
+		m_dispatchRaysDesc.Height = m_scene.settings.renderHeight;
 		m_dispatchRaysDesc.Depth = 1;
 		m_dispatchRaysDesc.CallableShaderTable = {};
 
@@ -658,13 +680,21 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBufferRT() {
-		Vertex3D triangleVertices[] = {
-			{  0.0f,   1.75f, -3.f },
-			{  1.75f, -1.75f, -3.f },
-			{ -1.75f, -1.75f, -3.f }
-		};
-		const UINT vertSize{ sizeof( triangleVertices ) };
-		m_vertexCount = 3;
+		m_vertexCount = m_scene.GetTriangles().size() * 3;
+		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
+
+		int vertIdxInBuffIdx{};
+		for ( int triIdx{}; triIdx < m_scene.GetTriangles().size(); ++triIdx ) {
+			Triangle tri{ m_scene.GetTriangles()[triIdx] };
+			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
+				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
+				vertInBuff.x = tri.GetVertex( vertIdx ).x;
+				vertInBuff.y = tri.GetVertex( vertIdx ).y;
+				vertInBuff.z = tri.GetVertex( vertIdx ).z - 20.f;
+			}
+		}
+
+		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
 
 		// Create the "Intermediate" Upload Buffer (Staging).
 		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
@@ -733,6 +763,8 @@ namespace Core {
 		// goes out of scope. Otherwise, is's destroyed while the GPU is
 		// trying to read from it, causing a crash/device removal.
 		WaitForGPUSync();
+
+		delete[] triangleVertices;
 
 		log( "[ Ray Tracing ] Vertex buffer successfully uploaded to GPU default heap." );
 	}
@@ -825,7 +857,7 @@ namespace Core {
 		D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangleDesc{};
 		triangleDesc.VertexBuffer.StartAddress = m_vertexBufferRT->GetGPUVirtualAddress();
 		triangleDesc.VertexBuffer.StrideInBytes = sizeof( Vertex3D );
-		triangleDesc.VertexCount = m_vertexCount;
+		triangleDesc.VertexCount = static_cast<UINT>( m_vertexCount );
 		triangleDesc.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
 		D3D12_RAYTRACING_GEOMETRY_DESC geomDesc{};
@@ -1303,15 +1335,15 @@ namespace Core {
 	void WolfRenderer::CreateViewport() {
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<FLOAT>(m_renderWidth);
-		m_viewport.Height = static_cast<FLOAT>(m_renderHeight);
+		m_viewport.Width = static_cast<FLOAT>(m_scene.settings.renderWidth);
+		m_viewport.Height = static_cast<FLOAT>(m_scene.settings.renderHeight);
 		m_viewport.MinDepth = 0.0f;
 		m_viewport.MaxDepth = 1.0f;
 
 		m_scissorRect.left = 0;
 		m_scissorRect.top = 0;
-		m_scissorRect.right = m_renderWidth;
-		m_scissorRect.bottom = m_renderHeight;
+		m_scissorRect.right = m_scene.settings.renderWidth;
+		m_scissorRect.bottom = m_scene.settings.renderHeight;
 		log( "[ Rasterization ] Viewport set up." );
 	}
 
@@ -1492,8 +1524,8 @@ namespace Core {
 
 	void WolfRenderer::CreateSwapChain( HWND hWnd ) {
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-		swapChainDesc.Width = m_renderWidth;
-		swapChainDesc.Height = m_renderHeight;
+		swapChainDesc.Width = m_scene.settings.renderWidth;
+		swapChainDesc.Height = m_scene.settings.renderHeight;
 		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
 		swapChainDesc.BufferCount = m_bufferCount; // Double buffering
 		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1574,12 +1606,12 @@ namespace Core {
 
 	void WolfRenderer::CreateGPUTexture() {
 		m_textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2D texture.
-		m_textureDesc.Width = m_renderWidth;               // Width in pixels.
-		m_textureDesc.Height = m_renderHeight;             // Height in pixels.
-		m_textureDesc.DepthOrArraySize = 1;                // Single texture (not an array).
-		m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit RGBA format (8-bit per channel).
-		m_textureDesc.SampleDesc.Count = 1;                // No multisampling
-		m_textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // Let the system choose the layout.
+		m_textureDesc.Width = m_scene.settings.renderWidth;   // Width in pixels.
+		m_textureDesc.Height = m_scene.settings.renderHeight; // Height in pixels.
+		m_textureDesc.DepthOrArraySize = 1;                   // Single texture (not an array).
+		m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;    // 32-bit RGBA format (8-bit per channel).
+		m_textureDesc.SampleDesc.Count = 1;                   // No multisampling
+		m_textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;  // Let the system choose the layout.
 		m_textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET; // No special flags.
 
 		D3D12_HEAP_PROPERTIES heapProps{};

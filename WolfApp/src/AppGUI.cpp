@@ -2,6 +2,7 @@
 
 #include <QCloseEvent>
 
+
 WolfMainWindow::WolfMainWindow( QWidget* parent )
 	: QMainWindow( parent ) {
 	ui.setupUi( this );

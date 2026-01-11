@@ -5,6 +5,46 @@ struct RayPayload {
     float4 pixelColor;
 };
 
+cbuffer SceneData : register( b0 ) {
+    bool useRandomColors;
+};
+
+/// Generate a unique ID based on Primitive, geometry
+/// inside a given BLAS and TLAS instance indices.
+uint ComputePrimitiveId() {
+    return
+        PrimitiveIndex() +
+        GeometryIndex() * 1315423911u +
+        InstanceID() * 2654435761u;
+}
+
+/// A cheap "finalizer" function, similar to MurmurHash3's fmix32 function.
+/// Produces a "ramdom" value that is consistent between frames.
+uint HashUint( uint value ) {
+    value ^= value >> 16;
+    value *= 0x7feb352d; // MurmurHash’s constant.
+    value ^= value >> 15;
+    value *= 0x846ca68b; // Complements above constant to minimize bias.
+    value ^= value >> 16;
+    return value;
+}
+
+/// Splits a 32-bit integer into three 8-bit channels to construct a color.
+float3 HashToColor( uint hashValue ) {
+    uint rBits = ( hashValue >> 0 ) & 0xFFu;
+    uint gBits = ( hashValue >> 8 ) & 0xFFu;
+    uint bBits = ( hashValue >> 16 ) & 0xFFu;
+
+    // Normalize 0-255 values to [0, 1] range.
+    return float3( rBits, gBits, bBits ) * ( 1.0 / 255.0 );
+}
+
+float3 RandomColorPerPrimitive() {
+    uint primitiveId = ComputePrimitiveId();
+    uint hashValue = HashUint( primitiveId );
+    return HashToColor( hashValue );
+}
+
 [shader("raygeneration")]
 void rayGen() {
     // Render resolution. Z channel is depth.
@@ -117,5 +157,8 @@ void closestHit(
     inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr
 ) {
     // Fill the frame with red color on hit.
-    payload.pixelColor = float4( 1.0, 0.0, 0.0, 1.0 );
+    if ( useRandomColors )
+        payload.pixelColor = float4( RandomColorPerPrimitive(), 1.0 );
+    else
+        payload.pixelColor = float4( 1.f, 1.f, 1.f, 1.f );
 }
