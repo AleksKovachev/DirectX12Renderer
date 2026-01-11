@@ -185,12 +185,14 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Scene.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\d3d12.h" />
     <ClInclude Include="ext\d3dx12.h" />
+    <ClInclude Include="ext\d3dx12_barriers.h" />
     <ClInclude Include="ext\d3dx12_core.h" />
     <ClInclude Include="ext\d3dx12_default.h" />
     <ClInclude Include="ext\d3dx12_root_signature.h" />
@@ -198,6 +200,9 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     <ClInclude Include="ext\dxc\dxcapi.h" />
     <ClInclude Include="inc\Logger.hpp" />
     <ClInclude Include="inc\Renderer.hpp" />
+    <ClInclude Include="inc\RenderSettings.hpp" />
+    <ClInclude Include="inc\Scene.hpp" />
+    <ClInclude Include="inc\Geometry.hpp" />
     <ClInclude Include="inc\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -264,6 +269,19 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     </FxCompile>
     <None Include="shaders\ray_tracing_shaders.hlsl">
       <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.5</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.5</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Library</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Library</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </EntryPointName>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </EntryPointName>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\IntellisenseOnly.dxc</ObjectFileOutput>
+      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\IntellisenseOnly.dxc</ObjectFileOutput>
+      <DisableOptimizations Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DisableOptimizations>
     </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

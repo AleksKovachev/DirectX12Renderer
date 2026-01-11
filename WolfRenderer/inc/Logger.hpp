@@ -10,7 +10,7 @@
 #include <windows.h> // HRESULT
 
 
-// Logging level. Can't use all caps for members because of conflict with Windows.h macros.
+/// Logging level. Can't use all caps for members because of conflict with Windows.h macros.
 enum class LogLevel {
 	Debug,
 	Info,

@@ -39,11 +39,11 @@ private: // Functions
 	void SetRenderMode( Core::RenderMode );
 
 private: // Members
-	Core::WolfRenderer m_renderer; //!< The actual GPU DX12 renderer.
-	WolfMainWindow* m_mainWin;     //!< The main window of the application.
-	QTimer* m_idleTimer;           //!< Timer for implementing the rendering loop.
-	QTimer* m_fpsTimer;            //!< Timer to track the FPS value.
-	int m_frameIdxAtLastFPSCalc{}; //!< Updated each second.
+	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.
+	WolfMainWindow* m_mainWin;     ///< The main window of the application.
+	QTimer* m_idleTimer;           ///< Timer for implementing the rendering loop.
+	QTimer* m_fpsTimer;            ///< Timer to track the FPS value.
+	int m_frameIdxAtLastFPSCalc{}; ///< Updated each second.
 	float m_offsetX{};
 	float m_offsetY{};
 

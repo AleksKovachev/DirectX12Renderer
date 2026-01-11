@@ -6,12 +6,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>2034</width>
-    <height>1326</height>
+    <width>1400</width>
+    <height>1400</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Wolf Renderer</string>
+  </property>
+  <property name="tabShape">
+   <enum>QTabWidget::TabShape::Rounded</enum>
+  </property>
+  <property name="dockNestingEnabled">
+   <bool>false</bool>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">
@@ -70,7 +76,7 @@
         <widget class="QCheckBox" name="renderModeSwitch">
          <property name="minimumSize">
           <size>
-           <width>30</width>
+           <width>50</width>
            <height>26</height>
           </size>
          </property>
@@ -85,7 +91,7 @@
 QCheckBox {
     background-color: #3a3a3a;
     border-radius: 13px;
-    min-width: 30px;
+    min-width: 50px;
     max-width: 50px;
     min-height: 26px;
     max-height: 26px;
@@ -177,7 +183,7 @@ QCheckBox::indicator:checked {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>2034</width>
+     <width>1400</width>
      <height>21</height>
     </rect>
    </property>

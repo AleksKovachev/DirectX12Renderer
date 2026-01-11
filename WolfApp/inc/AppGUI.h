@@ -5,6 +5,7 @@
 #include "ViewportWidget.h"
 #include <QtWidgets/QMainWindow>
 
+
 class WolfMainWindow : public QMainWindow {
 	Q_OBJECT
 
