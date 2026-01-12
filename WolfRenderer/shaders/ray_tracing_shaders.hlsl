@@ -157,8 +157,9 @@ void closestHit(
     inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr
 ) {
     // Fill the frame with red color on hit.
-    if ( useRandomColors )
+    if ( useRandomColors ) {
         payload.pixelColor = float4( RandomColorPerPrimitive(), 1.0 );
-    else
+    } else {
         payload.pixelColor = float4( 1.f, 1.f, 1.f, 1.f );
+    }
 }

@@ -8,7 +8,7 @@
 #include "rapidjson/document.h" // Document, Value, Value::ConstArray
 
 #include "Logger.hpp" // Logger, LogLevel
-#include "RenderSettings.hpp" // Settings
+#include "Settings.hpp" // Settings
 #include "Geometry.hpp" // Triangle, Vertex3D
 
 

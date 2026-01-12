@@ -19,6 +19,9 @@ bool WolfApp::init() {
 	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
 		this, &WolfApp::onCameraPan
 	);
+	connect( m_mainWin->viewport, &WolfViewportWidget::onMouseRotationChanged,
+		this, &WolfApp::onMouseRotationChanged
+	);
 
 	m_mainWin->show();
 
@@ -79,12 +82,15 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame( m_offsetX, m_offsetY );
+	m_renderer.RenderFrame();
 
 	++m_frameIdxAtLastFPSCalc;
 }
 
-void WolfApp::onCameraPan( float offsetX, float offsetY ) {
-	m_offsetX = offsetX;
-	m_offsetY = offsetY;
+void WolfApp::onCameraPan( float ndcX, float ndcY ) {
+	m_renderer.AddToTargetOffset( ndcX, ndcY );
+}
+
+void WolfApp::onMouseRotationChanged( float deltaAngle ) {
+	m_renderer.AddToTargetRotation( deltaAngle );
 }

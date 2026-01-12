@@ -62,7 +62,7 @@
     <ClInclude Include="inc\Scene.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="inc\RenderSettings.hpp">
+    <ClInclude Include="inc\Settings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="inc\Geometry.hpp">

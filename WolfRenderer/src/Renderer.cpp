@@ -12,13 +12,16 @@
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
 
-#include <cassert>
-#include <filesystem>
-#include <format>
-#include <fstream>
-#include <iostream>
-#include <vector>
+#include <algorithm> // clamp
+#include <cassert> // assert
+#include <chrono> // high_resolution_clock, duration
+#include <filesystem> // path, absolute
+#include <format> // format
+#include <fstream> // ofstream, ios::binary
+#include <string> // string, wstring
+#include <vector> // vector
 
+using hrClock = std::chrono::high_resolution_clock;
 
 //!< Simple struct to hold the unique hardware identifier (Vendor ID + Device ID).
 struct HardwareID {
@@ -170,14 +173,14 @@ namespace Core {
 		WaitForGPUSync();
 	}
 
-	void WolfRenderer::RenderFrame( float offsetX, float offsetY ) {
+	void WolfRenderer::RenderFrame() {
 		if ( renderMode == RenderMode::RayTracing ) {
 			FrameBeginRayTracing();
 			RenderFrameRayTracing();
 			FrameEndRayTracing();
 		} else if ( renderMode == RenderMode::Rasterization ) {
 			FrameBeginRasterization();
-			RenderFrameRasterization( offsetX, offsetY );
+			RenderFrameRasterization();
 			FrameEndRasterization();
 		}
 		FrameEnd();
@@ -221,13 +224,13 @@ namespace Core {
 	}
 
 	void WolfRenderer::RenderFrameRayTracing() {
-		ID3D12DescriptorHeap* heaps[] = { m_uavHeap.Get() };
+		ID3D12DescriptorHeap* heaps[] = { m_uavsrvHeap.Get() };
 		m_cmdList->SetDescriptorHeaps( _countof( heaps ), heaps );
 		m_cmdList->SetComputeRootSignature( m_globalRootSignature.Get() );
 
 		// Slot 0: Description Table
 		m_cmdList->SetComputeRootDescriptorTable(
-			0, m_uavHeap->GetGPUDescriptorHandleForHeapStart() );
+			0, m_uavsrvHeap->GetGPUDescriptorHandleForHeapStart() );
 
 		// Slot 1: Root Constant.
 		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
@@ -254,10 +257,12 @@ namespace Core {
 	void WolfRenderer::CreateGlobalRootSignature() {
 		D3D12_DESCRIPTOR_RANGE1 ranges[2] = {};
 
-		/* As SetComputeRootDescriptorTable() takes m_uavHeap, it expects a UAV
-		 * range in the first position. For that reason, the UAV range must be
-		 * either the one at the 0th index, or should be created as a different
-		 * root parameter. */
+		/* It's very important which range at which position will be placed. This directly
+		 * correlates to the order of creation. Here, since UAV is created first in the
+		 * CreateRayTracingShaderTexture() with the CreateUnorderedAccessView() call, then
+		 * the SRV is created in the CreateTLASShaderResourceView() with the
+		 * CreateShaderResourceView() call and the handle which specifically states SRV should
+		 * be created with an offset of 1. */
 
 		// Create a Range of type UAV.
 		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -495,7 +500,6 @@ namespace Core {
 			1
 		) };
 		texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-		
 
 		// Describe the heap that will contain the resource.
 		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
@@ -505,7 +509,7 @@ namespace Core {
 			&heapProps,
 			D3D12_HEAP_FLAG_NONE,
 			&texDesc,
-			D3D12_RESOURCE_STATE_COPY_SOURCE, // D3D12_RESOURCE_STATE_UNORDERED_ACCESS ?
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
 			nullptr,
 			IID_PPV_ARGS( &m_raytracingOutput )
 		);
@@ -519,7 +523,7 @@ namespace Core {
 
 		hr = m_device->CreateDescriptorHeap(
 			&heapDesc,
-			IID_PPV_ARGS( &m_uavHeap )
+			IID_PPV_ARGS( &m_uavsrvHeap )
 		);
 		CHECK_HR( "Failed to create UAV descriptor heap.", hr, log );
 
@@ -532,7 +536,7 @@ namespace Core {
 			m_raytracingOutput.Get(),
 			nullptr,
 			&uavDesc,
-			m_uavHeap->GetCPUDescriptorHandleForHeapStart()
+			m_uavsrvHeap->GetCPUDescriptorHandleForHeapStart()
 		);
 
 		log( "[ Ray Tracing ] Shader output texture created." );
@@ -948,7 +952,8 @@ namespace Core {
 		D3D12_RESOURCE_BARRIER uavBLASBarrier{};
 		uavBLASBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
 		uavBLASBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		uavBLASBarrier.UAV.pResource = nullptr; //! AIGJ Why? Shouldn't it be m_blasResult.Get() ?
+		// nullptr blocks all UAV read/writes instead of a specific one.
+		uavBLASBarrier.UAV.pResource = nullptr;
 		m_cmdList->ResourceBarrier( 1, &uavBLASBarrier );
 
 		hr = m_cmdList->Close();
@@ -1116,7 +1121,7 @@ namespace Core {
 
 		// Get the handle for the SECOND slot (offset by 1).
 		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
-			m_uavHeap->GetCPUDescriptorHandleForHeapStart(), 1, handleSize );
+			m_uavsrvHeap->GetCPUDescriptorHandleForHeapStart(), 1, handleSize );
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
@@ -1134,7 +1139,23 @@ namespace Core {
 	 *  ## ##   ##   ##      ##    ##    ##	     ## ##
 	 *  ##  ##  ##   ##  ######    ##    ######  ##  ## */
 
+	void WolfRenderer::PrepareForRasterization() {
+		CreateRootSignature();
+		CreatePipelineState();
+		CreateVertexBuffer();
+		CreateTransformConstantBuffer();
+		CreateViewport();
+		log( "[ Rasterization ] Successful preparation." );
+	}
+
 	void WolfRenderer::FrameBeginRasterization() {
+		UpdateSmoothOffset();
+		static auto last = hrClock::now();
+		auto now = hrClock::now();
+
+		m_transform.deltaTime = std::chrono::duration<float>( now - last ).count();
+		last = now;
+
 		ResetCommandAllocatorAndList();
 
 		D3D12_RESOURCE_BARRIER barrier{};
@@ -1149,9 +1170,17 @@ namespace Core {
 		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
 	}
 
-	void WolfRenderer::RenderFrameRasterization( float offsetX, float offsetY ) {
-		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+	void WolfRenderer::RenderFrameRasterization() {
 		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
+
+		// Mask the offset float values as uint values.
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
+
+		// Bind transform CBV at root parameter 1
+		m_cmdList->SetGraphicsRootConstantBufferView(
+			1, m_transform.transformCB->GetGPUVirtualAddress() );
+
+		m_cmdList->SetPipelineState( m_pipelineState.Get() );
 
 		// IA stands for Input Assembler
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
@@ -1159,11 +1188,6 @@ namespace Core {
 
 		m_cmdList->RSSetViewports( 1, &m_viewport );
 		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
-
-		// Mask the offset float values as uint values.
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetX), 1 );
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetY), 2 );
 
 		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
 	}
@@ -1176,26 +1200,36 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 	}
 
-	void WolfRenderer::PrepareForRasterization() {
-		CreateRootSignature();
-		CreatePipelineState();
-		CreateVertexBuffer();
-		CreateViewport();
-		log( "[ Rasterization ] Successful preparation." );
-	}
-
 	void WolfRenderer::CreateRootSignature() {
-		CD3DX12_ROOT_PARAMETER1 rootParam{};
-		rootParam.InitAsConstants( 3, 0, 0, D3D12_SHADER_VISIBILITY_ALL );
+		D3D12_ROOT_PARAMETER1 rootParams[2]{};
 
-		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init_1_1( 1, &rootParam, 0, nullptr,
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT );
+		// Param 0 - frameIdx
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[0].Constants.ShaderRegister = 0;
+		rootParams[0].Constants.RegisterSpace = 0;
+		rootParams[0].Constants.Num32BitValues = 1;
+
+		// Param 1 - transform matrix
+		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[1].Constants.ShaderRegister = 1;
+		rootParams[1].Constants.RegisterSpace = 0;
+
+
+		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
+		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		rootSignatureDesc.NumParameters = _countof( rootParams );
+		rootSignatureDesc.pParameters = rootParams;
+
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
+		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
 
 		ComPtr<ID3DBlob> signatureBlob;
 		ComPtr<ID3DBlob> errorBlob;
 		HRESULT hr = D3D12SerializeVersionedRootSignature(
-			&rootSignatureDesc,
+			&rootSigDescVersioned,
 			&signatureBlob,
 			&errorBlob
 		);
@@ -1345,6 +1379,87 @@ namespace Core {
 		m_scissorRect.right = m_scene.settings.renderWidth;
 		m_scissorRect.bottom = m_scene.settings.renderHeight;
 		log( "[ Rasterization ] Viewport set up." );
+	}
+
+	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
+		// Add mouse offset to target offset.
+		// Clamp values to prevent offscreen value accumulation.
+		m_transform.targetOffsetX = std::clamp( m_transform.targetOffsetX + dx, -1.f, 1.f );
+		m_transform.targetOffsetY = std::clamp( m_transform.targetOffsetY + dy, -1.f, 1.f );
+	}
+
+	void WolfRenderer::AddToTargetRotation( float deltaAngle ) {
+		m_transform.targetRotation += deltaAngle;// *m_transform.rotationSensitivity;
+	}
+
+	void WolfRenderer::CreateTransformConstantBuffer() {
+		// Constant buffer must be 256-byte aligned.
+		const UINT cbSize = (sizeof( Transformation::TransformData ) + 255) & ~255;
+
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbSize );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_transform.transformCB )
+		);
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to create Transform Constant Buffer", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_transform.transformCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_transform.transformCBMappedPtr) );
+		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to map Transform Constant Buffer", hr, log );
+
+		// Initialize to identity matrix
+		DirectX::XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixIdentity() );
+		memcpy(
+			m_transform.transformCBMappedPtr,
+			&m_transform.transformData,
+			sizeof( m_transform.transformData )
+		);
+	}
+
+	void WolfRenderer::UpdateSmoothOffset() {
+		// Safety clamp for large dt spikes.
+		const float clampedDt = std::fminf( m_transform.deltaTime, 0.05f );
+
+		// Compute smoothing factor for movement (frame-rate independent).
+		const float sTransFactor = 1.f - std::exp( -m_transform.smoothOffsetLerp * clampedDt );
+
+		// Linear interpolation toward the target.
+		m_transform.currOffsetX += (m_transform.targetOffsetX - m_transform.currOffsetX) * sTransFactor;
+		m_transform.currOffsetY += (m_transform.targetOffsetY - m_transform.currOffsetY) * sTransFactor;
+
+		// Compute smoothing factor for rotation (frame-rate independent).
+		const float sRotFactor = 1.f - std::exp( -m_transform.smoothRotationLambda * clampedDt );
+
+		// Linear interpolation toward the target.
+		m_transform.currRotation += (m_transform.targetRotation - m_transform.currRotation) * sRotFactor;
+
+		// Don't allow the center of the geometry to leave the screen when moving around.
+		m_transform.currOffsetX = std::clamp( m_transform.currOffsetX, -1.f, 1.f );
+		m_transform.currOffsetY = std::clamp( m_transform.currOffsetY, -1.f, 1.f );
+
+		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation(
+			m_transform.currOffsetX, m_transform.currOffsetY, 0.0f );
+		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationZ( m_transform.currRotation );
+
+		// Multiplication order matters!
+		// Translation then rotation around geometry own center. Otherwise - around world origin.
+		DirectX::XMMATRIX M = Rot * Trans;
+
+		XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixTranspose( M ) );
+
+		memcpy(
+			m_transform.transformCBMappedPtr,
+			&m_transform.transformData,
+			sizeof( m_transform.transformData )
+		);
+
 	}
 
 	/*  ######  ######  ###     ###	 ###     ###  ######  ###     ##

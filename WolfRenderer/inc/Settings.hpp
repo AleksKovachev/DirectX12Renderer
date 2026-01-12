@@ -1,5 +1,5 @@
-#ifndef RENDER_SETTINGS_HPP
-#define RENDER_SETTINGS_HPP
+#ifndef SETTINGS_HPP
+#define SETTINGS_HPP
 
 
 /// Global scene settings.
@@ -8,4 +8,4 @@ struct Settings {
 	unsigned renderHeight{};
 };
 
-#endif // RENDER_SETTINGS_HPP
+#endif // SETTINGS_HPP

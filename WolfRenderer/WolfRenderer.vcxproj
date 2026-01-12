@@ -200,7 +200,7 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     <ClInclude Include="ext\dxc\dxcapi.h" />
     <ClInclude Include="inc\Logger.hpp" />
     <ClInclude Include="inc\Renderer.hpp" />
-    <ClInclude Include="inc\RenderSettings.hpp" />
+    <ClInclude Include="inc\Settings.hpp" />
     <ClInclude Include="inc\Scene.hpp" />
     <ClInclude Include="inc\Geometry.hpp" />
     <ClInclude Include="inc\utils.hpp" />

@@ -48,8 +48,14 @@ public:
 protected:
 	void mousePressEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
+			// Save current mouse coordinates as last mouse position on left click.
 			m_LMBDown = true;
-			m_initialPos = event->pos();
+			m_lastLMBPos = event->pos();
+		}
+		if ( event->button() == Qt::RightButton ) {
+			// Save current mouse coordinates as last mouse position on right click.
+			m_RMBDown = true;
+			m_lastRMBPos = event->pos();
 		}
 
 		// Allow propagation if parent needs events.
@@ -59,15 +65,26 @@ protected:
 	void mouseMoveEvent( QMouseEvent* event ) override {
 		if ( m_LMBDown ) {
 			// Calculate the offset of current mouse position from last one saved.
-			QPoint offset{ event->pos() - m_initialPos };
+			QPoint offset{ event->pos() - m_lastLMBPos };
+			m_lastLMBPos = event->pos();
 
 			// Convert to NDC (Normalized Device Coordinates): [-1, 1].
 			// Don't emit in RT mode as the data is only sent to Rasterization.
 			if ( m_renderMode == Core::RenderMode::Rasterization )
 				emit onCameraPan(
-					static_cast<float>(offset.x() + m_lastPos.x()) / width() * 2.f,
-					static_cast<float>(offset.y() + m_lastPos.y()) / height() * 2.f
+					static_cast<float>(offset.x()) / width() * 2.f,
+					-(static_cast<float>(offset.y()) / height() * 2.f)
 				);
+		}
+		if ( m_RMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
+			QPoint delta{ event->pos() - m_lastRMBPos };
+			m_lastRMBPos = event->pos();
+
+			// Horizontal mouse movement controls Z rotation (Z = from-towards screen).
+			float deltaAngle{ static_cast<float>(delta.x()) * 0.01f };
+
+			emit onMouseRotationChanged( deltaAngle );
 		}
 
 		// Allow propagation if parent needs events.
@@ -77,9 +94,9 @@ protected:
 	void mouseReleaseEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
-			// Don't change position in RT mode as the data is only used in Rasterization.
-			if ( m_renderMode == Core::RenderMode::Rasterization )
-				m_lastPos = m_lastPos + event->pos() - m_initialPos;
+		}
+		if ( event->button() == Qt::RightButton ) {
+			m_RMBDown = false;
 		}
 
 		// Allow propagation if parent needs events.
@@ -88,13 +105,16 @@ protected:
 
 private:
 	QImage m_image;
-	QPoint m_initialPos;
-	QPoint m_lastPos;
 	bool m_LMBDown{ false };
+	bool m_RMBDown{ false };
+	QPoint m_initialLMBPos;
+	QPoint m_lastLMBPos;
+	QPoint m_lastRMBPos;
 	Core::RenderMode m_renderMode;
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );
+	void onMouseRotationChanged( float deltaAngle );
 };
 
 #endif // VIEWPORT_WIDGET_H

@@ -1,6 +1,7 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include <DirectXMath.h>
 #include <iostream>
 #include <vector>
 #include <wrl/client.h>
@@ -24,20 +25,45 @@
 
 using Microsoft::WRL::ComPtr;
 struct IDxcBlob;
+struct Transformation;
 
 namespace Core {
 
-	// The mode to use for rendering.
+	/// The mode to use for rendering.
 	enum class RenderMode {
 		Rasterization,
 		RayTracing
 	};
 
-	// The preparation needed before rendering. Use Both to switch between modes.
+	/// The preparation needed before rendering. Use Both to switch between modes.
 	enum class RenderPreparation {
 		Rasterization,
 		RayTracing,
 		Both
+	};
+
+	/// Transformation-related data for controlling renderer from the GUI.
+	struct Transformation {
+		/// The transform matrix used in the constant buffer to update object position.
+		ComPtr<ID3D12Resource> transformCB{ nullptr };
+
+		// Members related to geometry transform with mouse movemet.
+		float currOffsetX{};
+		float currOffsetY{};
+		float targetOffsetX{};
+		float targetOffsetY{};
+		float currRotation{};   // Radians
+		float targetRotation{}; // Radians
+		float deltaTime{};
+		// Motion speed and sensitivity.
+		float smoothOffsetLerp{ 2.f };
+		float smoothRotationLambda{ 6.f };
+
+		UINT8* transformCBMappedPtr = nullptr;
+
+		struct alignas(256) TransformData {
+			DirectX::XMFLOAT4X4 mat;
+		} transformData;
 	};
 
 	// The main Renderer class managing the GPU commands.
@@ -71,12 +97,18 @@ namespace Core {
 		void StopRendering();
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
-		/// @param[in] offsetX  Offset in pixels to pass to the geometry for the X axis.
-		/// @param[in] offsetY  Offset in pixels to pass to the geometry for the Y axis.
-		void RenderFrame( float, float );
+		void RenderFrame();
 
 		/// Sets the rendering mode to the provided one.
 		void SetRenderMode( RenderMode );
+
+		/// Recieves mouse offset coordinates and clamp-adds them to the target offset.
+		/// @param[in] dx   The X-axis offset.
+		/// @param[in] dy   The Y-axis offset.
+		void AddToTargetOffset( float dx, float dy );
+
+		/// Recieves mouse offset coordinates and adds them to the target rotation.
+		void AddToTargetRotation( float );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -165,12 +197,16 @@ namespace Core {
 		ComPtr<IDxcBlob> CompileShader(
 			const std::wstring&, const std::wstring&, const std::wstring& );
 
+		/// Creates BLAS, TLAS, and TLAS SRV.
 		void CreateAccelerationStructures();
 
+		/// Create a Bottom Level Acceleration Structure (BLAS)
 		void CreateBLAS();
 
+		/// Create a Top Level Acceleration Structure (TLAS)
 		void CreateTLAS();
 
+		/// Creates a Shader Resource View (SRV) for the TLAS.
 		void CreateTLASShaderResourceView();
 
 		//! Rasterization specific functions.
@@ -182,9 +218,7 @@ namespace Core {
 		void FrameBeginRasterization();
 
 		/// Renders a frame using rasterization.
-		/// @param[in] offsetX  Offset in pixels to pass to the geometry for the X axis.
-		/// @param[in] offsetY  Offset in pixels to pass to the geometry for the Y axis.
-		void RenderFrameRasterization( float, float );
+		void RenderFrameRasterization();
 
 		/// Finalizes the frame rendering for rasterization.
 		void FrameEndRasterization();
@@ -202,6 +236,13 @@ namespace Core {
 
 		/// Creates the viewport and scissor rectangle for rendering.
 		void CreateViewport();
+
+		/// Creates a constant buffer for transform matrix.
+		void CreateTransformConstantBuffer();
+
+		/// Updates the transform matrix using interpolation from the current
+		/// offset and rotation values to the target ones.
+		void UpdateSmoothOffset();
 
 		//! Common functions.
 
@@ -319,7 +360,7 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_raytracingOutput{ nullptr };
 
 		/// Handle to the descriptor heap of the output texture.
-		ComPtr<ID3D12DescriptorHeap> m_uavHeap{ nullptr };
+		ComPtr<ID3D12DescriptorHeap> m_uavsrvHeap{ nullptr };
 
 		/// Handle to the descriptor heap of the TLAS.
 		ComPtr<ID3D12DescriptorHeap> m_srvHeap{ nullptr };
@@ -368,6 +409,7 @@ namespace Core {
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
 		size_t m_vertexCount{};     ///< Number of vertices to render.
 		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
+		Transformation m_transform{}; ///< Camera/object transformation data.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

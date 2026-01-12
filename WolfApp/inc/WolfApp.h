@@ -49,6 +49,7 @@ private: // Members
 
 private slots:
 	void onCameraPan( float, float );
+	void onMouseRotationChanged( float );
 };
 
 
