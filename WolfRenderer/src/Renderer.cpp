@@ -109,7 +109,7 @@ namespace Core {
 		UINT rowPitch{ m_renderTargetFootprint.Footprint.RowPitch };
 
 		// Use the RowPitch (footprint.Footprint.RowPitch) when reading the pixel data
-		// as it's  larger than the texture width * pixel size due to alignment.
+		// as it's larger than the texture width * pixel size due to alignment.
 		uint8_t* byteData = reinterpret_cast<uint8_t*>(renderData);
 		const uint8_t RGBA_COLOR_CHANNELS_COUNT{ 4 };
 
@@ -1166,7 +1166,7 @@ namespace Core {
 
 		// Set which Render Target will be used for rendering.
 		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
-		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+		float greenBG[] = { 0.f, 0.2f, 0.f, 1.f };
 		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
 	}
 
@@ -1189,7 +1189,7 @@ namespace Core {
 		m_cmdList->RSSetViewports( 1, &m_viewport );
 		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
+		m_cmdList->DrawInstanced( 36, 1, 0, 0 );
 	}
 
 	void WolfRenderer::FrameEndRasterization() {
@@ -1213,9 +1213,8 @@ namespace Core {
 		// Param 1 - transform matrix
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[1].Constants.ShaderRegister = 1;
-		rootParams[1].Constants.RegisterSpace = 0;
-
+		rootParams[1].Descriptor.ShaderRegister = 1;
+		rootParams[1].Descriptor.RegisterSpace = 0;
 
 		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -1253,8 +1252,11 @@ namespace Core {
 	void WolfRenderer::CreatePipelineState() {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 
+		// This tells the rasterizer to take 2D or 3D vertex data.
+		// Use DXGI_FORMAT_R32G32_FLOAT for 2D and DXGI_FORMAT_R32G32B32_FLOAT for 3D.
+		// VSInput's position parameter type must reflect this type: float2 / float3.
 		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-			{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 		};
 
@@ -1282,10 +1284,47 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
-		Vertex2D triangleVertices[] = {
-			{  0.0f,  0.5f },
-			{  0.5f, -0.5f },
-			{ -0.5f, -0.5f }
+		Vertex3D triangleVertices[] = {
+			{   0.f,  1.0f,  0.f  }, // Top
+			{  0.5f,   0.f, -0.5f }, // Front-Right
+			{  0.5f,   0.f,  0.5f }, // Back-Right
+			{   0.f,  1.0f,  0.f  }, // Top
+			{  0.5f,   0.f,  0.5f }, // Back-Right
+			{ -0.5f,   0.f,  0.5f }, // Back-Left
+			{   0.f,  1.0f,  0.f  }, // Top
+			{ -0.5f,   0.f,  0.5f }, // Back-Left
+			{ -0.5f,   0.f, -0.5f }, // Front-Left
+			{   0.f,  1.0f,  0.f  }, // Top
+			{ -0.5f,   0.f, -0.5f }, // Front-Left
+			{  0.5f,   0.f, -0.5f }, // Front-Right
+
+			{  0.5f,   0.f, -0.5f }, // Front-Right
+			{ -0.5f,   0.f,  0.5f }, // Back-Left
+			{  0.5f,   0.f,  0.5f }, // Back-Right
+			{  0.5f,   0.f, -0.5f }, // Front-Right
+			{ -0.5f,   0.f, -0.5f }, // Front-Left
+			{ -0.5f,   0.f,  0.5f }, // Back-Left
+
+			// Pyramid 2. Offset by: X + 0.5; Y +1.0
+			{ 0.5f, 1.5f,  1.f  }, // Top
+			{  1.f, 0.5f,  0.5f }, // Front-Right
+			{  1.f, 0.5f,  1.5f }, // Back-Right
+			{ 0.5f, 1.5f,  1.f  }, // Top
+			{  1.f, 0.5f,  1.5f }, // Back-Right
+			{  0.f, 0.5f,  1.5f }, // Back-Left
+			{ 0.5f, 1.5f,  1.f  }, // Top
+			{  0.f, 0.5f,  1.5f }, // Back-Left
+			{  0.f, 0.5f,  0.5f }, // Front-Left
+			{ 0.5f, 1.5f,  1.f  }, // Top
+			{  0.f, 0.5f,  0.5f }, // Front-Left
+			{  1.f, 0.5f,  0.5f }, // Front-Right
+
+			{  1.f, 0.5f,  0.5f }, // Front-Right
+			{  0.f, 0.5f,  1.5f }, // Back-Left
+			{  1.f, 0.5f,  1.5f }, // Back-Right
+			{  1.f, 0.5f,  0.5f }, // Front-Right
+			{  0.f, 0.5f,  0.5f }, // Front-Left
+			{  0.f, 0.5f,  1.5f }, // Back-Left
 		};
 		const UINT vertSize{ sizeof( triangleVertices ) };
 
@@ -1360,7 +1399,7 @@ namespace Core {
 		WaitForGPUSync();
 
 		m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vbView.StrideInBytes = sizeof( Vertex2D );
+		m_vbView.StrideInBytes = sizeof( Vertex3D );
 		m_vbView.SizeInBytes = vertSize;
 
 		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
@@ -1388,8 +1427,21 @@ namespace Core {
 		m_transform.targetOffsetY = std::clamp( m_transform.targetOffsetY + dy, -1.f, 1.f );
 	}
 
-	void WolfRenderer::AddToTargetRotation( float deltaAngle ) {
-		m_transform.targetRotation += deltaAngle;// *m_transform.rotationSensitivity;
+	void WolfRenderer::AddToOffsetZ( float dz ) {
+		m_transform.offsetZ += dz;
+	}
+
+	void WolfRenderer::AddToOffsetFOV( float offset ) {
+		float angleRadians{ DirectX::XMConvertToRadians( offset ) };
+		m_transform.FOVAngle += angleRadians;
+
+		if ( DirectX::XMScalarNearEqual( m_transform.FOVAngle, 0.f, 0.00001f * 2.f ) )
+			m_transform.FOVAngle += angleRadians;
+	}
+
+	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
+		m_transform.targetRotationX += deltaAngleX * m_transform.rotationSensitivityFactor;
+		m_transform.targetRotationY += deltaAngleY * m_transform.rotationSensitivityFactor;
 	}
 
 	void WolfRenderer::CreateTransformConstantBuffer() {
@@ -1424,42 +1476,57 @@ namespace Core {
 	}
 
 	void WolfRenderer::UpdateSmoothOffset() {
+		Transformation& tr{ m_transform };
 		// Safety clamp for large dt spikes.
-		const float clampedDt = std::fminf( m_transform.deltaTime, 0.05f );
+		const float clampedDt = std::fminf( tr.deltaTime, 0.05f );
 
 		// Compute smoothing factor for movement (frame-rate independent).
-		const float sTransFactor = 1.f - std::exp( -m_transform.smoothOffsetLerp * clampedDt );
+		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * clampedDt );
 
 		// Linear interpolation toward the target.
-		m_transform.currOffsetX += (m_transform.targetOffsetX - m_transform.currOffsetX) * sTransFactor;
-		m_transform.currOffsetY += (m_transform.targetOffsetY - m_transform.currOffsetY) * sTransFactor;
+		tr.currOffsetX += (tr.targetOffsetX - tr.currOffsetX) * sTransFactor;
+		tr.currOffsetY += (tr.targetOffsetY - tr.currOffsetY) * sTransFactor;
 
 		// Compute smoothing factor for rotation (frame-rate independent).
-		const float sRotFactor = 1.f - std::exp( -m_transform.smoothRotationLambda * clampedDt );
+		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * clampedDt );
 
 		// Linear interpolation toward the target.
-		m_transform.currRotation += (m_transform.targetRotation - m_transform.currRotation) * sRotFactor;
+		tr.currRotationX += (tr.targetRotationX - tr.currRotationX) * sRotFactor;
+		tr.currRotationY += (tr.targetRotationY - tr.currRotationY) * sRotFactor;
 
 		// Don't allow the center of the geometry to leave the screen when moving around.
-		m_transform.currOffsetX = std::clamp( m_transform.currOffsetX, -1.f, 1.f );
-		m_transform.currOffsetY = std::clamp( m_transform.currOffsetY, -1.f, 1.f );
+		tr.currOffsetX = std::clamp( tr.currOffsetX, -1.f, 1.f );
+		tr.currOffsetY = std::clamp( tr.currOffsetY, -1.f, 1.f );
 
+		// Subtracting 0.5 from Y to place camera slightly above ground.
 		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation(
-			m_transform.currOffsetX, m_transform.currOffsetY, 0.0f );
-		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationZ( m_transform.currRotation );
+			tr.currOffsetX, tr.currOffsetY - 0.5f, tr.offsetZ );
+		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationRollPitchYaw(
+			tr.currRotationY, tr.currRotationX, 0.f );
 
-		// Multiplication order matters!
-		// Translation then rotation around geometry own center. Otherwise - around world origin.
-		DirectX::XMMATRIX M = Rot * Trans;
+		// Create a world-view matrix. Multiplication order matters! Rotation,
+		// then translation - transform around world origin. Otherwise - around geometry origin.
+		DirectX::XMMATRIX World = Rot * Trans;
 
-		XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixTranspose( M ) );
-
-		memcpy(
-			m_transform.transformCBMappedPtr,
-			&m_transform.transformData,
-			sizeof( m_transform.transformData )
+		DirectX::XMMATRIX View = DirectX::XMMatrixLookAtLH(
+			DirectX::XMVectorSet( 0.f, 0.f, -2.f, 1.f ), // camera position
+			DirectX::XMVectorZero(),                     // look at origin
+			DirectX::XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // up
 		);
+		DirectX::XMMATRIX WorldView = World * View;
 
+		// Create projection matrix (for simulating a camera).
+		unsigned& width = m_scene.settings.renderWidth;
+		unsigned& height = m_scene.settings.renderHeight;
+		tr.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
+			tr.FOVAngle, tr.aspectRatio, tr.nearZ, tr.farZ );
+
+		XMStoreFloat4x4( &tr.transformData.mat, DirectX::XMMatrixTranspose( WorldView ) );
+		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
+
+		memcpy( tr.transformCBMappedPtr, &tr.transformData, sizeof( tr.transformData ) );
 	}
 
 	/*  ######  ######  ###     ###	 ###     ###  ######  ###     ##

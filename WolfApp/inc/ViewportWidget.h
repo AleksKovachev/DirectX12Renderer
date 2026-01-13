@@ -57,6 +57,11 @@ protected:
 			m_RMBDown = true;
 			m_lastRMBPos = event->pos();
 		}
+		if ( event->button() == Qt::MiddleButton ) {
+			// Save current mouse coordinates as last mouse position on right click.
+			m_MMBDown = true;
+			m_lastMMBPos = event->pos();
+		}
 
 		// Allow propagation if parent needs events.
 		QWidget::mousePressEvent( event );
@@ -70,21 +75,34 @@ protected:
 
 			// Convert to NDC (Normalized Device Coordinates): [-1, 1].
 			// Don't emit in RT mode as the data is only sent to Rasterization.
-			if ( m_renderMode == Core::RenderMode::Rasterization )
-				emit onCameraPan(
-					static_cast<float>(offset.x()) / width() * 2.f,
-					-(static_cast<float>(offset.y()) / height() * 2.f)
-				);
+			if ( m_renderMode == Core::RenderMode::Rasterization ) {
+				float ndcX{ static_cast<float>(offset.x()) / width() * 2.f };
+				float ndcY{ -(static_cast<float>(offset.y()) / height() * 2.f) };
+
+				emit onCameraPan( ndcX,ndcY );
+			}
 		}
 		if ( m_RMBDown ) {
 			// Calculate the offset of current mouse position from last one saved.
 			QPoint delta{ event->pos() - m_lastRMBPos };
 			m_lastRMBPos = event->pos();
 
-			// Horizontal mouse movement controls Z rotation (Z = from-towards screen).
-			float deltaAngle{ static_cast<float>(delta.x()) * 0.01f };
+			if ( m_renderMode == Core::RenderMode::Rasterization ) {
+				// Get the delta from the last position.
+				float deltaX{ static_cast<float>(delta.x()) };
+				float deltaY{ static_cast<float>(delta.y()) };
+				emit onMouseRotationChanged( deltaX, deltaY );
+			}
+		}
+		if ( m_MMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
+			QPoint delta{ event->pos() - m_lastMMBPos };
+			m_lastMMBPos = event->pos();
 
-			emit onMouseRotationChanged( deltaAngle );
+			float sensitivityMultiplier{ 0.1f };
+			float deltaY{ static_cast<float>(delta.y()) * sensitivityMultiplier };
+
+			emit onCameraDolly( deltaY );
 		}
 
 		// Allow propagation if parent needs events.
@@ -98,23 +116,49 @@ protected:
 		if ( event->button() == Qt::RightButton ) {
 			m_RMBDown = false;
 		}
+		if ( event->button() == Qt::MiddleButton ) {
+			m_MMBDown = false;
+		}
 
 		// Allow propagation if parent needs events.
 		QWidget::mouseReleaseEvent( event );
 	}
 
+	void wheelEvent( QWheelEvent* event ) override {
+		// event->pixelDelta(); // Used for high-precision touchpads
+		// 120 is a usual value for a single scroll. This is done by
+		// Qt, Windows, etc. to allow for high-precision scrolling without
+		// using floats. Dividing the number by 8 converts it back to degrees.
+		// 15 degree interval is what most mouse wheels use. Dividing the
+		// angleDelta by 120 gives +/- 1. Later multiplying it by -10 increases
+		// "zoom" sensitivity and flips "zoom" direction.
+		if ( m_renderMode == Core::RenderMode::Rasterization ) {
+			float sensitivityMultiplier{ -0.5f };
+			int scrollUpDownVal{ (event->angleDelta() / 120).y() };
+			emit onCameraFOV( static_cast<float>(scrollUpDownVal) * sensitivityMultiplier );
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::wheelEvent( event );
+	}
+
+
 private:
 	QImage m_image;
 	bool m_LMBDown{ false };
 	bool m_RMBDown{ false };
+	bool m_MMBDown{ false };
 	QPoint m_initialLMBPos;
 	QPoint m_lastLMBPos;
 	QPoint m_lastRMBPos;
+	QPoint m_lastMMBPos;
 	Core::RenderMode m_renderMode;
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );
-	void onMouseRotationChanged( float deltaAngle );
+	void onCameraDolly( float offsetZ );
+	void onCameraFOV( float offset );
+	void onMouseRotationChanged( float deltaAngleX, float deltaAngleY );
 };
 
 #endif // VIEWPORT_WIDGET_H

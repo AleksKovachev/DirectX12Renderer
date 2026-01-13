@@ -1,19 +1,21 @@
 #include "Common.hlsli"
 
 cbuffer TransformCB : register( b1 ) {
-    float4x4 gTransform;
+    row_major float4x4 WorldView;
+    row_major float4x4 Projection;
 };
 
 struct VSInput {
-    float2 position : POSITION;
+    float3 position : POSITION;
 };
 
 PSInput VSMain( VSInput inputVertex ) {
     PSInput output;
 
     // Geometry position offset.
-    float4 pos = float4( inputVertex.position, 0.0f, 1.0f );
-    output.position = mul( pos, gTransform );
+    float4 pos = float4( inputVertex.position, 1.0f );
+    pos = mul( WorldView, pos );
+    output.position = mul( Projection, pos );
 
     return output;
 };

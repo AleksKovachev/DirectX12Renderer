@@ -52,8 +52,14 @@ namespace Core {
 		float currOffsetY{};
 		float targetOffsetX{};
 		float targetOffsetY{};
-		float currRotation{};   // Radians
-		float targetRotation{}; // Radians
+		float offsetZ{ 30.f };
+
+		float rotationSensitivityFactor{ 0.01f };
+		float currRotationX{};   // Radians
+		float currRotationY{};   // Radians
+		float targetRotationX{}; // Radians
+		float targetRotationY{}; // Radians
+
 		float deltaTime{};
 		// Motion speed and sensitivity.
 		float smoothOffsetLerp{ 2.f };
@@ -61,8 +67,14 @@ namespace Core {
 
 		UINT8* transformCBMappedPtr = nullptr;
 
+		float FOVAngle{ DirectX::XMConvertToRadians( 5.f ) };
+		float aspectRatio{ 1.f }; ///< Calculate with render width/height.
+		float nearZ{ 0.1f }; ///< Camera near clipping plane.
+		float farZ{ 1000.f }; ///< Camera far clipping plane.
+
 		struct alignas(256) TransformData {
 			DirectX::XMFLOAT4X4 mat;
+			DirectX::XMFLOAT4X4 projection;
 		} transformData;
 	};
 
@@ -103,12 +115,22 @@ namespace Core {
 		void SetRenderMode( RenderMode );
 
 		/// Recieves mouse offset coordinates and clamp-adds them to the target offset.
-		/// @param[in] dx   The X-axis offset.
-		/// @param[in] dy   The Y-axis offset.
+		/// @param[in] dx  The X-axis offset.
+		/// @param[in] dy  The Y-axis offset.
 		void AddToTargetOffset( float dx, float dy );
 
+		/// Recieves mouse offset coordinate and adds it to the Z offset.
+		/// @param[in] dz  The Z-axis offset.
+		void AddToOffsetZ( float dz );
+
+		/// Recieves mouse offset coordinate and adds it to the FOV offset.
+		/// @param[in] offset  The Z-axis offset.
+		void AddToOffsetFOV( float offset );
+
 		/// Recieves mouse offset coordinates and adds them to the target rotation.
-		void AddToTargetRotation( float );
+		/// @param[in] deltaAngleX  The X-axis offset.
+		/// @param[in] deltaAngleY  The Y-axis offset.
+		void AddToTargetRotation( float, float );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
