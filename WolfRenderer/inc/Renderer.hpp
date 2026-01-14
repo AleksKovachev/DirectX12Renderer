@@ -16,6 +16,11 @@
 #include "Logger.hpp"
 #include "Scene.hpp"
 
+// Undefine "min" and "max" macros defined in windows.h
+// to avoid conflicts with std::min and std::max.
+#undef min
+#undef max
+
 
 /* While #pragma comment(lib, ...) is perfectly valid and common, especially in
  * small projects or single source files, the professional standard for large
@@ -42,6 +47,11 @@ namespace Core {
 		Both
 	};
 
+	enum class TransformCoordinateSystem {
+		World,
+		Local
+	};
+
 	/// Transformation-related data for controlling renderer from the GUI.
 	struct Transformation {
 		/// The transform matrix used in the constant buffer to update object position.
@@ -52,9 +62,17 @@ namespace Core {
 		float currOffsetY{};
 		float targetOffsetX{};
 		float targetOffsetY{};
-		float offsetZ{ 30.f };
+		float offsetZ{ 35.f };
+
+		float dummyObjectRadius{ 0.5f }; ///< Used for offset clamping to viewport bounds.
+		float boundsX{};
+		float boundsY{};
 
 		float rotationSensitivityFactor{ 0.01f };
+		float offsetZSensitivityFactor{ 0.5f };
+		float FOVSensitivityFactor{ 0.1f };
+		float offsetXYSensitivityFactor{ 0.1f };
+
 		float currRotationX{};   // Radians
 		float currRotationY{};   // Radians
 		float targetRotationX{}; // Radians
@@ -67,10 +85,12 @@ namespace Core {
 
 		UINT8* transformCBMappedPtr = nullptr;
 
-		float FOVAngle{ DirectX::XMConvertToRadians( 5.f ) };
+		float FOVAngle{ DirectX::XMConvertToRadians( 45.f ) };
 		float aspectRatio{ 1.f }; ///< Calculate with render width/height.
 		float nearZ{ 0.1f }; ///< Camera near clipping plane.
 		float farZ{ 1000.f }; ///< Camera far clipping plane.
+
+		TransformCoordinateSystem coordinateSystem{ TransformCoordinateSystem::Local };
 
 		struct alignas(256) TransformData {
 			DirectX::XMFLOAT4X4 mat;
@@ -264,7 +284,10 @@ namespace Core {
 
 		/// Updates the transform matrix using interpolation from the current
 		/// offset and rotation values to the target ones.
-		void UpdateSmoothOffset();
+		void UpdateSmoothMotion();
+
+		/// Calculates the viewport bounds for clamping the object offset.
+		void CalculateViewportBounds();
 
 		/// Creates a depth buffer and DSV Heap.
 		void CreateDepthStencil();

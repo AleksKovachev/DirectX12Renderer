@@ -70,16 +70,15 @@ protected:
 	void mouseMoveEvent( QMouseEvent* event ) override {
 		if ( m_LMBDown ) {
 			// Calculate the offset of current mouse position from last one saved.
-			QPoint offset{ event->pos() - m_lastLMBPos };
+			QPoint delta{ event->pos() - m_lastLMBPos };
 			m_lastLMBPos = event->pos();
 
-			// Convert to NDC (Normalized Device Coordinates): [-1, 1].
 			// Don't emit in RT mode as the data is only sent to Rasterization.
 			if ( m_renderMode == Core::RenderMode::Rasterization ) {
-				float ndcX{ static_cast<float>(offset.x()) / width() * 2.f };
-				float ndcY{ -(static_cast<float>(offset.y()) / height() * 2.f) };
+				float deltaX{ static_cast<float>(delta.x()) };
+				float deltaY{ static_cast<float>(delta.y()) };
 
-				emit onCameraPan( ndcX,ndcY );
+				emit onCameraPan( deltaX, -deltaY );
 			}
 		}
 		if ( m_RMBDown ) {
@@ -99,10 +98,9 @@ protected:
 			QPoint delta{ event->pos() - m_lastMMBPos };
 			m_lastMMBPos = event->pos();
 
-			float sensitivityMultiplier{ 0.1f };
-			float deltaY{ static_cast<float>(delta.y()) * sensitivityMultiplier };
+			float deltaY{ static_cast<float>(delta.y()) };
 
-			emit onCameraDolly( deltaY );
+			emit onCameraFOV( deltaY );
 		}
 
 		// Allow propagation if parent needs events.
@@ -130,12 +128,10 @@ protected:
 		// Qt, Windows, etc. to allow for high-precision scrolling without
 		// using floats. Dividing the number by 8 converts it back to degrees.
 		// 15 degree interval is what most mouse wheels use. Dividing the
-		// angleDelta by 120 gives +/- 1. Later multiplying it by -10 increases
-		// "zoom" sensitivity and flips "zoom" direction.
+		// angleDelta by 120 gives +/- 1. Flipping "zoom" direction.
 		if ( m_renderMode == Core::RenderMode::Rasterization ) {
-			float sensitivityMultiplier{ -0.5f };
 			int scrollUpDownVal{ (event->angleDelta() / 120).y() };
-			emit onCameraFOV( static_cast<float>(scrollUpDownVal) * sensitivityMultiplier );
+			emit onCameraDolly( -static_cast<float>(scrollUpDownVal) );
 		}
 
 		// Allow propagation if parent needs events.

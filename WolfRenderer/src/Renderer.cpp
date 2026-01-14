@@ -15,6 +15,7 @@
 #include <algorithm> // clamp
 #include <cassert> // assert
 #include <chrono> // high_resolution_clock, duration
+#include <cmath> // abs
 #include <filesystem> // path, absolute
 #include <format> // format
 #include <fstream> // ofstream, ios::binary
@@ -1156,6 +1157,7 @@ namespace Core {
 
 		m_transform.deltaTime = std::chrono::duration<float>( now - last ).count();
 		last = now;
+		m_transform.deltaTime = std::clamp( m_transform.deltaTime, 0.0f, 0.05f ); // Avoid spikes.
 
 		ResetCommandAllocatorAndList();
 
@@ -1402,18 +1404,29 @@ namespace Core {
 	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
 		// Add mouse offset to target offset.
 		// Clamp values to prevent offscreen value accumulation.
-		m_transform.targetOffsetX = std::clamp( m_transform.targetOffsetX + dx, -1.f, 1.f );
-		m_transform.targetOffsetY = std::clamp( m_transform.targetOffsetY + dy, -1.f, 1.f );
+		Transformation& tr = m_transform;
+
+		CalculateViewportBounds();
+
+		// Predict next target.
+		float candidateX = tr.targetOffsetX + dx * tr.offsetXYSensitivityFactor;
+		float candidateY = tr.targetOffsetY + dy * tr.offsetXYSensitivityFactor;
+
+		tr.targetOffsetX = std::clamp( candidateX, -tr.boundsX, tr.boundsX );
+		tr.targetOffsetY = std::clamp( candidateY, -tr.boundsY, tr.boundsY );
 	}
 
 	void WolfRenderer::AddToOffsetZ( float dz ) {
-		m_transform.offsetZ += dz;
+		m_transform.offsetZ += dz * m_transform.offsetZSensitivityFactor;
 	}
 
 	void WolfRenderer::AddToOffsetFOV( float offset ) {
-		float angleRadians{ DirectX::XMConvertToRadians( offset ) };
+		float angleRadians{ DirectX::XMConvertToRadians( offset * m_transform.FOVSensitivityFactor ) };
 		m_transform.FOVAngle += angleRadians;
 
+		// A value near 0 causes division by 0 and crashes the application.
+		// Clamping the value stops FOV at max zoom. Adding it again makes it
+		// go over to the negative numbers, causing inverted projection.
 		if ( DirectX::XMScalarNearEqual( m_transform.FOVAngle, 0.f, 0.00001f * 2.f ) )
 			m_transform.FOVAngle += angleRadians;
 	}
@@ -1455,44 +1468,54 @@ namespace Core {
 		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
 
-	void WolfRenderer::UpdateSmoothOffset() {
+	void WolfRenderer::UpdateSmoothMotion() {
 		Transformation& tr{ m_transform };
-		// Safety clamp for large dt spikes.
-		const float clampedDt = std::fminf( tr.deltaTime, 0.05f );
 
 		// Compute smoothing factor for movement (frame-rate independent).
-		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * clampedDt );
+		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * tr.deltaTime);
 
 		// Linear interpolation toward the target.
 		tr.currOffsetX += (tr.targetOffsetX - tr.currOffsetX) * sTransFactor;
 		tr.currOffsetY += (tr.targetOffsetY - tr.currOffsetY) * sTransFactor;
 
 		// Compute smoothing factor for rotation (frame-rate independent).
-		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * clampedDt );
+		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * tr.deltaTime );
 
 		// Linear interpolation toward the target.
 		tr.currRotationX += (tr.targetRotationX - tr.currRotationX) * sRotFactor;
 		tr.currRotationY += (tr.targetRotationY - tr.currRotationY) * sRotFactor;
 
-		// Don't allow the center of the geometry to leave the screen when moving around.
-		tr.currOffsetX = std::clamp( tr.currOffsetX, -1.f, 1.f );
-		tr.currOffsetY = std::clamp( tr.currOffsetY, -1.f, 1.f );
+		// Don't allow the center of the "screen sphere" to leave the screen
+		// when moving around, independent of zoom and FOV.
+		// Recalculate bounds to make object stay inside.
+		CalculateViewportBounds();
+
+		tr.currOffsetX = std::clamp( tr.currOffsetX, -tr.boundsX, tr.boundsX );
+		tr.currOffsetY = std::clamp( tr.currOffsetY, -tr.boundsY, tr.boundsY );
 
 		// Subtracting 0.5 from Y to place camera slightly above ground.
 		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation(
 			tr.currOffsetX, tr.currOffsetY - 0.5f, tr.offsetZ );
-		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationRollPitchYaw(
-			tr.currRotationY, tr.currRotationX, 0.f );
+
+		// Using Rotation data for X axis in Qt screen space for MatrixY in
+		// WorldView and vice-versa. Negative currRotation inverts rotation direction.
+		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationY( -tr.currRotationX ) *
+								DirectX::XMMatrixRotationX( -tr.currRotationY );
 
 		// Create a world-view matrix. Multiplication order matters! Rotation,
 		// then translation - transform around world origin. Otherwise - around geometry origin.
-		DirectX::XMMATRIX World = Rot * Trans;
+		DirectX::XMMATRIX World{};
+		if ( tr.coordinateSystem == TransformCoordinateSystem::Local )
+			World = Rot * Trans;
+		else if ( tr.coordinateSystem == TransformCoordinateSystem::World )
+			World = Trans * Rot;
 
 		DirectX::XMMATRIX View = DirectX::XMMatrixLookAtLH(
-			DirectX::XMVectorSet( 0.f, 0.f, -2.f, 1.f ), // camera position
-			DirectX::XMVectorZero(),                     // look at origin
-			DirectX::XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // up
+			DirectX::XMVectorSet( 0.f, 0.f, -1.f, 1.f ), // Camera position.
+			DirectX::XMVectorZero(),                     // Look at origin.
+			DirectX::XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // Up.
 		);
+
 		DirectX::XMMATRIX WorldView = World * View;
 
 		// Create projection matrix (for simulating a camera).
@@ -1508,6 +1531,17 @@ namespace Core {
 		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
 
 		memcpy( tr.transformCBMappedPtr, &tr.transformData, sizeof( tr.transformData ) );
+	}
+
+	void WolfRenderer::CalculateViewportBounds() {
+		float depth = std::abs( m_transform.offsetZ );
+
+		float halfHeight = depth * std::tan( m_transform.FOVAngle * 0.5f );
+		float halfWidth = halfHeight * m_transform.aspectRatio;
+
+		// If the object does not fit, lock movement instead of exploding.
+		m_transform.boundsX = std::abs( halfWidth - m_transform.dummyObjectRadius );
+		m_transform.boundsY = std::abs( halfHeight - m_transform.dummyObjectRadius );
 	}
 
 	void WolfRenderer::CreateDepthStencil() {
