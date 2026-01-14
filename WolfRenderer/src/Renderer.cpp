@@ -1171,9 +1171,8 @@ namespace Core {
 		float greenBG[] = { 0.f, 0.2f, 0.f, 1.f };
 		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
 		m_cmdList->ClearDepthStencilView( m_dsvHeap->GetCPUDescriptorHandleForHeapStart(),
-			D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr
+			D3D12_CLEAR_FLAG_DEPTH, 0.f, 0, 0, nullptr
 		);
-
 	}
 
 	void WolfRenderer::RenderFrameRasterization() {
@@ -1182,20 +1181,20 @@ namespace Core {
 		// Mask the offset float values as uint values.
 		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
 
-		// Bind transform CBV at root parameter 1
+		// Bind transform CBV at root parameter 1.
 		m_cmdList->SetGraphicsRootConstantBufferView(
 			1, m_transform.transformCB->GetGPUVirtualAddress() );
 
 		m_cmdList->SetPipelineState( m_pipelineState.Get() );
 
-		// IA stands for Input Assembler
+		// IA stands for Input Assembler.
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
 
 		m_cmdList->RSSetViewports( 1, &m_viewport );
 		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-		m_cmdList->DrawInstanced( 36, 1, 0, 0 );
+		m_cmdList->DrawInstanced( static_cast<UINT>( m_vertexCount ), 1, 0, 0 );
 	}
 
 	void WolfRenderer::FrameEndRasterization() {
@@ -1209,14 +1208,14 @@ namespace Core {
 	void WolfRenderer::CreateRootSignature() {
 		D3D12_ROOT_PARAMETER1 rootParams[2]{};
 
-		// Param 0 - frameIdx
+		// Param 0 - frameIdx.
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[0].Constants.ShaderRegister = 0;
 		rootParams[0].Constants.RegisterSpace = 0;
 		rootParams[0].Constants.Num32BitValues = 1;
 
-		// Param 1 - transform matrix
+		// Param 1 - transform matrix.
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[1].Descriptor.ShaderRegister = 1;
@@ -1273,6 +1272,8 @@ namespace Core {
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
 		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
 		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT );
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+		//psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
 		psoDesc.DSVFormat = m_depthFormat;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -1290,49 +1291,21 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
-		Vertex3D triangleVertices[] = {
-			{   0.f,  1.0f,  0.f  }, // Top
-			{  0.5f,   0.f, -0.5f }, // Front-Right
-			{  0.5f,   0.f,  0.5f }, // Back-Right
-			{   0.f,  1.0f,  0.f  }, // Top
-			{  0.5f,   0.f,  0.5f }, // Back-Right
-			{ -0.5f,   0.f,  0.5f }, // Back-Left
-			{   0.f,  1.0f,  0.f  }, // Top
-			{ -0.5f,   0.f,  0.5f }, // Back-Left
-			{ -0.5f,   0.f, -0.5f }, // Front-Left
-			{   0.f,  1.0f,  0.f  }, // Top
-			{ -0.5f,   0.f, -0.5f }, // Front-Left
-			{  0.5f,   0.f, -0.5f }, // Front-Right
+		m_vertexCount = m_scene.GetTriangles().size() * 3;
+		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
 
-			{  0.5f,   0.f, -0.5f }, // Front-Right
-			{ -0.5f,   0.f,  0.5f }, // Back-Left
-			{  0.5f,   0.f,  0.5f }, // Back-Right
-			{  0.5f,   0.f, -0.5f }, // Front-Right
-			{ -0.5f,   0.f, -0.5f }, // Front-Left
-			{ -0.5f,   0.f,  0.5f }, // Back-Left
+		int vertIdxInBuffIdx{};
+		for ( int triIdx{}; triIdx < m_scene.GetTriangles().size(); ++triIdx ) {
+			Triangle tri{ m_scene.GetTriangles()[triIdx] };
+			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
+				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
+				vertInBuff.x = tri.GetVertex( vertIdx ).x;
+				vertInBuff.y = tri.GetVertex( vertIdx ).y;
+				vertInBuff.z = tri.GetVertex( vertIdx ).z;
+			}
+		}
 
-			// Pyramid 2. Offset by: X + 0.5; Y +1.0
-			{ 0.5f, 1.5f,  1.f  }, // Top
-			{  1.f, 0.5f,  0.5f }, // Front-Right
-			{  1.f, 0.5f,  1.5f }, // Back-Right
-			{ 0.5f, 1.5f,  1.f  }, // Top
-			{  1.f, 0.5f,  1.5f }, // Back-Right
-			{  0.f, 0.5f,  1.5f }, // Back-Left
-			{ 0.5f, 1.5f,  1.f  }, // Top
-			{  0.f, 0.5f,  1.5f }, // Back-Left
-			{  0.f, 0.5f,  0.5f }, // Front-Left
-			{ 0.5f, 1.5f,  1.f  }, // Top
-			{  0.f, 0.5f,  0.5f }, // Front-Left
-			{  1.f, 0.5f,  0.5f }, // Front-Right
-
-			{  1.f, 0.5f,  0.5f }, // Front-Right
-			{  0.f, 0.5f,  1.5f }, // Back-Left
-			{  1.f, 0.5f,  1.5f }, // Back-Right
-			{  1.f, 0.5f,  0.5f }, // Front-Right
-			{  0.f, 0.5f,  0.5f }, // Front-Left
-			{  0.f, 0.5f,  1.5f }, // Back-Left
-		};
-		const UINT vertSize{ sizeof( triangleVertices ) };
+		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
 
 		// Create the "Intermediate" Upload Buffer (Staging).
 		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
@@ -1406,7 +1379,7 @@ namespace Core {
 
 		m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
 		m_vbView.StrideInBytes = sizeof( Vertex3D );
-		m_vbView.SizeInBytes = vertSize;
+		m_vbView.SizeInBytes = static_cast<UINT>( vertSize );
 
 		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
 	}
@@ -1527,8 +1500,9 @@ namespace Core {
 		unsigned& height = m_scene.settings.renderHeight;
 		tr.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
+		// Swap nearZ and farZ to use "reverse-Z" for better precision.
 		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
-			tr.FOVAngle, tr.aspectRatio, tr.nearZ, tr.farZ );
+			tr.FOVAngle, tr.aspectRatio, tr.farZ, tr.nearZ );
 
 		XMStoreFloat4x4( &tr.transformData.mat, DirectX::XMMatrixTranspose( WorldView ) );
 		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
@@ -1559,7 +1533,7 @@ namespace Core {
 
 		D3D12_CLEAR_VALUE clearValue{};
 		clearValue.Format = m_depthFormat;
-		clearValue.DepthStencil.Depth = 1.0f;
+		clearValue.DepthStencil.Depth = 0.f;
 		clearValue.DepthStencil.Stencil = 0;
 
 		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
