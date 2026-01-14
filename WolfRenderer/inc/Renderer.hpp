@@ -266,6 +266,9 @@ namespace Core {
 		/// offset and rotation values to the target ones.
 		void UpdateSmoothOffset();
 
+		/// Creates a depth buffer and DSV Heap.
+		void CreateDepthStencil();
+
 		//! Common functions.
 
 		/// Finalizes the frame rendering.
@@ -419,6 +422,10 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_blasResult{ nullptr };
 		ComPtr<ID3D12Resource> m_blasScratch{ nullptr };
 		ComPtr<ID3D12Resource> m_tlasResult{ nullptr };
+
+		ComPtr<ID3D12Resource> m_depthStencilBuffer{ nullptr };
+		ComPtr<ID3D12DescriptorHeap> m_dsvHeap{ nullptr };
+		DXGI_FORMAT m_depthFormat{ DXGI_FORMAT_D32_FLOAT };
 
 		// General members.
 		Scene m_scene{ "../rsc/scene1.crtscene" };

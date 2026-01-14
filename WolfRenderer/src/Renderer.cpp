@@ -1145,6 +1145,7 @@ namespace Core {
 		CreateVertexBuffer();
 		CreateTransformConstantBuffer();
 		CreateViewport();
+		CreateDepthStencil();
 		log( "[ Rasterization ] Successful preparation." );
 	}
 
@@ -1165,9 +1166,14 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
 		// Set which Render Target will be used for rendering.
-		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, &dsvHandle );
 		float greenBG[] = { 0.f, 0.2f, 0.f, 1.f };
 		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+		m_cmdList->ClearDepthStencilView( m_dsvHeap->GetCPUDescriptorHandleForHeapStart(),
+			D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr
+		);
+
 	}
 
 	void WolfRenderer::RenderFrameRasterization() {
@@ -1266,8 +1272,8 @@ namespace Core {
 		psoDesc.InputLayout = { inputLayout, _countof( inputLayout ) };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
 		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
-		psoDesc.DepthStencilState.DepthEnable = FALSE;
-		psoDesc.DepthStencilState.StencilEnable = FALSE;
+		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT );
+		psoDesc.DSVFormat = m_depthFormat;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;
@@ -1473,6 +1479,7 @@ namespace Core {
 			&m_transform.transformData,
 			sizeof( m_transform.transformData )
 		);
+		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
 
 	void WolfRenderer::UpdateSmoothOffset() {
@@ -1527,6 +1534,57 @@ namespace Core {
 		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
 
 		memcpy( tr.transformCBMappedPtr, &tr.transformData, sizeof( tr.transformData ) );
+	}
+
+	void WolfRenderer::CreateDepthStencil() {
+		// DSV Heap.
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
+		dsvHeapDesc.NumDescriptors = 1;
+		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+		HRESULT hr{ m_device->CreateDescriptorHeap( &dsvHeapDesc, IID_PPV_ARGS( &m_dsvHeap ) ) };
+		CHECK_HR( "Failed to create DSV Heap.", hr, log );
+
+		// Depth texture.
+		D3D12_RESOURCE_DESC depthDesc{};
+		depthDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		depthDesc.Width = m_scene.settings.renderWidth;
+		depthDesc.Height = m_scene.settings.renderHeight;
+		depthDesc.DepthOrArraySize = 1;
+		depthDesc.MipLevels = 1;
+		depthDesc.Format = m_depthFormat;
+		depthDesc.SampleDesc.Count = 1;
+		depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		D3D12_CLEAR_VALUE clearValue{};
+		clearValue.Format = m_depthFormat;
+		clearValue.DepthStencil.Depth = 1.0f;
+		clearValue.DepthStencil.Stencil = 0;
+
+		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
+
+		hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&depthDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&clearValue,
+			IID_PPV_ARGS( &m_depthStencilBuffer )
+		);
+
+		// Create DSV.
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+		dsvDesc.Format = m_depthFormat;
+		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+		m_device->CreateDepthStencilView(
+			m_depthStencilBuffer.Get(),
+			&dsvDesc,
+			m_dsvHeap->GetCPUDescriptorHandleForHeapStart()
+		);
+		log( "[ Rasterization ] Depth Stencil created." );
 	}
 
 	/*  ######  ######  ###     ###	 ###     ###  ######  ###     ##
