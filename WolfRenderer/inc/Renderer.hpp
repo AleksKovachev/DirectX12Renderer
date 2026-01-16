@@ -116,6 +116,9 @@ namespace Core {
 		WolfRenderer( int renderWidth = 800, int renderHeight = 800, UINT bufferCount = 2 );
 		~WolfRenderer();
 
+		/// Gets the scene object containing all scene data.
+		const Scene& GetScene();
+
 		/// Sets the minimum logging level for the logger.
 		/// @param[in] level  Minimum log level to set.
 		void SetLoggerMinLevel( LogLevel );

@@ -70,6 +70,10 @@ namespace Core {
 			CloseHandle( m_fenceEvent );
 	}
 
+	const Scene& WolfRenderer::GetScene() {
+		return m_scene;
+	}
+
 	void WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
 		log.SetMinLevel( level );
 		std::string logLevel{};

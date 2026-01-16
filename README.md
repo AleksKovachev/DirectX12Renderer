@@ -2,6 +2,9 @@
 
 A Windows-based real-time rendering application implementing both **rasterization** and **ray tracing** pipelines using DirectX 12. The project features a Qt-based GUI with an interactive viewport that can dynamically switch between rendering modes at runtime.
 
+## Demo Video
+[![Demo video](docs/gui.png)](docs/demo.mp4)
+
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 ![DirectX](https://img.shields.io/badge/DirectX_12-107C10?style=flat&logo=microsoft&logoColor=white)
 ![Qt](https://img.shields.io/badge/Qt_6.8.0-41CD52?style=flat&logo=qt&logoColor=white)
@@ -9,8 +12,9 @@ A Windows-based real-time rendering application implementing both **rasterizatio
 ![Visual Studio](https://img.shields.io/badge/Visual_Studio_2022-5C2D91?style=flat&logo=visual-studio&logoColor=white)
 
 ## 📋 Table of Contents
+- [Overview](#-overview)
 - [Features](#-features)
-- [Architecture](#-architecture)
+- [Architecture](#architecture)
 - [Requirements](#-requirements)
 - [Building](#-building)
 - [Usage](#-usage)
@@ -18,172 +22,188 @@ A Windows-based real-time rendering application implementing both **rasterizatio
 - [Technical Details](#-technical-details)
 - [License](#-license)
 
+## 🔭 Keyboard shortcuts
+- **Ray Tracing**
+  - Right Mouse Button (**RMB**) click + mouse drag: Rotate the camera (look around).
+  - Right Mouse Button (**RMB**) click + **W**, **S**, **A**, or **D**: Move around the scene in Z and X axes.
+  - Right Mouse Button (**RMB**) click + **Q**, **E**: Move around the scene in Y axis.
+  - Right Mouse Button (**RMB**) click + **Shift** + **W**, **S**, **A**, **D**, **Q**, **E**: Faster movement in all axes.
+- **Rasterization**
+  - Left Mouse Button (**LMB**) click + mouse drag: Move geometry along the 2D screen with
+    smooth animation to reach the target destination.
+  - Right Mouse Button (**RMB**) click + mouse drag: Rotate geometry along the world X and Y axes with
+    smooth animation to reach the target destination.
+  - Middle Mouse Button (**MMB**) scroll: Zoom camera in/out.
+  - Middle Mouse Button (**MMB**) click + mouse drag up/down: Change camera Field Of View (FOV) angle.
+
 ## ✨ Features
 
 ### WolfRenderer Library (DirectX 12 Core)
 
 #### Rendering Modes
-- **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime
+- **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime.
 - **Rasterization Pipeline**
-  - Traditional vertex/pixel shader pipeline
-  - Configurable viewport and scissor rectangles
-  - Root constants for dynamic geometry transformation
-  - Hardware-optimized triangle rendering
-  - Real-time camera panning support via mouse interaction
+  - Traditional vertex/pixel shader pipeline.
+  - Configurable viewport and scissor rectangles.
+  - Root constants for dynamic geometry transformation.
+  - Hardware-optimized triangle rendering.
+  - Real-time camera panning support via mouse interaction.
   
 - **Ray Tracing Pipeline (DXR)**
-  - DirectX Raytracing (DXR) implementation
-  - Ray generation, closest hit, and miss shaders
-  - Bottom-Level Acceleration Structures (BLAS) for geometry
-  - Top-Level Acceleration Structures (TLAS) for scene instances
-  - Shader Binding Table (SBT) management
-  - Configurable ray recursion depth
-  - UAV (Unordered Access View) output texture
+  - DirectX Raytracing (DXR) implementation.
+  - Ray generation, closest hit, and miss shaders.
+  - Bottom-Level Acceleration Structures (BLAS) for geometry.
+  - Top-Level Acceleration Structures (TLAS) for scene instances.
+  - Shader Binding Table (SBT) management.
+  - Configurable ray recursion depth.
+  - UAV (Unordered Access View) output texture.
   - Root constant for random-coloring geometry primitives.
+  - Real-time camera panning + WSAD+QE movement support via mouse and keyboard interaction.
 
 #### DirectX 12 Infrastructure
 - **Device Management**
-  - Automatic GPU adapter selection (skips software adapters)
-  - Multi-adapter detection with hardware ID filtering
-  - Dedicated video memory reporting
-  - Debug layer support for development builds
+  - Automatic GPU adapter selection (skips software adapters).
+  - Multi-adapter detection with hardware ID filtering.
+  - Dedicated video memory reporting.
+  - Debug layer support for development builds.
   
 - **Command Management**
-  - Command queue, allocator, and list orchestration
-  - Efficient command buffer reuse per frame
-  - Resource state transitions with barriers
+  - Command queue, allocator, and list orchestration.
+  - Efficient command buffer reuse per frame.
+  - Resource state transitions with barriers.
   
 - **Memory Management**
-  - Upload heap staging for CPU-to-GPU data transfers
-  - Default heap for GPU-optimal resource storage
-  - Proper synchronization to prevent resource hazards
+  - Upload heap staging for CPU-to-GPU data transfers.
+  - Default heap for GPU-optimal resource storage.
+  - Proper synchronization to prevent resource hazards.
   
 - **Synchronization**
-  - Fence-based GPU-CPU synchronization
-  - Event-driven frame completion detection
-  - Safe resource cleanup on application exit
+  - Fence-based GPU-CPU synchronization.
+  - Event-driven frame completion detection.
+  - Safe resource cleanup on application exit.
   
 - **Swap Chain**
-  - Configurable buffer count (double/triple buffering)
-  - FLIP presentation model (DXGI_SWAP_EFFECT_FLIP_DISCARD)
-  - R8G8B8A8_UNORM format rendering
-  - Render target view (RTV) descriptor heap management
+  - Configurable buffer count (double/triple buffering).
+  - FLIP presentation model (DXGI_SWAP_EFFECT_FLIP_DISCARD).
+  - R8G8B8A8_UNORM format rendering.
+  - Render target view (RTV) descriptor heap management.
 
 #### Shader Compilation
 - **Runtime Shader Compilation**
-  - DirectX Shader Compiler (DXC) integration
-  - Runtime HLSL compilation for ray tracing shaders
-  - Random primitive coloring computed in-shader
-  - Debug information embedding for shader debugging
-  - Detailed compilation error reporting
+  - DirectX Shader Compiler (DXC) integration.
+  - Runtime HLSL compilation for ray tracing shaders.
+  - Random primitive coloring computed in-shader.
+  - Debug information embedding for shader debugging.
+  - Detailed compilation error reporting.
   
 - **Build-Time Compilation**
-  - Pre-compiled rasterization shaders embedded as headers
-  - Shader library profiles: `lib_6_5` (ray tracing), `vs_6_0` / `ps_6_0` (rasterization)
+  - Pre-compiled rasterization shaders embedded as headers.
+  - Shader library profiles: `lib_6_5` (ray tracing), `vs_6_8` / `ps_6_8` (rasterization).
 
 #### Logging System
 - **Thread-Safe Logger**
-  - Mutex-protected output stream
-  - Configurable log levels (Debug, Info, Warning, Error, Critical)
-  - Timestamped log entries (DD.MM.YYYY HH:MM:SS format)
-  - Build-dependent default levels (Debug: all, Release: Info+)
-  - HRESULT error checking with automatic logging and termination
+  - Mutex-protected output stream.
+  - Configurable log levels (Debug, Info, Warning, Error, Critical).
+  - Timestamped log entries (DD.MM.YYYY HH:MM:SS format).
+  - Build-dependent default levels (Debug: all, Release: Info+).
+  - HRESULT error checking with automatic logging and termination.
 
 #### Geometry Support
-- 2D vertices for rasterization (X, Y coordinates)
-- 3D vertices for ray tracing (X, Y, Z coordinates)
-- Triangle primitive topology
-- Vertex buffer view configuration
+- 3D vertices for both rasterization and ray tracing (X, Y, Z coordinates).
+- Triangle primitive topology.
+- Vertex buffer view configuration.
 
 ### WolfApp GUI Application
 
 #### User Interface
 - **Modern Qt 6.8.0 Interface**
-  - Responsive window with grid layout
-  - Custom viewport widget with native window handle for DirectX
-  - System accent color integration for theme consistency
-  - Menu bar with keyboard shortcuts
+  - Responsive window with grid layout.
+  - Custom viewport widget with native window handle for DirectX.
+  - System accent color integration for theme consistency.
+  - Menu bar with keyboard shortcuts.
+  - Automatic window aspect ratio correction based on loaded scene.
   
 - **Rendering Mode Toggle**
-  - Visual toggle switch (Rasterization ↔ Ray Tracing)
-  - Smooth transition between modes with GPU synchronization
-  - Keyboard shortcut via menu action
-  - Real-time mode indicator in UI
+  - Visual toggle switch (Rasterization ↔ Ray Tracing).
+  - Smooth transition between modes with GPU synchronization.
+  - Keyboard shortcut via menu action.
+  - Real-time mode indicator in UI.
   
 - **Performance Monitoring**
-  - Real-time FPS (Frames Per Second) counter
-  - Status bar display with custom styling
-  - 1-second update interval for accurate measurement
+  - Real-time FPS (Frames Per Second) counter.
+  - Status bar display with custom styling.
+  - 1-second update interval for accurate measurement.
   
 - **Interactive Viewport**
-  - Native window handle (HWND) for DirectX rendering
-  - Mouse-based camera panning (rasterization mode)
-  - Left-click drag to pan geometry
-  - Normalized Device Coordinate (NDC) transformation
-  - Custom cursor feedback
+  - Native window handle (HWND) for DirectX rendering.
+  - Controls using mouse and keyboard.
+  - Custom cursor feedback.
 
 #### Application Features
 - **Lifecycle Management**
-  - Continuous rendering loop via idle timer
-  - Graceful shutdown with GPU synchronization
-  - Proper resource cleanup on exit
-  - Qt signal/slot event system integration
+  - Continuous rendering loop via idle timer.
+  - Graceful shutdown with GPU synchronization.
+  - Proper resource cleanup on exit.
+  - Qt signal/slot event system integration.
   
 - **Window Management**
-  - Resizable application window
-  - Close event handling with renderer cleanup
-  - Menu actions: Exit, Toggle Render Mode
+  - Resizable application window (not changing render resolution).
+  - Close event handling with renderer cleanup.
+  - Menu actions: Exit, Toggle Render Mode.
 
+<a id="architecture"></a>
 ## 🏗️ Architecture
 
 ### Component Overview
 
 ```
 DirectX12Renderer
-├── WolfRenderer (Static Library)    → Core DirectX 12 rendering engine
+├── WolfRenderer (Static Library)     → Core DirectX 12 rendering engine
 ├── WolfApp (Executable)              → Qt GUI application
 └── DirectX12Renderer.slnx            → Visual Studio solution
 ```
 
 ### WolfRenderer (Core Engine)
-- **Purpose**: DirectX 12 abstraction layer and rendering logic
+- **Purpose**: DirectX 12 abstraction layer and rendering logic.
 - **Output**: `WolfRenderer.lib`
 - **Key Classes**:
-  - `Core::WolfRenderer` - Main renderer managing GPU operations
-  - `Logger` - Thread-safe logging utility
-  - `Triangle` / `Vertex2D` / `Vertex3D` - Geometry structures
-  - `Scene` - .crtscene file parsing and geometry building
-- **Dependencies**: DirectX 12, DXC, D3DX12 helpers
+  - `Core::WolfRenderer` - Main renderer managing GPU operations.
+  - `Logger` - Thread-safe logging utility.
+  - `Triangle` / `Vertex2D` / `Vertex3D` - Geometry structures.
+  - `Scene` - .crtscene file parsing and geometry building.
+  - `Settings` - Scene settings (currently only resolution).
+  - `App` - Application-wide data (currently just deltaTime).
+- **Dependencies**: DirectX 12, DXC, D3DX12 helpers.
 
 ### WolfApp (GUI Application)
-- **Purpose**: User interface and application entry point
+- **Purpose**: User interface and application entry point.
 - **Output**: `WolfApp.exe`
 - **Key Classes**:
   - `WolfApp` - Application controller and rendering loop manager
   - `WolfMainWindow` - Main window with UI elements
   - `WolfViewportWidget` - Custom DirectX-integrated viewport
-- **Dependencies**: Qt 6.8.0 (Core, GUI, Widgets), WolfRenderer
+- **Dependencies**: Qt 6.8.0 (Core, GUI, Widgets), WolfRenderer.lib, dxcompiler.dll, "shaders" directory in .exe directory, "rsc" directory in one directory up.
 
 ### Rendering Pipeline Flow
 
 **Frame Rendering (Both Modes)**:
-1. **Begin**: Reset command allocator/list, acquire swap chain buffer, transition resources
-2. **Render**: Execute mode-specific rendering commands
-3. **End**: Copy to swap chain, transition to present state
-4. **Present**: Execute command list, present frame, GPU sync
+1. **Begin**: Find device, reset command allocator/list, acquire swap chain buffer, transition resources.
+2. **Render**: Execute mode-specific rendering commands.
+3. **End**: Copy to swap chain, transition to present state.
+4. **Present**: Execute command list, present frame, GPU sync.
 
 **Rasterization**:
-- Set pipeline state (vertex/pixel shaders)
-- Bind root signature and vertex buffer
-- Configure viewport/scissor
-- Issue draw call with root constants (frame index, pan offsets)
+- Set pipeline state (vertex/pixel shaders).
+- Bind root signature and vertex buffer.
+- Configure viewport/scissor.
+- Issue draw call with root constants (frame index, pan offsets).
 
 **Ray Tracing**:
-- Set compute root signature
-- Bind descriptor heaps (UAV, SRV)
-- Set ray tracing pipeline state
-- Dispatch rays using shader binding table
-- Copy RT output texture to swap chain
+- Set compute root signature.
+- Bind descriptor heaps (UAV, SRV).
+- Set ray tracing pipeline state.
+- Dispatch rays using shader binding table.
+- Copy RT output texture to swap chain.
 
 ## 💻 Requirements
 
@@ -195,14 +215,14 @@ DirectX12Renderer
 - **DirectX**: DirectX 12 capable GPU
 
 ### Hardware
-- **GPU**: DirectX 12 compatible graphics card
-- **Ray Tracing**: GPU with DXR support for ray tracing mode (NVIDIA RTX, AMD RDNA 2+, Intel Arc)
-- **VRAM**: Minimum 2GB recommended
+- **GPU**: DirectX 12 compatible graphics card.
+- **Ray Tracing**: GPU with DXR support for ray tracing mode (NVIDIA RTX, AMD RDNA 2+, Intel Arc).
+- **VRAM**: Minimum 2GB recommended.
 
 ### Build Tools
-- MSBuild or Visual Studio 2022
-- DirectX Shader Compiler (DXC) - included in Windows SDK
-- Qt Visual Studio Tools (optional, for .ui file editing)
+- MSBuild or Visual Studio 2022.
+- DirectX Shader Compiler (DXC) - included in Windows SDK.
+- Qt Visual Studio Tools (optional, for .ui file editing).
 
 ## 🔨 Building
 
@@ -218,9 +238,9 @@ msbuild DirectX12Renderer.slnx /p:Configuration=Release /p:Platform=x64
 
 ### Using Visual Studio
 
-1. Open `DirectX12Renderer.slnx` in Visual Studio 2022
-2. Select build configuration (Debug/Release) and platform (x64)
-3. Build → Build Solution (Ctrl+Shift+B)
+1. Open `DirectX12Renderer.slnx` in Visual Studio 2022.
+2. Select build configuration (Debug/Release) and platform (x64).
+3. Build → Build Solution (Ctrl+Shift+B).
 
 ### Output Location
 
@@ -230,8 +250,8 @@ bin\x64\Release\WolfApp.exe
 ```
 
 ### Post-Build
-- Shaders are automatically copied to the output directory
-- `dxcompiler.dll` is copied for runtime shader compilation
+- Shaders are automatically copied to the output directory.
+- `dxcompiler.dll` is copied for runtime shader compilation.
 
 ## 🚀 Usage
 
@@ -249,22 +269,28 @@ or
 
 ### Controls
 
-- **Toggle Rendering Mode**: Click the switch in the top-right corner or use Menu → Toggle Render Mode
-- **Camera Pan** (Rasterization only): Left-click and drag on the viewport to pan the triangle
-- **Exit**: Menu → Exit or close the window
+- **Toggle Rendering Mode**: Click the switch in the top-right corner or use Menu → Toggle Render Mode.
+- **Camera Pan** (Rasterization): Left-click and drag on the viewport to pan the geometry.
+- **Camera Dolly** (Rasterization): Scroll up/down to dolly the camera (zoom in/out).
+- **Camera FOV** (Rasterization): Middle(scroll)-click and drag up/down on the viewport to change the field of view.
+- **Geometry Rotation** (Rasterization): Right-click and drag on the viewport to rotate the geometry.
+- **Camera Rotation** (Ray Tracing): Right-click and drag on the viewport to look around the scene.
+- **Camera Movement** (Ray Tracing): Right-click and use W, S keys on the keyboard for moving along the Z local axis, A, D - along the X axis, and Q, E - along the Y axis. Use hold Shift while moving to move faster.
+- **Exit**: Menu → Exit or close the window.
 
 ### Rendering Modes
 
 **Rasterization Mode** (Default state: Off)
-- Green background (miss color)
-- Animated triangle with camera panning support
-- Frame index passed to vertex shader for potential animation
+- Green background (miss color).
+- Animated geometry with panning, rotation, dolly, and FoV support.
+- Frame index passed to vertex shader for potential animation (unused at the moment).
 
 **Ray Tracing Mode** (Default state: On)
-- Green background for rays that miss geometry
-- Solid white or random colored triangle on hit (flag-dependent)
-- Ray generation shader creates camera rays from viewport pixels
-- Acceleration structures enable efficient ray-geometry intersection
+- Green background for rays that miss geometry.
+- Solid white or random colored triangle on hit (flag-dependent).
+- Ray generation shader creates camera rays from viewport pixels.
+- Acceleration structures enable efficient ray-geometry intersection.
+- Support for free movement around the scene with correct ray tracing on every frame.
 
 ## 📁 Project Structure
 
@@ -272,49 +298,52 @@ or
 DirectX12Renderer/
 ├── WolfRenderer/
 │   ├── inc/
-│   │   ├── Renderer.hpp            # Main renderer class declaration
-│   │   ├── Logger.hpp              # Thread-safe logging utility
-│   │   │── Geometry.hpp            # Geometry-related structures and classes
-│   │   │── RenderSettings.hpp      # Scene settings
-│   │   │── Scene.hpp               # File parsing and scene data
-│   │   └── utils.hpp               # Helper functions (HRESULT checks, etc.)
+│   │   │── Camera.hpp              # RT mode camera struct and related structures.
+│   │   │── Geometry.hpp            # Geometry-related structures and classes.
+│   │   ├── Logger.hpp              # Thread-safe logging utility.
+│   │   ├── Renderer.hpp            # Renderer class, App class, enums, and Transformation struct.
+│   │   │── Scene.hpp               # File parsing and scene data.
+│   │   │── Settings.hpp            # Scene settings.
+│   │   └── utils.hpp               # Helper functions (HRESULT checks, etc.).
 │   ├── src/
-│   │   ├── Renderer.cpp            # Renderer implementation (~1500 lines)
-│   │   │── Scene.cpp               # File parsing and data management implementation
-│   │   └── main.cpp                # (Unused in library build. Kept for CLI tests)
+│   │   ├── Renderer.cpp            # Renderer implementation (~1500 lines).
+│   │   │── Scene.cpp               # File parsing and data management implementation.
+│   │   └── main.cpp                # (Unused in library build. Kept for CLI tests).
 │   ├── shaders/
-│   │   ├── ray_tracing_shaders.hlsl   # RT shaders (rayGen, closestHit, miss) + helper functions
-│   │   ├── ConstColor.hlsl            # Pixel shader (rasterization)
-│   │   ├── ConstColorVS.hlsl          # Vertex shader (rasterization)
-│   │   └── Common.hlsli               # Shared shader definitions
-│   ├── ext/                        # External dependencies
-│   │   │── dxc                     # Special dxc sub-directory for dxcapi.use.h to work correctly
-│   │   │    └── dxcapi.h           # DXC compiler integration
-│   │   ├── d3d12.h                 # DirectX 12 headers
-│   │   ├── d3dx12*.h               # D3DX12 helper headers
-│   │   └── dxcapi.use.h            # DXC compiler integration
-│   └── WolfRenderer.vcxproj        # Visual Studio project
+│   │   ├── ray_tracing_shaders.hlsl   # RT shaders (rayGen, closestHit, miss) + helper functions.
+│   │   ├── ConstColor.hlsl            # Pixel shader (rasterization).
+│   │   ├── ConstColorVS.hlsl          # Vertex shader (rasterization).
+│   │   └── Common.hlsli               # Shared shader definitions.
+│   ├── ext/                        # External dependencies.
+│   │   │── dxc                     # Special dxc sub-directory for dxcapi.use.h to work correctly.
+│   │   │    └── dxcapi.h           # DXC compiler integration.
+│   │   ├── d3d12.h                 # DirectX 12 headers.
+│   │   ├── d3dx12*.h               # D3DX12 helper headers.
+│   │   └── dxcapi.use.h            # DXC compiler integration.
+│   └── WolfRenderer.vcxproj        # Visual Studio project.
 │
 ├── WolfApp/
 │   ├── inc/
-│   │   ├── WolfApp.h               # Application controller
-│   │   ├── AppGUI.h                # Main window class
-│   │   └── ViewportWidget.h        # Custom DirectX viewport widget
+│   │   ├── WolfApp.h               # Application controller.
+│   │   ├── AppGUI.h                # Main window class.
+│   │   └── ViewportWidget.h        # Custom DirectX viewport widget.
 │   ├── src/
-│   │   ├── main.cpp                # Application entry point
-│   │   ├── WolfApp.cpp             # App logic and rendering loop
-│   │   └── AppGUI.cpp              # GUI initialization and events
+│   │   ├── main.cpp                # Application entry point.
+│   │   ├── WolfApp.cpp             # App logic and rendering loop.
+│   │   └── AppGUI.cpp              # GUI initialization and events.
 │   ├── rsc/
-│   │   ├── WolfApp.qrc             # Qt resources
-│   │   └── icons/                  # Application icons
-│   ├── AppGUI.ui                   # Qt Designer UI file
-│   └── WolfApp.vcxproj             # Visual Studio project
+│   │   ├── WolfApp.qrc             # Qt resources.
+│   │   └── icons/                  # Application icons.
+│   ├── AppGUI.ui                   # Qt Designer UI file.
+│   └── WolfApp.vcxproj             # Visual Studio project.
 │
-├── bin/                            # Build output (gitignored)
-├── DirectX12Renderer.slnx          # Visual Studio solution file
-├── README.md                       # This file
-└── .gitignore                      # Git ignore rules
+├── bin/                            # Build output (gitignored).
+├── DirectX12Renderer.slnx          # Visual Studio solution file.
+├── README.md                       # This file.
+└── .gitignore                      # Git ignore rules.
+
 ```
+Externally, using **`vcpkg`**, the project also uses `rapidjason` for parsing .crtscene files.
 
 ## 🔧 Technical Details
 
@@ -339,14 +368,14 @@ DirectX12Renderer/
 - **Flags**: `PREFER_FAST_TRACE` for optimized ray traversal
 
 ### Code Conventions
-- **Member variables**: `m_` prefix (e.g., `m_device`, `m_cmdList`)
-- **Namespaces**: `Core` for renderer classes
-- **Error Handling**: `CHECK_HR` macro for HRESULT validation
-- **Smart Pointers**: `Microsoft::WRL::ComPtr` for COM objects
+- **Member variables**: `m_` prefix (e.g., `m_device`, `m_cmdList`) for private members.
+- **Namespaces**: `Core` for Renderer class, enums, and Transformation (Raster controls) struct.
+- **Error Handling**: `CHECK_HR` macro for HRESULT validation using custom `checkHR` function.
+- **Smart Pointers**: `Microsoft::WRL::ComPtr` for COM objects.
 
 ## 📝 License
 
-This project is currently without a specified license. Please contact the repository owner for licensing information.
+This project is currently without a specified license.
 
 ---
 
