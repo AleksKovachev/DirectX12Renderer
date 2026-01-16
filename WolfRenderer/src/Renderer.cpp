@@ -157,14 +157,18 @@ namespace Core {
 		CreateDescriptorHeapForSwapChain();
 		CreateRenderTargetViewsFromSwapChain();
 
-		if ( m_prepMode == RenderPreparation::Both
-			|| m_prepMode == RenderPreparation::Rasterization
-		)
-			PrepareForRasterization();
-		if ( m_prepMode == RenderPreparation::Both
-			|| m_prepMode == RenderPreparation::RayTracing
-		)
-			PrepareForRayTracing();
+		switch ( m_prepMode ) {
+			case RenderPreparation::Rasterization:
+				PrepareForRasterization();
+				break;
+			case RenderPreparation::RayTracing:
+				PrepareForRayTracing();
+				break;
+			case RenderPreparation::Both:
+				PrepareForRasterization();
+				PrepareForRayTracing();
+				break;
+		}
 
 		m_isPrepared = true;
 	}
@@ -174,16 +178,28 @@ namespace Core {
 		WaitForGPUSync();
 	}
 
-	void WolfRenderer::RenderFrame() {
-		if ( renderMode == RenderMode::RayTracing ) {
-			FrameBeginRayTracing();
-			RenderFrameRayTracing();
-			FrameEndRayTracing();
-		} else if ( renderMode == RenderMode::Rasterization ) {
-			FrameBeginRasterization();
-			RenderFrameRasterization();
-			FrameEndRasterization();
+	void WolfRenderer::RenderFrame( CameraInput& cameraInput ) {
+		static auto last = hrClock::now();
+		auto now = hrClock::now();
+
+		m_app->deltaTime = std::chrono::duration<float>( now - last ).count();
+		last = now;
+		m_app->deltaTime = std::clamp( m_app->deltaTime, 0.f, 0.05f ); // Avoid spikes.
+
+		switch ( renderMode ) {
+			case RenderMode::RayTracing:
+				FrameBeginRayTracing();
+				UpdateRTCamera( cameraInput );
+				RenderFrameRayTracing();
+				FrameEndRayTracing();
+				break;
+			case RenderMode::Rasterization:
+				FrameBeginRasterization();
+				RenderFrameRasterization();
+				FrameEndRasterization();
+				break;
 		}
+
 		FrameEnd();
 	}
 
@@ -201,6 +217,7 @@ namespace Core {
 	void WolfRenderer::PrepareForRayTracing() {
 		CreateGlobalRootSignature();
 		CreateVertexBufferRT();
+		CreateCameraConstantBuffer();
 		CreateRayTracingPipelineState();
 		CreateRayTracingShaderTexture();
 		CreateAccelerationStructures();
@@ -235,6 +252,17 @@ namespace Core {
 
 		// Slot 1: Root Constant.
 		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
+
+		// Slot 2: Camera Data.
+		m_cmdList->SetComputeRootConstantBufferView( 2, m_cameraRT.cb->GetGPUVirtualAddress() );
+
+		m_cameraRT.cbData.cameraPosition = m_cameraRT.position;
+		m_cameraRT.cbData.cameraForward = m_cameraRT.forward;
+		m_cameraRT.cbData.cameraRight = m_cameraRT.right;
+		m_cameraRT.cbData.cameraUp = m_cameraRT.up;
+		m_cameraRT.cbData.verticalFOV = m_cameraRT.verticalFOV;
+
+		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
 
 		m_cmdList->SetPipelineState1( m_rtStateObject.Get() );
 		m_cmdList->DispatchRays( &m_dispatchRaysDesc );
@@ -280,21 +308,30 @@ namespace Core {
 		ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		// Describe the root parameter that will be stored in the Root Signature.
-		D3D12_ROOT_PARAMETER1 rootParams[2] = {};
+		D3D12_ROOT_PARAMETER1 rootParams[3] = {};
+
+		// Param 0 - descriptor table with UAV and SRV.
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[0].DescriptorTable.NumDescriptorRanges = 2;
 		rootParams[0].DescriptorTable.pDescriptorRanges = ranges;
 
+		// Param 1 - random color root constant.
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[1].Constants.Num32BitValues = 1;
 		rootParams[1].Constants.ShaderRegister = 0; // b0
 		rootParams[1].Constants.RegisterSpace = 0;
 
+		// Param 2 - camera data.
+		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[2].Descriptor.ShaderRegister = 1; // b1
+		rootParams[2].Descriptor.RegisterSpace = 0;
+
 		// Pass the Root Signature Parameter to the Root Signature Description.
 		D3D12_ROOT_SIGNATURE_DESC1 rootSigDesc{};
-		rootSigDesc.NumParameters = 2;
+		rootSigDesc.NumParameters = 3;
 		rootSigDesc.pParameters = rootParams;
 		rootSigDesc.NumStaticSamplers = 0;
 		rootSigDesc.pStaticSamplers = nullptr;
@@ -1134,6 +1171,70 @@ namespace Core {
 		log( "[ Ray Tracing ] TLAS shader resource view created." );
 	}
 
+	void WolfRenderer::UpdateRTCamera( CameraInput& input ) {
+		using namespace DirectX;
+
+		m_cameraRT.yaw += input.mouseDeltaX * m_cameraRT.mouseSensitivity;
+		m_cameraRT.setPitch( m_cameraRT.pitch + input.mouseDeltaY * m_cameraRT.mouseSensitivity );
+
+		// Reset mouse delta for next frame.
+		input.mouseDeltaX = 0.f;
+		input.mouseDeltaY = 0.f;
+
+		m_cameraRT.ComputeBasisVectors();
+
+		XMVECTOR moveVec = XMVectorZero();
+		if ( input.moveForward )
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+		if ( input.moveBackward )
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+		if ( input.moveRight )
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+		if ( input.moveLeft )
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+		if ( input.moveUp )
+			moveVec = XMVectorAdd( moveVec, m_cameraRT.worldUp );
+		if ( input.moveDown )
+			moveVec = XMVectorSubtract( moveVec, m_cameraRT.worldUp );
+
+		if ( !XMVector3Equal( moveVec, XMVectorZero() ) ) {
+			float effectiveSpeed = m_cameraRT.movementSpeed;
+			if ( input.speedModifier )
+				effectiveSpeed *= m_cameraRT.speedMult;
+
+			// Normalize for correct diagonal movement.
+			moveVec = XMVector3Normalize( moveVec );
+			moveVec = XMVectorScale( moveVec, effectiveSpeed * m_app->deltaTime );
+
+			XMVECTOR pos = XMLoadFloat3( &m_cameraRT.position );
+			pos = XMVectorAdd( pos, moveVec );
+			XMStoreFloat3( &m_cameraRT.position, pos );
+		}
+	}
+
+	void WolfRenderer::CreateCameraConstantBuffer() {
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( RTCameraCB ) );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_cameraRT.cb )
+		);
+		CHECK_HR( "Failed to create Camera constant buffer", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_cameraRT.cb->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_cameraRT.cbMappedPtr) );
+		CHECK_HR( "Failed to map Camera constant buffer", hr, log );
+
+		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
+		log( "[ RayTracing ] Camera constant buffer created and mapped." );
+	}
+
 	/*  #####     ###    ######  ######  ######  #####
 	 *  ##  ##   ## ##   ##        ##    ##	     ##  ##
 	 *  #####   #######  ######    ##    #####   #####
@@ -1151,13 +1252,7 @@ namespace Core {
 	}
 
 	void WolfRenderer::FrameBeginRasterization() {
-		UpdateSmoothOffset();
-		static auto last = hrClock::now();
-		auto now = hrClock::now();
-
-		m_transform.deltaTime = std::chrono::duration<float>( now - last ).count();
-		last = now;
-		m_transform.deltaTime = std::clamp( m_transform.deltaTime, 0.0f, 0.05f ); // Avoid spikes.
+		UpdateSmoothMotion();
 
 		ResetCommandAllocatorAndList();
 
@@ -1436,8 +1531,12 @@ namespace Core {
 		m_transform.targetRotationY += deltaAngleY * m_transform.rotationSensitivityFactor;
 	}
 
+	void WolfRenderer::SetAppData( App* appData ) {
+		m_app = appData;
+	}
+
 	void WolfRenderer::CreateTransformConstantBuffer() {
-		// Constant buffer must be 256-byte aligned.
+		// Constant buffer must be 256-byte aligned. This is a precaution, should already be 256 bytes.
 		const UINT cbSize = (sizeof( Transformation::TransformData ) + 255) & ~255;
 
 		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
@@ -1451,12 +1550,12 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &m_transform.transformCB )
 		);
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to create Transform Constant Buffer", hr, log );
+		CHECK_HR( "Failed to create Transform constant buffer.", hr, log );
 
 		// Map permanently for CPU writes
 		hr = m_transform.transformCB->Map(
 			0, nullptr, reinterpret_cast<void**>(&m_transform.transformCBMappedPtr) );
-		assert( SUCCEEDED( hr ) ); // checkHR( "Failed to map Transform Constant Buffer", hr, log );
+		CHECK_HR( "Failed to map Transform constant buffer.", hr, log );
 
 		// Initialize to identity matrix
 		DirectX::XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixIdentity() );
@@ -1472,14 +1571,14 @@ namespace Core {
 		Transformation& tr{ m_transform };
 
 		// Compute smoothing factor for movement (frame-rate independent).
-		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * tr.deltaTime);
+		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * m_app->deltaTime);
 
 		// Linear interpolation toward the target.
 		tr.currOffsetX += (tr.targetOffsetX - tr.currOffsetX) * sTransFactor;
 		tr.currOffsetY += (tr.targetOffsetY - tr.currOffsetY) * sTransFactor;
 
 		// Compute smoothing factor for rotation (frame-rate independent).
-		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * tr.deltaTime );
+		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * m_app->deltaTime );
 
 		// Linear interpolation toward the target.
 		tr.currRotationX += (tr.targetRotationX - tr.currRotationX) * sRotFactor;

@@ -1,6 +1,7 @@
 #ifndef VIEWPORT_WIDGET_H
 #define VIEWPORT_WIDGET_H
 
+#include "Camera.hpp" // CameraInput
 #include "Renderer.hpp"
 
 #include <QImage>
@@ -56,6 +57,7 @@ protected:
 			// Save current mouse coordinates as last mouse position on right click.
 			m_RMBDown = true;
 			m_lastRMBPos = event->pos();
+			m_lastRMBPosRT = event->pos();
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			// Save current mouse coordinates as last mouse position on right click.
@@ -82,15 +84,24 @@ protected:
 			}
 		}
 		if ( m_RMBDown ) {
-			// Calculate the offset of current mouse position from last one saved.
-			QPoint delta{ event->pos() - m_lastRMBPos };
-			m_lastRMBPos = event->pos();
-
 			if ( m_renderMode == Core::RenderMode::Rasterization ) {
+				// Calculate the offset of current mouse position from last one saved.
+				QPoint delta{ event->pos() - m_lastRMBPos };
+				m_lastRMBPos = event->pos();
+
 				// Get the delta from the last position.
 				float deltaX{ static_cast<float>(delta.x()) };
 				float deltaY{ static_cast<float>(delta.y()) };
+
 				emit onMouseRotationChanged( deltaX, deltaY );
+			}
+			else if ( m_renderMode == Core::RenderMode::RayTracing ) {
+				// Calculate the offset of current mouse position from last one saved.
+				QPoint delta{ event->pos() - m_lastRMBPosRT };
+				m_lastRMBPosRT = event->pos();
+
+				cameraInput.mouseDeltaX = static_cast<float>(delta.x());
+				cameraInput.mouseDeltaY = -static_cast<float>(delta.y());
 			}
 		}
 		if ( m_MMBDown ) {
@@ -138,13 +149,52 @@ protected:
 		QWidget::wheelEvent( event );
 	}
 
+	void keyPressEvent( QKeyEvent* event ) override {
+		if ( m_renderMode == Core::RenderMode::RayTracing && m_RMBDown ) {
+			switch ( event->key() ) {
+				case Qt::Key_W: cameraInput.moveForward = true; break;
+				case Qt::Key_S: cameraInput.moveBackward = true; break;
+				case Qt::Key_A: cameraInput.moveLeft = true; break;
+				case Qt::Key_D: cameraInput.moveRight = true; break;
+				case Qt::Key_E: cameraInput.moveUp = true; break;
+				case Qt::Key_Q: cameraInput.moveDown = true; break;
+				case Qt::Key_Shift: cameraInput.speedModifier = true; break;
+				default: QWidget::keyPressEvent( event );
+				return; // propagate
+			}
+		}
 
+		// Allow propagation if parent needs events.
+		QWidget::keyPressEvent( event );
+	}
+
+	void keyReleaseEvent( QKeyEvent* event ) override {
+		if ( m_renderMode == Core::RenderMode::RayTracing ) {
+			switch ( event->key() ) {
+				case Qt::Key_W: cameraInput.moveForward = false; break;
+				case Qt::Key_S: cameraInput.moveBackward = false; break;
+				case Qt::Key_A: cameraInput.moveLeft = false; break;
+				case Qt::Key_D: cameraInput.moveRight = false; break;
+				case Qt::Key_E: cameraInput.moveUp = false; break;
+				case Qt::Key_Q: cameraInput.moveDown = false; break;
+				case Qt::Key_Shift: cameraInput.speedModifier = false; break;
+				default: QWidget::keyPressEvent( event ); return; // propagate
+			}
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::keyPressEvent( event );
+	}
+
+public: // members
+	CameraInput cameraInput{};
 private:
 	QImage m_image;
 	bool m_LMBDown{ false };
 	bool m_RMBDown{ false };
 	bool m_MMBDown{ false };
-	QPoint m_initialLMBPos;
+	QPoint m_initialRMBPosRT;
+	QPoint m_lastRMBPosRT;
 	QPoint m_lastLMBPos;
 	QPoint m_lastRMBPos;
 	QPoint m_lastMMBPos;

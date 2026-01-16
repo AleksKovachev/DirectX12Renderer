@@ -6,6 +6,8 @@
 #include <memory>
 #include <QObject>
 
+struct App;
+
 class WolfApp : public QObject {
 	Q_OBJECT
 
@@ -14,7 +16,7 @@ public:
 	~WolfApp();
 
 	/// Prepare the application for rendering.
-	bool init();
+	bool init( App* appData );
 
 public slots:
 	/// Initiate frame rendering.

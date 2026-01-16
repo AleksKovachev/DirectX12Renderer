@@ -12,9 +12,11 @@ WolfApp::~WolfApp() {
 	delete m_fpsTimer;
 }
 
-bool WolfApp::init() {
+bool WolfApp::init( App* appData ) {
 	if ( InitWindow() == false )
 		return false;
+
+	m_renderer.SetAppData( appData );
 
 	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
 		this, &WolfApp::onCameraPan
@@ -88,7 +90,7 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame();
+	m_renderer.RenderFrame( m_mainWin->viewport->cameraInput );
 
 	++m_frameIdxAtLastFPSCalc;
 }

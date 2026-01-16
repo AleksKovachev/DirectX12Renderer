@@ -13,6 +13,7 @@
 #pragma comment(lib, "dxcompiler.lib")
 // #pragma comment(lib, "dxgi.lib d3d12.lib, dxcompiler.lib") is also valid
 
+#include "Camera.hpp"
 #include "Logger.hpp"
 #include "Scene.hpp"
 
@@ -31,6 +32,11 @@
 using Microsoft::WRL::ComPtr;
 struct IDxcBlob;
 struct Transformation;
+
+/// Application-level settings and data.
+struct App {
+	float deltaTime{};
+};
 
 namespace Core {
 
@@ -78,7 +84,6 @@ namespace Core {
 		float targetRotationX{}; // Radians
 		float targetRotationY{}; // Radians
 
-		float deltaTime{};
 		// Motion speed and sensitivity.
 		float smoothOffsetLerp{ 2.f };
 		float smoothRotationLambda{ 6.f };
@@ -129,7 +134,8 @@ namespace Core {
 		void StopRendering();
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
-		void RenderFrame();
+		/// @param[in] cameraInput  Camera input data for the frame. Used in RT mode.
+		void RenderFrame( CameraInput& );
 
 		/// Sets the rendering mode to the provided one.
 		void SetRenderMode( RenderMode );
@@ -137,20 +143,24 @@ namespace Core {
 		/// Recieves mouse offset coordinates and clamp-adds them to the target offset.
 		/// @param[in] dx  The X-axis offset.
 		/// @param[in] dy  The Y-axis offset.
-		void AddToTargetOffset( float dx, float dy );
+		void AddToTargetOffset( float, float );
 
 		/// Recieves mouse offset coordinate and adds it to the Z offset.
 		/// @param[in] dz  The Z-axis offset.
-		void AddToOffsetZ( float dz );
+		void AddToOffsetZ( float );
 
 		/// Recieves mouse offset coordinate and adds it to the FOV offset.
 		/// @param[in] offset  The Z-axis offset.
-		void AddToOffsetFOV( float offset );
+		void AddToOffsetFOV( float );
 
 		/// Recieves mouse offset coordinates and adds them to the target rotation.
 		/// @param[in] deltaAngleX  The X-axis offset.
 		/// @param[in] deltaAngleY  The Y-axis offset.
 		void AddToTargetRotation( float, float );
+
+		/// Sets the application-level data member.
+		/// @param[in] appData  App Pointer to the application data.
+		void SetAppData( App* );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -250,6 +260,12 @@ namespace Core {
 
 		/// Creates a Shader Resource View (SRV) for the TLAS.
 		void CreateTLASShaderResourceView();
+
+		/// Updates the camera parameters in the constant buffer. Used in RT mode.
+		void UpdateRTCamera( CameraInput& );
+
+		/// Creates a constant buffer for the camera parameters used in RT mode.
+		void CreateCameraConstantBuffer();
 
 		//! Rasterization specific functions.
 
@@ -461,7 +477,9 @@ namespace Core {
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
 		size_t m_vertexCount{};     ///< Number of vertices to render.
 		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
+		App* m_app{ nullptr }; ///< Pointer to application-level data.
 		Transformation m_transform{}; ///< Camera/object transformation data.
+		Camera m_cameraRT{}; ///< Camera used for RT mode.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.
