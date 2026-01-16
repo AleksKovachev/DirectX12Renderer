@@ -12,13 +12,17 @@
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
 
-#include <cassert>
-#include <filesystem>
-#include <format>
-#include <fstream>
-#include <iostream>
-#include <vector>
+#include <algorithm> // clamp
+#include <cassert> // assert
+#include <chrono> // high_resolution_clock, duration
+#include <cmath> // abs
+#include <filesystem> // path, absolute
+#include <format> // format
+#include <fstream> // ofstream, ios::binary
+#include <string> // string, wstring
+#include <vector> // vector
 
+using hrClock = std::chrono::high_resolution_clock;
 
 //!< Simple struct to hold the unique hardware identifier (Vendor ID + Device ID).
 struct HardwareID {
@@ -106,7 +110,7 @@ namespace Core {
 		UINT rowPitch{ m_renderTargetFootprint.Footprint.RowPitch };
 
 		// Use the RowPitch (footprint.Footprint.RowPitch) when reading the pixel data
-		// as it's  larger than the texture width * pixel size due to alignment.
+		// as it's larger than the texture width * pixel size due to alignment.
 		uint8_t* byteData = reinterpret_cast<uint8_t*>(renderData);
 		const uint8_t RGBA_COLOR_CHANNELS_COUNT{ 4 };
 
@@ -153,14 +157,18 @@ namespace Core {
 		CreateDescriptorHeapForSwapChain();
 		CreateRenderTargetViewsFromSwapChain();
 
-		if ( m_prepMode == RenderPreparation::Both
-			|| m_prepMode == RenderPreparation::Rasterization
-		)
-			PrepareForRasterization();
-		if ( m_prepMode == RenderPreparation::Both
-			|| m_prepMode == RenderPreparation::RayTracing
-		)
-			PrepareForRayTracing();
+		switch ( m_prepMode ) {
+			case RenderPreparation::Rasterization:
+				PrepareForRasterization();
+				break;
+			case RenderPreparation::RayTracing:
+				PrepareForRayTracing();
+				break;
+			case RenderPreparation::Both:
+				PrepareForRasterization();
+				PrepareForRayTracing();
+				break;
+		}
 
 		m_isPrepared = true;
 	}
@@ -170,16 +178,28 @@ namespace Core {
 		WaitForGPUSync();
 	}
 
-	void WolfRenderer::RenderFrame( float offsetX, float offsetY ) {
-		if ( renderMode == RenderMode::RayTracing ) {
-			FrameBeginRayTracing();
-			RenderFrameRayTracing();
-			FrameEndRayTracing();
-		} else if ( renderMode == RenderMode::Rasterization ) {
-			FrameBeginRasterization();
-			RenderFrameRasterization( offsetX, offsetY );
-			FrameEndRasterization();
+	void WolfRenderer::RenderFrame( CameraInput& cameraInput ) {
+		static auto last = hrClock::now();
+		auto now = hrClock::now();
+
+		m_app->deltaTime = std::chrono::duration<float>( now - last ).count();
+		last = now;
+		m_app->deltaTime = std::clamp( m_app->deltaTime, 0.f, 0.05f ); // Avoid spikes.
+
+		switch ( renderMode ) {
+			case RenderMode::RayTracing:
+				FrameBeginRayTracing();
+				UpdateRTCamera( cameraInput );
+				RenderFrameRayTracing();
+				FrameEndRayTracing();
+				break;
+			case RenderMode::Rasterization:
+				FrameBeginRasterization();
+				RenderFrameRasterization();
+				FrameEndRasterization();
+				break;
 		}
+
 		FrameEnd();
 	}
 
@@ -197,6 +217,7 @@ namespace Core {
 	void WolfRenderer::PrepareForRayTracing() {
 		CreateGlobalRootSignature();
 		CreateVertexBufferRT();
+		CreateCameraConstantBuffer();
 		CreateRayTracingPipelineState();
 		CreateRayTracingShaderTexture();
 		CreateAccelerationStructures();
@@ -221,16 +242,27 @@ namespace Core {
 	}
 
 	void WolfRenderer::RenderFrameRayTracing() {
-		ID3D12DescriptorHeap* heaps[] = { m_uavHeap.Get() };
+		ID3D12DescriptorHeap* heaps[] = { m_uavsrvHeap.Get() };
 		m_cmdList->SetDescriptorHeaps( _countof( heaps ), heaps );
 		m_cmdList->SetComputeRootSignature( m_globalRootSignature.Get() );
 
 		// Slot 0: Description Table
 		m_cmdList->SetComputeRootDescriptorTable(
-			0, m_uavHeap->GetGPUDescriptorHandleForHeapStart() );
+			0, m_uavsrvHeap->GetGPUDescriptorHandleForHeapStart() );
 
 		// Slot 1: Root Constant.
 		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
+
+		// Slot 2: Camera Data.
+		m_cmdList->SetComputeRootConstantBufferView( 2, m_cameraRT.cb->GetGPUVirtualAddress() );
+
+		m_cameraRT.cbData.cameraPosition = m_cameraRT.position;
+		m_cameraRT.cbData.cameraForward = m_cameraRT.forward;
+		m_cameraRT.cbData.cameraRight = m_cameraRT.right;
+		m_cameraRT.cbData.cameraUp = m_cameraRT.up;
+		m_cameraRT.cbData.verticalFOV = m_cameraRT.verticalFOV;
+
+		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
 
 		m_cmdList->SetPipelineState1( m_rtStateObject.Get() );
 		m_cmdList->DispatchRays( &m_dispatchRaysDesc );
@@ -254,10 +286,12 @@ namespace Core {
 	void WolfRenderer::CreateGlobalRootSignature() {
 		D3D12_DESCRIPTOR_RANGE1 ranges[2] = {};
 
-		/* As SetComputeRootDescriptorTable() takes m_uavHeap, it expects a UAV
-		 * range in the first position. For that reason, the UAV range must be
-		 * either the one at the 0th index, or should be created as a different
-		 * root parameter. */
+		/* It's very important which range at which position will be placed. This directly
+		 * correlates to the order of creation. Here, since UAV is created first in the
+		 * CreateRayTracingShaderTexture() with the CreateUnorderedAccessView() call, then
+		 * the SRV is created in the CreateTLASShaderResourceView() with the
+		 * CreateShaderResourceView() call and the handle which specifically states SRV should
+		 * be created with an offset of 1. */
 
 		// Create a Range of type UAV.
 		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -274,21 +308,30 @@ namespace Core {
 		ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		// Describe the root parameter that will be stored in the Root Signature.
-		D3D12_ROOT_PARAMETER1 rootParams[2] = {};
+		D3D12_ROOT_PARAMETER1 rootParams[3] = {};
+
+		// Param 0 - descriptor table with UAV and SRV.
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[0].DescriptorTable.NumDescriptorRanges = 2;
 		rootParams[0].DescriptorTable.pDescriptorRanges = ranges;
 
+		// Param 1 - random color root constant.
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[1].Constants.Num32BitValues = 1;
 		rootParams[1].Constants.ShaderRegister = 0; // b0
 		rootParams[1].Constants.RegisterSpace = 0;
 
+		// Param 2 - camera data.
+		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[2].Descriptor.ShaderRegister = 1; // b1
+		rootParams[2].Descriptor.RegisterSpace = 0;
+
 		// Pass the Root Signature Parameter to the Root Signature Description.
 		D3D12_ROOT_SIGNATURE_DESC1 rootSigDesc{};
-		rootSigDesc.NumParameters = 2;
+		rootSigDesc.NumParameters = 3;
 		rootSigDesc.pParameters = rootParams;
 		rootSigDesc.NumStaticSamplers = 0;
 		rootSigDesc.pStaticSamplers = nullptr;
@@ -495,7 +538,6 @@ namespace Core {
 			1
 		) };
 		texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-		
 
 		// Describe the heap that will contain the resource.
 		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
@@ -505,7 +547,7 @@ namespace Core {
 			&heapProps,
 			D3D12_HEAP_FLAG_NONE,
 			&texDesc,
-			D3D12_RESOURCE_STATE_COPY_SOURCE, // D3D12_RESOURCE_STATE_UNORDERED_ACCESS ?
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
 			nullptr,
 			IID_PPV_ARGS( &m_raytracingOutput )
 		);
@@ -519,7 +561,7 @@ namespace Core {
 
 		hr = m_device->CreateDescriptorHeap(
 			&heapDesc,
-			IID_PPV_ARGS( &m_uavHeap )
+			IID_PPV_ARGS( &m_uavsrvHeap )
 		);
 		CHECK_HR( "Failed to create UAV descriptor heap.", hr, log );
 
@@ -532,7 +574,7 @@ namespace Core {
 			m_raytracingOutput.Get(),
 			nullptr,
 			&uavDesc,
-			m_uavHeap->GetCPUDescriptorHandleForHeapStart()
+			m_uavsrvHeap->GetCPUDescriptorHandleForHeapStart()
 		);
 
 		log( "[ Ray Tracing ] Shader output texture created." );
@@ -948,7 +990,8 @@ namespace Core {
 		D3D12_RESOURCE_BARRIER uavBLASBarrier{};
 		uavBLASBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
 		uavBLASBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		uavBLASBarrier.UAV.pResource = nullptr; //! AIGJ Why? Shouldn't it be m_blasResult.Get() ?
+		// nullptr blocks all UAV read/writes instead of a specific one.
+		uavBLASBarrier.UAV.pResource = nullptr;
 		m_cmdList->ResourceBarrier( 1, &uavBLASBarrier );
 
 		hr = m_cmdList->Close();
@@ -1116,7 +1159,7 @@ namespace Core {
 
 		// Get the handle for the SECOND slot (offset by 1).
 		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
-			m_uavHeap->GetCPUDescriptorHandleForHeapStart(), 1, handleSize );
+			m_uavsrvHeap->GetCPUDescriptorHandleForHeapStart(), 1, handleSize );
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
@@ -1128,13 +1171,89 @@ namespace Core {
 		log( "[ Ray Tracing ] TLAS shader resource view created." );
 	}
 
+	void WolfRenderer::UpdateRTCamera( CameraInput& input ) {
+		using namespace DirectX;
+
+		m_cameraRT.yaw += input.mouseDeltaX * m_cameraRT.mouseSensitivity;
+		m_cameraRT.setPitch( m_cameraRT.pitch + input.mouseDeltaY * m_cameraRT.mouseSensitivity );
+
+		// Reset mouse delta for next frame.
+		input.mouseDeltaX = 0.f;
+		input.mouseDeltaY = 0.f;
+
+		m_cameraRT.ComputeBasisVectors();
+
+		XMVECTOR moveVec = XMVectorZero();
+		if ( input.moveForward )
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+		if ( input.moveBackward )
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+		if ( input.moveRight )
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+		if ( input.moveLeft )
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+		if ( input.moveUp )
+			moveVec = XMVectorAdd( moveVec, m_cameraRT.worldUp );
+		if ( input.moveDown )
+			moveVec = XMVectorSubtract( moveVec, m_cameraRT.worldUp );
+
+		if ( !XMVector3Equal( moveVec, XMVectorZero() ) ) {
+			float effectiveSpeed = m_cameraRT.movementSpeed;
+			if ( input.speedModifier )
+				effectiveSpeed *= m_cameraRT.speedMult;
+
+			// Normalize for correct diagonal movement.
+			moveVec = XMVector3Normalize( moveVec );
+			moveVec = XMVectorScale( moveVec, effectiveSpeed * m_app->deltaTime );
+
+			XMVECTOR pos = XMLoadFloat3( &m_cameraRT.position );
+			pos = XMVectorAdd( pos, moveVec );
+			XMStoreFloat3( &m_cameraRT.position, pos );
+		}
+	}
+
+	void WolfRenderer::CreateCameraConstantBuffer() {
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( RTCameraCB ) );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_cameraRT.cb )
+		);
+		CHECK_HR( "Failed to create Camera constant buffer", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_cameraRT.cb->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_cameraRT.cbMappedPtr) );
+		CHECK_HR( "Failed to map Camera constant buffer", hr, log );
+
+		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
+		log( "[ RayTracing ] Camera constant buffer created and mapped." );
+	}
+
 	/*  #####     ###    ######  ######  ######  #####
 	 *  ##  ##   ## ##   ##        ##    ##	     ##  ##
 	 *  #####   #######  ######    ##    #####   #####
 	 *  ## ##   ##   ##      ##    ##    ##	     ## ##
 	 *  ##  ##  ##   ##  ######    ##    ######  ##  ## */
 
+	void WolfRenderer::PrepareForRasterization() {
+		CreateRootSignature();
+		CreatePipelineState();
+		CreateVertexBuffer();
+		CreateTransformConstantBuffer();
+		CreateViewport();
+		CreateDepthStencil();
+		log( "[ Rasterization ] Successful preparation." );
+	}
+
 	void WolfRenderer::FrameBeginRasterization() {
+		UpdateSmoothMotion();
+
 		ResetCommandAllocatorAndList();
 
 		D3D12_RESOURCE_BARRIER barrier{};
@@ -1144,28 +1263,35 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
 		// Set which Render Target will be used for rendering.
-		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, nullptr );
-		float greenBG[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, &dsvHandle );
+		float greenBG[] = { 0.f, 0.2f, 0.f, 1.f };
 		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+		m_cmdList->ClearDepthStencilView( m_dsvHeap->GetCPUDescriptorHandleForHeapStart(),
+			D3D12_CLEAR_FLAG_DEPTH, 0.f, 0, 0, nullptr
+		);
 	}
 
-	void WolfRenderer::RenderFrameRasterization( float offsetX, float offsetY ) {
-		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+	void WolfRenderer::RenderFrameRasterization() {
 		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
 
-		// IA stands for Input Assembler
+		// Mask the offset float values as uint values.
+		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
+
+		// Bind transform CBV at root parameter 1.
+		m_cmdList->SetGraphicsRootConstantBufferView(
+			1, m_transform.transformCB->GetGPUVirtualAddress() );
+
+		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+
+		// IA stands for Input Assembler.
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
 
 		m_cmdList->RSSetViewports( 1, &m_viewport );
 		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-		// Mask the offset float values as uint values.
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetX), 1 );
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, *reinterpret_cast<const UINT*>(&offsetY), 2 );
-
-		m_cmdList->DrawInstanced( 3, 1, 0, 0 );
+		m_cmdList->DrawInstanced( static_cast<UINT>( m_vertexCount ), 1, 0, 0 );
 	}
 
 	void WolfRenderer::FrameEndRasterization() {
@@ -1176,26 +1302,35 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 	}
 
-	void WolfRenderer::PrepareForRasterization() {
-		CreateRootSignature();
-		CreatePipelineState();
-		CreateVertexBuffer();
-		CreateViewport();
-		log( "[ Rasterization ] Successful preparation." );
-	}
-
 	void WolfRenderer::CreateRootSignature() {
-		CD3DX12_ROOT_PARAMETER1 rootParam{};
-		rootParam.InitAsConstants( 3, 0, 0, D3D12_SHADER_VISIBILITY_ALL );
+		D3D12_ROOT_PARAMETER1 rootParams[2]{};
 
-		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init_1_1( 1, &rootParam, 0, nullptr,
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT );
+		// Param 0 - frameIdx.
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[0].Constants.ShaderRegister = 0;
+		rootParams[0].Constants.RegisterSpace = 0;
+		rootParams[0].Constants.Num32BitValues = 1;
+
+		// Param 1 - transform matrix.
+		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[1].Descriptor.ShaderRegister = 1;
+		rootParams[1].Descriptor.RegisterSpace = 0;
+
+		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
+		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		rootSignatureDesc.NumParameters = _countof( rootParams );
+		rootSignatureDesc.pParameters = rootParams;
+
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
+		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
 
 		ComPtr<ID3DBlob> signatureBlob;
 		ComPtr<ID3DBlob> errorBlob;
 		HRESULT hr = D3D12SerializeVersionedRootSignature(
-			&rootSignatureDesc,
+			&rootSigDescVersioned,
 			&signatureBlob,
 			&errorBlob
 		);
@@ -1219,8 +1354,11 @@ namespace Core {
 	void WolfRenderer::CreatePipelineState() {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 
+		// This tells the rasterizer to take 2D or 3D vertex data.
+		// Use DXGI_FORMAT_R32G32_FLOAT for 2D and DXGI_FORMAT_R32G32B32_FLOAT for 3D.
+		// VSInput's position parameter type must reflect this type: float2 / float3.
 		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-			{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 		};
 
@@ -1230,8 +1368,10 @@ namespace Core {
 		psoDesc.InputLayout = { inputLayout, _countof( inputLayout ) };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
 		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
-		psoDesc.DepthStencilState.DepthEnable = FALSE;
-		psoDesc.DepthStencilState.StencilEnable = FALSE;
+		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT );
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+		//psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
+		psoDesc.DSVFormat = m_depthFormat;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;
@@ -1248,12 +1388,21 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
-		Vertex2D triangleVertices[] = {
-			{  0.0f,  0.5f },
-			{  0.5f, -0.5f },
-			{ -0.5f, -0.5f }
-		};
-		const UINT vertSize{ sizeof( triangleVertices ) };
+		m_vertexCount = m_scene.GetTriangles().size() * 3;
+		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
+
+		int vertIdxInBuffIdx{};
+		for ( int triIdx{}; triIdx < m_scene.GetTriangles().size(); ++triIdx ) {
+			Triangle tri{ m_scene.GetTriangles()[triIdx] };
+			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
+				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
+				vertInBuff.x = tri.GetVertex( vertIdx ).x;
+				vertInBuff.y = tri.GetVertex( vertIdx ).y;
+				vertInBuff.z = tri.GetVertex( vertIdx ).z;
+			}
+		}
+
+		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
 
 		// Create the "Intermediate" Upload Buffer (Staging).
 		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
@@ -1326,8 +1475,8 @@ namespace Core {
 		WaitForGPUSync();
 
 		m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vbView.StrideInBytes = sizeof( Vertex2D );
-		m_vbView.SizeInBytes = vertSize;
+		m_vbView.StrideInBytes = sizeof( Vertex3D );
+		m_vbView.SizeInBytes = static_cast<UINT>( vertSize );
 
 		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
 	}
@@ -1345,6 +1494,204 @@ namespace Core {
 		m_scissorRect.right = m_scene.settings.renderWidth;
 		m_scissorRect.bottom = m_scene.settings.renderHeight;
 		log( "[ Rasterization ] Viewport set up." );
+	}
+
+	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
+		// Add mouse offset to target offset.
+		// Clamp values to prevent offscreen value accumulation.
+		Transformation& tr = m_transform;
+
+		CalculateViewportBounds();
+
+		// Predict next target.
+		float candidateX = tr.targetOffsetX + dx * tr.offsetXYSensitivityFactor;
+		float candidateY = tr.targetOffsetY + dy * tr.offsetXYSensitivityFactor;
+
+		tr.targetOffsetX = std::clamp( candidateX, -tr.boundsX, tr.boundsX );
+		tr.targetOffsetY = std::clamp( candidateY, -tr.boundsY, tr.boundsY );
+	}
+
+	void WolfRenderer::AddToOffsetZ( float dz ) {
+		m_transform.offsetZ += dz * m_transform.offsetZSensitivityFactor;
+	}
+
+	void WolfRenderer::AddToOffsetFOV( float offset ) {
+		float angleRadians{ DirectX::XMConvertToRadians( offset * m_transform.FOVSensitivityFactor ) };
+		m_transform.FOVAngle += angleRadians;
+
+		// A value near 0 causes division by 0 and crashes the application.
+		// Clamping the value stops FOV at max zoom. Adding it again makes it
+		// go over to the negative numbers, causing inverted projection.
+		if ( DirectX::XMScalarNearEqual( m_transform.FOVAngle, 0.f, 0.00001f * 2.f ) )
+			m_transform.FOVAngle += angleRadians;
+	}
+
+	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
+		m_transform.targetRotationX += deltaAngleX * m_transform.rotationSensitivityFactor;
+		m_transform.targetRotationY += deltaAngleY * m_transform.rotationSensitivityFactor;
+	}
+
+	void WolfRenderer::SetAppData( App* appData ) {
+		m_app = appData;
+	}
+
+	void WolfRenderer::CreateTransformConstantBuffer() {
+		// Constant buffer must be 256-byte aligned. This is a precaution, should already be 256 bytes.
+		const UINT cbSize = (sizeof( Transformation::TransformData ) + 255) & ~255;
+
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbSize );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_transform.transformCB )
+		);
+		CHECK_HR( "Failed to create Transform constant buffer.", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_transform.transformCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_transform.transformCBMappedPtr) );
+		CHECK_HR( "Failed to map Transform constant buffer.", hr, log );
+
+		// Initialize to identity matrix
+		DirectX::XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixIdentity() );
+		memcpy(
+			m_transform.transformCBMappedPtr,
+			&m_transform.transformData,
+			sizeof( m_transform.transformData )
+		);
+		log( "[ Rasterization ] Transform constant buffer created and mapped." );
+	}
+
+	void WolfRenderer::UpdateSmoothMotion() {
+		Transformation& tr{ m_transform };
+
+		// Compute smoothing factor for movement (frame-rate independent).
+		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * m_app->deltaTime);
+
+		// Linear interpolation toward the target.
+		tr.currOffsetX += (tr.targetOffsetX - tr.currOffsetX) * sTransFactor;
+		tr.currOffsetY += (tr.targetOffsetY - tr.currOffsetY) * sTransFactor;
+
+		// Compute smoothing factor for rotation (frame-rate independent).
+		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * m_app->deltaTime );
+
+		// Linear interpolation toward the target.
+		tr.currRotationX += (tr.targetRotationX - tr.currRotationX) * sRotFactor;
+		tr.currRotationY += (tr.targetRotationY - tr.currRotationY) * sRotFactor;
+
+		// Don't allow the center of the "screen sphere" to leave the screen
+		// when moving around, independent of zoom and FOV.
+		// Recalculate bounds to make object stay inside.
+		CalculateViewportBounds();
+
+		tr.currOffsetX = std::clamp( tr.currOffsetX, -tr.boundsX, tr.boundsX );
+		tr.currOffsetY = std::clamp( tr.currOffsetY, -tr.boundsY, tr.boundsY );
+
+		// Subtracting 0.5 from Y to place camera slightly above ground.
+		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation(
+			tr.currOffsetX, tr.currOffsetY - 0.5f, tr.offsetZ );
+
+		// Using Rotation data for X axis in Qt screen space for MatrixY in
+		// WorldView and vice-versa. Negative currRotation inverts rotation direction.
+		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationY( -tr.currRotationX ) *
+								DirectX::XMMatrixRotationX( -tr.currRotationY );
+
+		// Create a world-view matrix. Multiplication order matters! Rotation,
+		// then translation - transform around world origin. Otherwise - around geometry origin.
+		DirectX::XMMATRIX World{};
+		if ( tr.coordinateSystem == TransformCoordinateSystem::Local )
+			World = Rot * Trans;
+		else if ( tr.coordinateSystem == TransformCoordinateSystem::World )
+			World = Trans * Rot;
+
+		DirectX::XMMATRIX View = DirectX::XMMatrixLookAtLH(
+			DirectX::XMVectorSet( 0.f, 0.f, -1.f, 1.f ), // Camera position.
+			DirectX::XMVectorZero(),                     // Look at origin.
+			DirectX::XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // Up.
+		);
+
+		DirectX::XMMATRIX WorldView = World * View;
+
+		// Create projection matrix (for simulating a camera).
+		unsigned& width = m_scene.settings.renderWidth;
+		unsigned& height = m_scene.settings.renderHeight;
+		tr.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+		// Swap nearZ and farZ to use "reverse-Z" for better precision.
+		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
+			tr.FOVAngle, tr.aspectRatio, tr.farZ, tr.nearZ );
+
+		XMStoreFloat4x4( &tr.transformData.mat, DirectX::XMMatrixTranspose( WorldView ) );
+		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
+
+		memcpy( tr.transformCBMappedPtr, &tr.transformData, sizeof( tr.transformData ) );
+	}
+
+	void WolfRenderer::CalculateViewportBounds() {
+		float depth = std::abs( m_transform.offsetZ );
+
+		float halfHeight = depth * std::tan( m_transform.FOVAngle * 0.5f );
+		float halfWidth = halfHeight * m_transform.aspectRatio;
+
+		// If the object does not fit, lock movement instead of exploding.
+		m_transform.boundsX = std::abs( halfWidth - m_transform.dummyObjectRadius );
+		m_transform.boundsY = std::abs( halfHeight - m_transform.dummyObjectRadius );
+	}
+
+	void WolfRenderer::CreateDepthStencil() {
+		// DSV Heap.
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
+		dsvHeapDesc.NumDescriptors = 1;
+		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+		HRESULT hr{ m_device->CreateDescriptorHeap( &dsvHeapDesc, IID_PPV_ARGS( &m_dsvHeap ) ) };
+		CHECK_HR( "Failed to create DSV Heap.", hr, log );
+
+		// Depth texture.
+		D3D12_RESOURCE_DESC depthDesc{};
+		depthDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		depthDesc.Width = m_scene.settings.renderWidth;
+		depthDesc.Height = m_scene.settings.renderHeight;
+		depthDesc.DepthOrArraySize = 1;
+		depthDesc.MipLevels = 1;
+		depthDesc.Format = m_depthFormat;
+		depthDesc.SampleDesc.Count = 1;
+		depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		D3D12_CLEAR_VALUE clearValue{};
+		clearValue.Format = m_depthFormat;
+		clearValue.DepthStencil.Depth = 0.f;
+		clearValue.DepthStencil.Stencil = 0;
+
+		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
+
+		hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&depthDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&clearValue,
+			IID_PPV_ARGS( &m_depthStencilBuffer )
+		);
+
+		// Create DSV.
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+		dsvDesc.Format = m_depthFormat;
+		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+		m_device->CreateDepthStencilView(
+			m_depthStencilBuffer.Get(),
+			&dsvDesc,
+			m_dsvHeap->GetCPUDescriptorHandleForHeapStart()
+		);
+		log( "[ Rasterization ] Depth Stencil created." );
 	}
 
 	/*  ######  ######  ###     ###	 ###     ###  ######  ###     ##

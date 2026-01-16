@@ -12,12 +12,23 @@ WolfApp::~WolfApp() {
 	delete m_fpsTimer;
 }
 
-bool WolfApp::init() {
+bool WolfApp::init( App* appData ) {
 	if ( InitWindow() == false )
 		return false;
 
+	m_renderer.SetAppData( appData );
+
 	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
 		this, &WolfApp::onCameraPan
+	);
+	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraDolly,
+		this, &WolfApp::onCameraDolly
+	);
+	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraFOV,
+		this, &WolfApp::onCameraFOV
+	);
+	connect( m_mainWin->viewport, &WolfViewportWidget::onMouseRotationChanged,
+		this, &WolfApp::onMouseRotationChanged
 	);
 
 	m_mainWin->show();
@@ -79,12 +90,23 @@ bool WolfApp::InitWindow() {
 }
 
 void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame( m_offsetX, m_offsetY );
+	m_renderer.RenderFrame( m_mainWin->viewport->cameraInput );
 
 	++m_frameIdxAtLastFPSCalc;
 }
 
-void WolfApp::onCameraPan( float offsetX, float offsetY ) {
-	m_offsetX = offsetX;
-	m_offsetY = offsetY;
+void WolfApp::onCameraPan( float ndcX, float ndcY ) {
+	m_renderer.AddToTargetOffset( ndcX, ndcY );
+}
+
+void WolfApp::onCameraDolly( float offsetZ ) {
+	m_renderer.AddToOffsetZ( offsetZ );
+}
+
+void WolfApp::onCameraFOV( float offset ) {
+	m_renderer.AddToOffsetFOV( offset );
+}
+
+void WolfApp::onMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
+	m_renderer.AddToTargetRotation( deltaAngleX, deltaAngleY );
 }

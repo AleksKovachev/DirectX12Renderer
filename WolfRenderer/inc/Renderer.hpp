@@ -1,6 +1,7 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include <DirectXMath.h>
 #include <iostream>
 #include <vector>
 #include <wrl/client.h>
@@ -12,8 +13,14 @@
 #pragma comment(lib, "dxcompiler.lib")
 // #pragma comment(lib, "dxgi.lib d3d12.lib, dxcompiler.lib") is also valid
 
+#include "Camera.hpp"
 #include "Logger.hpp"
 #include "Scene.hpp"
+
+// Undefine "min" and "max" macros defined in windows.h
+// to avoid conflicts with std::min and std::max.
+#undef min
+#undef max
 
 
 /* While #pragma comment(lib, ...) is perfectly valid and common, especially in
@@ -24,20 +31,76 @@
 
 using Microsoft::WRL::ComPtr;
 struct IDxcBlob;
+struct Transformation;
+
+/// Application-level settings and data.
+struct App {
+	float deltaTime{};
+};
 
 namespace Core {
 
-	// The mode to use for rendering.
+	/// The mode to use for rendering.
 	enum class RenderMode {
 		Rasterization,
 		RayTracing
 	};
 
-	// The preparation needed before rendering. Use Both to switch between modes.
+	/// The preparation needed before rendering. Use Both to switch between modes.
 	enum class RenderPreparation {
 		Rasterization,
 		RayTracing,
 		Both
+	};
+
+	enum class TransformCoordinateSystem {
+		World,
+		Local
+	};
+
+	/// Transformation-related data for controlling renderer from the GUI.
+	struct Transformation {
+		/// The transform matrix used in the constant buffer to update object position.
+		ComPtr<ID3D12Resource> transformCB{ nullptr };
+
+		// Members related to geometry transform with mouse movemet.
+		float currOffsetX{};
+		float currOffsetY{};
+		float targetOffsetX{};
+		float targetOffsetY{};
+		float offsetZ{ 35.f };
+
+		float dummyObjectRadius{ 0.5f }; ///< Used for offset clamping to viewport bounds.
+		float boundsX{};
+		float boundsY{};
+
+		float rotationSensitivityFactor{ 0.01f };
+		float offsetZSensitivityFactor{ 0.5f };
+		float FOVSensitivityFactor{ 0.1f };
+		float offsetXYSensitivityFactor{ 0.1f };
+
+		float currRotationX{};   // Radians
+		float currRotationY{};   // Radians
+		float targetRotationX{}; // Radians
+		float targetRotationY{}; // Radians
+
+		// Motion speed and sensitivity.
+		float smoothOffsetLerp{ 2.f };
+		float smoothRotationLambda{ 6.f };
+
+		UINT8* transformCBMappedPtr = nullptr;
+
+		float FOVAngle{ DirectX::XMConvertToRadians( 45.f ) };
+		float aspectRatio{ 1.f }; ///< Calculate with render width/height.
+		float nearZ{ 0.1f }; ///< Camera near clipping plane.
+		float farZ{ 1000.f }; ///< Camera far clipping plane.
+
+		TransformCoordinateSystem coordinateSystem{ TransformCoordinateSystem::Local };
+
+		struct alignas(256) TransformData {
+			DirectX::XMFLOAT4X4 mat;
+			DirectX::XMFLOAT4X4 projection;
+		} transformData;
 	};
 
 	// The main Renderer class managing the GPU commands.
@@ -71,12 +134,33 @@ namespace Core {
 		void StopRendering();
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
-		/// @param[in] offsetX  Offset in pixels to pass to the geometry for the X axis.
-		/// @param[in] offsetY  Offset in pixels to pass to the geometry for the Y axis.
-		void RenderFrame( float, float );
+		/// @param[in] cameraInput  Camera input data for the frame. Used in RT mode.
+		void RenderFrame( CameraInput& );
 
 		/// Sets the rendering mode to the provided one.
 		void SetRenderMode( RenderMode );
+
+		/// Recieves mouse offset coordinates and clamp-adds them to the target offset.
+		/// @param[in] dx  The X-axis offset.
+		/// @param[in] dy  The Y-axis offset.
+		void AddToTargetOffset( float, float );
+
+		/// Recieves mouse offset coordinate and adds it to the Z offset.
+		/// @param[in] dz  The Z-axis offset.
+		void AddToOffsetZ( float );
+
+		/// Recieves mouse offset coordinate and adds it to the FOV offset.
+		/// @param[in] offset  The Z-axis offset.
+		void AddToOffsetFOV( float );
+
+		/// Recieves mouse offset coordinates and adds them to the target rotation.
+		/// @param[in] deltaAngleX  The X-axis offset.
+		/// @param[in] deltaAngleY  The Y-axis offset.
+		void AddToTargetRotation( float, float );
+
+		/// Sets the application-level data member.
+		/// @param[in] appData  App Pointer to the application data.
+		void SetAppData( App* );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -165,13 +249,23 @@ namespace Core {
 		ComPtr<IDxcBlob> CompileShader(
 			const std::wstring&, const std::wstring&, const std::wstring& );
 
+		/// Creates BLAS, TLAS, and TLAS SRV.
 		void CreateAccelerationStructures();
 
+		/// Create a Bottom Level Acceleration Structure (BLAS)
 		void CreateBLAS();
 
+		/// Create a Top Level Acceleration Structure (TLAS)
 		void CreateTLAS();
 
+		/// Creates a Shader Resource View (SRV) for the TLAS.
 		void CreateTLASShaderResourceView();
+
+		/// Updates the camera parameters in the constant buffer. Used in RT mode.
+		void UpdateRTCamera( CameraInput& );
+
+		/// Creates a constant buffer for the camera parameters used in RT mode.
+		void CreateCameraConstantBuffer();
 
 		//! Rasterization specific functions.
 
@@ -182,9 +276,7 @@ namespace Core {
 		void FrameBeginRasterization();
 
 		/// Renders a frame using rasterization.
-		/// @param[in] offsetX  Offset in pixels to pass to the geometry for the X axis.
-		/// @param[in] offsetY  Offset in pixels to pass to the geometry for the Y axis.
-		void RenderFrameRasterization( float, float );
+		void RenderFrameRasterization();
 
 		/// Finalizes the frame rendering for rasterization.
 		void FrameEndRasterization();
@@ -202,6 +294,19 @@ namespace Core {
 
 		/// Creates the viewport and scissor rectangle for rendering.
 		void CreateViewport();
+
+		/// Creates a constant buffer for transform matrix.
+		void CreateTransformConstantBuffer();
+
+		/// Updates the transform matrix using interpolation from the current
+		/// offset and rotation values to the target ones.
+		void UpdateSmoothMotion();
+
+		/// Calculates the viewport bounds for clamping the object offset.
+		void CalculateViewportBounds();
+
+		/// Creates a depth buffer and DSV Heap.
+		void CreateDepthStencil();
 
 		//! Common functions.
 
@@ -319,7 +424,7 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_raytracingOutput{ nullptr };
 
 		/// Handle to the descriptor heap of the output texture.
-		ComPtr<ID3D12DescriptorHeap> m_uavHeap{ nullptr };
+		ComPtr<ID3D12DescriptorHeap> m_uavsrvHeap{ nullptr };
 
 		/// Handle to the descriptor heap of the TLAS.
 		ComPtr<ID3D12DescriptorHeap> m_srvHeap{ nullptr };
@@ -357,6 +462,10 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_blasScratch{ nullptr };
 		ComPtr<ID3D12Resource> m_tlasResult{ nullptr };
 
+		ComPtr<ID3D12Resource> m_depthStencilBuffer{ nullptr };
+		ComPtr<ID3D12DescriptorHeap> m_dsvHeap{ nullptr };
+		DXGI_FORMAT m_depthFormat{ DXGI_FORMAT_D32_FLOAT };
+
 		// General members.
 		Scene m_scene{ "../rsc/scene1.crtscene" };
 		size_t m_frameIdx{};        ///< Current frame index.
@@ -368,6 +477,9 @@ namespace Core {
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
 		size_t m_vertexCount{};     ///< Number of vertices to render.
 		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
+		App* m_app{ nullptr }; ///< Pointer to application-level data.
+		Transformation m_transform{}; ///< Camera/object transformation data.
+		Camera m_cameraRT{}; ///< Camera used for RT mode.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

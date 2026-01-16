@@ -9,6 +9,21 @@ cbuffer SceneData : register( b0 ) {
     bool useRandomColors;
 };
 
+cbuffer RTCameraCB : register( b1 ) {
+    float3 cameraPosition;
+    float verticalFOV;
+
+    float3 cameraForward;
+    float _pad0;
+
+    float3 cameraRight;
+    float _pad1;
+
+    float3 cameraUp;
+    float _pad2;
+};
+
+
 /// Generate a unique ID based on Primitive, geometry
 /// inside a given BLAS and TLAS instance indices.
 uint ComputePrimitiveId() {
@@ -55,7 +70,7 @@ void rayGen() {
 
     // RayDesc struct is built-in HLSL struct for ray description.
     RayDesc cameraRay;
-    cameraRay.Origin = float3( 0.f, 0.f, 0.f );
+    cameraRay.Origin = cameraPosition;
 
     // Get raster coords of the current pixel being processed.
     uint2 pixelRasterCoords = DispatchRaysIndex().xy;
@@ -101,8 +116,14 @@ void rayGen() {
     // cameraRay.Direction = float3( aspectR, aspectG, 0.f );
     // frameTexture[pixelRasterCoords] = float4( cameraRay.Direction, 1.f );
 
+    float tanHalfFOV = tan( verticalFOV * 0.5f );
+    float aspectRatio = width / height;
+
     // Set the Z component to -1 to point into the scene.
-    float3 rayDirection = float3( x, y, -1.f );
+    float3 rayDirection = float3( cameraForward +
+                                  x * aspectRatio * tanHalfFOV * cameraRight +
+                                  y * tanHalfFOV * cameraUp
+    );
 
     // float rayDirR = abs( rayDirection.x );
     // float rayDirG = abs( rayDirection.y );
@@ -110,7 +131,7 @@ void rayGen() {
     // cameraRay.Direction = float3( rayDirR, rayDirG, rayDirB );
     // frameTexture[pixelRasterCoords] = float4( cameraRay.Direction, 1.f );
 
-    float3 rayDirectionNormalized = normalize( rayDirection );
+    cameraRay.Direction = normalize( rayDirection );
 
     // cameraRay.Direction = rayDirectionNormalized;
 
@@ -120,25 +141,23 @@ void rayGen() {
 
     // frameTexture[pixelRasterCoords] = float4( r, g, b, 1.f );
 
-    cameraRay.Direction = rayDirectionNormalized;
-
     /* T is the parameter with which the points along the line that
      * is passing through the ray are being calculated.
      * DXR ignores intersections with values outside the
      * given range defined by the parametric value T.*/
-    cameraRay.TMin = 0.001;
-    cameraRay.TMax = 10000.0;
+    cameraRay.TMin = 0.001f;
+    cameraRay.TMax = 100000.0f;
 
     RayPayload rayPayload;
     rayPayload.pixelColor = float4( 0.f, 0.f, 0.f, 1.f );
 
     TraceRay(
         sceneBVHAccStruct,
-        RAY_FLAG_NONE,
-        0xFF,
-        0,
-        1,
-        0,
+        RAY_FLAG_NONE, // https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_ray_flags
+        0xFF, // instanceInclusionMask. Filters which instances in the TLAS are considered during traversal.
+        0, // rayContributionToHitGroupIndex. Selects which hit group is used per ray type.
+        1, // multiplierForGeometryContributionToHitGroupIndex. Allows different geometries to map to different hit groups.
+        0, // missShaderIndex. Selects which miss shader is executed if no intersection occurs.
         cameraRay,
         rayPayload
     );
@@ -157,8 +176,9 @@ void closestHit(
     inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr
 ) {
     // Fill the frame with red color on hit.
-    if ( useRandomColors )
+    if ( useRandomColors ) {
         payload.pixelColor = float4( RandomColorPerPrimitive(), 1.0 );
-    else
+    } else {
         payload.pixelColor = float4( 1.f, 1.f, 1.f, 1.f );
+    }
 }

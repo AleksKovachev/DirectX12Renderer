@@ -1,6 +1,7 @@
 #ifndef VIEWPORT_WIDGET_H
 #define VIEWPORT_WIDGET_H
 
+#include "Camera.hpp" // CameraInput
 #include "Renderer.hpp"
 
 #include <QImage>
@@ -48,8 +49,20 @@ public:
 protected:
 	void mousePressEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
+			// Save current mouse coordinates as last mouse position on left click.
 			m_LMBDown = true;
-			m_initialPos = event->pos();
+			m_lastLMBPos = event->pos();
+		}
+		if ( event->button() == Qt::RightButton ) {
+			// Save current mouse coordinates as last mouse position on right click.
+			m_RMBDown = true;
+			m_lastRMBPos = event->pos();
+			m_lastRMBPosRT = event->pos();
+		}
+		if ( event->button() == Qt::MiddleButton ) {
+			// Save current mouse coordinates as last mouse position on right click.
+			m_MMBDown = true;
+			m_lastMMBPos = event->pos();
 		}
 
 		// Allow propagation if parent needs events.
@@ -59,15 +72,46 @@ protected:
 	void mouseMoveEvent( QMouseEvent* event ) override {
 		if ( m_LMBDown ) {
 			// Calculate the offset of current mouse position from last one saved.
-			QPoint offset{ event->pos() - m_initialPos };
+			QPoint delta{ event->pos() - m_lastLMBPos };
+			m_lastLMBPos = event->pos();
 
-			// Convert to NDC (Normalized Device Coordinates): [-1, 1].
 			// Don't emit in RT mode as the data is only sent to Rasterization.
-			if ( m_renderMode == Core::RenderMode::Rasterization )
-				emit onCameraPan(
-					static_cast<float>(offset.x() + m_lastPos.x()) / width() * 2.f,
-					static_cast<float>(offset.y() + m_lastPos.y()) / height() * 2.f
-				);
+			if ( m_renderMode == Core::RenderMode::Rasterization ) {
+				float deltaX{ static_cast<float>(delta.x()) };
+				float deltaY{ static_cast<float>(delta.y()) };
+
+				emit onCameraPan( deltaX, -deltaY );
+			}
+		}
+		if ( m_RMBDown ) {
+			if ( m_renderMode == Core::RenderMode::Rasterization ) {
+				// Calculate the offset of current mouse position from last one saved.
+				QPoint delta{ event->pos() - m_lastRMBPos };
+				m_lastRMBPos = event->pos();
+
+				// Get the delta from the last position.
+				float deltaX{ static_cast<float>(delta.x()) };
+				float deltaY{ static_cast<float>(delta.y()) };
+
+				emit onMouseRotationChanged( deltaX, deltaY );
+			}
+			else if ( m_renderMode == Core::RenderMode::RayTracing ) {
+				// Calculate the offset of current mouse position from last one saved.
+				QPoint delta{ event->pos() - m_lastRMBPosRT };
+				m_lastRMBPosRT = event->pos();
+
+				cameraInput.mouseDeltaX = static_cast<float>(delta.x());
+				cameraInput.mouseDeltaY = -static_cast<float>(delta.y());
+			}
+		}
+		if ( m_MMBDown ) {
+			// Calculate the offset of current mouse position from last one saved.
+			QPoint delta{ event->pos() - m_lastMMBPos };
+			m_lastMMBPos = event->pos();
+
+			float deltaY{ static_cast<float>(delta.y()) };
+
+			emit onCameraFOV( deltaY );
 		}
 
 		// Allow propagation if parent needs events.
@@ -77,24 +121,90 @@ protected:
 	void mouseReleaseEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
-			// Don't change position in RT mode as the data is only used in Rasterization.
-			if ( m_renderMode == Core::RenderMode::Rasterization )
-				m_lastPos = m_lastPos + event->pos() - m_initialPos;
+		}
+		if ( event->button() == Qt::RightButton ) {
+			m_RMBDown = false;
+		}
+		if ( event->button() == Qt::MiddleButton ) {
+			m_MMBDown = false;
 		}
 
 		// Allow propagation if parent needs events.
 		QWidget::mouseReleaseEvent( event );
 	}
 
+	void wheelEvent( QWheelEvent* event ) override {
+		// event->pixelDelta(); // Used for high-precision touchpads
+		// 120 is a usual value for a single scroll. This is done by
+		// Qt, Windows, etc. to allow for high-precision scrolling without
+		// using floats. Dividing the number by 8 converts it back to degrees.
+		// 15 degree interval is what most mouse wheels use. Dividing the
+		// angleDelta by 120 gives +/- 1. Flipping "zoom" direction.
+		if ( m_renderMode == Core::RenderMode::Rasterization ) {
+			int scrollUpDownVal{ (event->angleDelta() / 120).y() };
+			emit onCameraDolly( -static_cast<float>(scrollUpDownVal) );
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::wheelEvent( event );
+	}
+
+	void keyPressEvent( QKeyEvent* event ) override {
+		if ( m_renderMode == Core::RenderMode::RayTracing && m_RMBDown ) {
+			switch ( event->key() ) {
+				case Qt::Key_W: cameraInput.moveForward = true; break;
+				case Qt::Key_S: cameraInput.moveBackward = true; break;
+				case Qt::Key_A: cameraInput.moveLeft = true; break;
+				case Qt::Key_D: cameraInput.moveRight = true; break;
+				case Qt::Key_E: cameraInput.moveUp = true; break;
+				case Qt::Key_Q: cameraInput.moveDown = true; break;
+				case Qt::Key_Shift: cameraInput.speedModifier = true; break;
+				default: QWidget::keyPressEvent( event );
+				return; // propagate
+			}
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::keyPressEvent( event );
+	}
+
+	void keyReleaseEvent( QKeyEvent* event ) override {
+		if ( m_renderMode == Core::RenderMode::RayTracing ) {
+			switch ( event->key() ) {
+				case Qt::Key_W: cameraInput.moveForward = false; break;
+				case Qt::Key_S: cameraInput.moveBackward = false; break;
+				case Qt::Key_A: cameraInput.moveLeft = false; break;
+				case Qt::Key_D: cameraInput.moveRight = false; break;
+				case Qt::Key_E: cameraInput.moveUp = false; break;
+				case Qt::Key_Q: cameraInput.moveDown = false; break;
+				case Qt::Key_Shift: cameraInput.speedModifier = false; break;
+				default: QWidget::keyPressEvent( event ); return; // propagate
+			}
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::keyPressEvent( event );
+	}
+
+public: // members
+	CameraInput cameraInput{};
 private:
 	QImage m_image;
-	QPoint m_initialPos;
-	QPoint m_lastPos;
 	bool m_LMBDown{ false };
+	bool m_RMBDown{ false };
+	bool m_MMBDown{ false };
+	QPoint m_initialRMBPosRT;
+	QPoint m_lastRMBPosRT;
+	QPoint m_lastLMBPos;
+	QPoint m_lastRMBPos;
+	QPoint m_lastMMBPos;
 	Core::RenderMode m_renderMode;
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );
+	void onCameraDolly( float offsetZ );
+	void onCameraFOV( float offset );
+	void onMouseRotationChanged( float deltaAngleX, float deltaAngleY );
 };
 
 #endif // VIEWPORT_WIDGET_H
