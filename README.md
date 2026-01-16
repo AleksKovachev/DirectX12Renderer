@@ -2,8 +2,11 @@
 
 A Windows-based real-time rendering application implementing both **rasterization** and **ray tracing** pipelines using DirectX 12. The project features a Qt-based GUI with an interactive viewport that can dynamically switch between rendering modes at runtime.
 
-## Demo Video
-[![Demo video](docs/gui.png)](docs/demo.mp4)
+## Demo
+### Ray Tracing
+[![Demo video](docs/demo_rt_thumb.png)](docs/demo_rt.mp4)
+### Rasterization
+[![Demo video](docs/demo_raster_thumb.png)](docs/demo_raster.mp4)
 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 ![DirectX](https://img.shields.io/badge/DirectX_12-107C10?style=flat&logo=microsoft&logoColor=white)
