@@ -17,6 +17,10 @@ bool WolfApp::init( App* appData ) {
 		return false;
 
 	m_renderer.SetAppData( appData );
+	float aspectRatio = static_cast<float>(
+		m_renderer.GetScene().settings.renderWidth ) /
+		static_cast<float>(m_renderer.GetScene().settings.renderHeight);
+	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
 
 	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
 		this, &WolfApp::onCameraPan
