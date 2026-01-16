@@ -150,7 +150,7 @@ QCheckBox::indicator:checked {
        </size>
       </property>
       <property name="cursor">
-       <cursorShape>PointingHandCursor</cursorShape>
+       <cursorShape>OpenHandCursor</cursorShape>
       </property>
       <property name="focusPolicy">
        <enum>Qt::FocusPolicy::StrongFocus</enum>

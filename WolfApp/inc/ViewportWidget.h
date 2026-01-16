@@ -48,6 +48,10 @@ public:
 
 protected:
 	void mousePressEvent( QMouseEvent* event ) override {
+		// Hide the cursor.
+		setCursor( Qt::BlankCursor );
+		ignoreNextMouseMove = true;
+
 		if ( event->button() == Qt::LeftButton ) {
 			// Save current mouse coordinates as last mouse position on left click.
 			m_LMBDown = true;
@@ -70,49 +74,54 @@ protected:
 	}
 
 	void mouseMoveEvent( QMouseEvent* event ) override {
+		if ( !(m_LMBDown || m_RMBDown || m_MMBDown) ) {
+			// No buttons pressed, ignore.
+			QWidget::mouseMoveEvent( event );
+			return;
+		}
+
+		// Compute screen center.
+		QPoint screenCenter{ mapToGlobal( QPoint( width() / 2, height() / 2 ) ) };
+
+		// Mouse deltas relative to center.
+		QPointF delta = mapFromGlobal(
+			event->globalPosition() ) - QPointF( width() / 2.f, height() / 2.f );
+
+		// Avoid frame jumps because of mouse position reset.
+		if ( ignoreNextMouseMove ) {
+			delta = QPointF( 0.f, 0.f );
+			ignoreNextMouseMove = false;
+		}
+
+		// Send the delta from the last position.
 		if ( m_LMBDown ) {
-			// Calculate the offset of current mouse position from last one saved.
-			QPoint delta{ event->pos() - m_lastLMBPos };
-			m_lastLMBPos = event->pos();
-
-			// Don't emit in RT mode as the data is only sent to Rasterization.
 			if ( m_renderMode == Core::RenderMode::Rasterization ) {
-				float deltaX{ static_cast<float>(delta.x()) };
-				float deltaY{ static_cast<float>(delta.y()) };
-
-				emit onCameraPan( deltaX, -deltaY );
+				emit onCameraPan( delta.x(), -delta.y() );
 			}
 		}
 		if ( m_RMBDown ) {
 			if ( m_renderMode == Core::RenderMode::Rasterization ) {
-				// Calculate the offset of current mouse position from last one saved.
-				QPoint delta{ event->pos() - m_lastRMBPos };
-				m_lastRMBPos = event->pos();
-
-				// Get the delta from the last position.
-				float deltaX{ static_cast<float>(delta.x()) };
-				float deltaY{ static_cast<float>(delta.y()) };
-
-				emit onMouseRotationChanged( deltaX, deltaY );
+				emit onMouseRotationChanged( delta.x(), delta.y() );
 			}
 			else if ( m_renderMode == Core::RenderMode::RayTracing ) {
-				// Calculate the offset of current mouse position from last one saved.
-				QPoint delta{ event->pos() - m_lastRMBPosRT };
-				m_lastRMBPosRT = event->pos();
-
-				cameraInput.mouseDeltaX = static_cast<float>(delta.x());
-				cameraInput.mouseDeltaY = -static_cast<float>(delta.y());
+				cameraInput.mouseDeltaX = delta.x();
+				cameraInput.mouseDeltaY = -delta.y();
 			}
 		}
 		if ( m_MMBDown ) {
-			// Calculate the offset of current mouse position from last one saved.
-			QPoint delta{ event->pos() - m_lastMMBPos };
-			m_lastMMBPos = event->pos();
-
-			float deltaY{ static_cast<float>(delta.y()) };
-
-			emit onCameraFOV( deltaY );
+			emit onCameraFOV( delta.y() );
 		}
+
+		// Reset cursor to screen center for next event.
+		QCursor::setPos( screenCenter );
+
+		// Update all "last positions" to match the center, so deltas are correct next frame.
+		if ( m_LMBDown )
+			m_lastLMBPos = mapFromGlobal( screenCenter );
+		if ( m_RMBDown )
+			m_lastRMBPos = mapFromGlobal( screenCenter );
+		if ( m_MMBDown )
+			m_lastMMBPos = mapFromGlobal( screenCenter );
 
 		// Allow propagation if parent needs events.
 		QWidget::mouseMoveEvent( event );
@@ -127,6 +136,11 @@ protected:
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			m_MMBDown = false;
+		}
+
+		if ( !(m_LMBDown && m_RMBDown && m_MMBDown)) {
+			// Show the cursor.
+			unsetCursor();
 		}
 
 		// Allow propagation if parent needs events.
@@ -199,6 +213,7 @@ private:
 	QPoint m_lastRMBPos;
 	QPoint m_lastMMBPos;
 	Core::RenderMode m_renderMode;
+	bool ignoreNextMouseMove{ false };
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );
