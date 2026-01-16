@@ -6,8 +6,8 @@ A Windows-based real-time rendering application implementing both **rasterizatio
 ### Screenshots
 
 <p float="left">
-  <img src="docs/rt_screenshot.png" width="49.80%" />
-  <img src="docs/raster_screenshot.png" width="49.80%" />
+  <img src="docs/rt_screenshot.png" width="45%" />
+  <img src="docs/raster_screenshot.png" width="45%" />
 </p>
 
 ### Video
