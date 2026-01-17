@@ -40,6 +40,11 @@ private: // Functions
 	/// Set the rendering mode both in the renderer and the GUI.
 	void SetRenderMode( Core::RenderMode );
 
+	/// Gets all initial values from the UI and sets them in the renderer.
+	void SetInitialValues();
+
+	/// Toggles the visibility of GUI widgets based on render mode.
+	void ToggleWidgetVisibility( bool );
 private: // Members
 	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.
 	WolfMainWindow* m_mainWin;     ///< The main window of the application.
@@ -50,12 +55,19 @@ private: // Members
 	float m_offsetY{};
 
 private slots:
-	void onCameraPan( float, float );
-	void onCameraDolly( float );
-	void onCameraFOV( float );
-	void onMouseRotationChanged( float, float );
+	void OnCameraPan( float, float );
+	void OnCameraDolly( float );
+	void OnCameraFOV( float );
+	void OnMouseRotationChanged( float, float );
+	void OnPositionChangedRT();
 	void OpenSceneBtnClicked();
 	void LoadSceneClicked();
+	void MoveSpeedChangedSpin();
+	void MoveSpeedChangedSlider();
+	void MoveSpeedMultChanged();
+	void MouseSensitivityRTChanged();
+	void VerticalFoVRTChanged();
+	void CameraPositionChangedRT();
 };
 
 

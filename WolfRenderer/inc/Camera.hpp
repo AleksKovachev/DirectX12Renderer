@@ -37,8 +37,8 @@ struct Camera {
 	float pitch{ 0.f }; ///< Rotation around local X in radians.
 
 	// Movement.
-	float movementSpeed{ 10.f }; ///< Units per second.
-	float speedMult{ 2.5f }; ///< Multiplier when speed modifier is active.
+	float movementSpeed{ 5.f }; ///< Units per second.
+	float speedMult{ 3.5f }; ///< Multiplier when speed modifier is active.
 	float mouseSensitivity{ 0.0005f }; ///< Radians per pixel.
 
 	// Projection.
