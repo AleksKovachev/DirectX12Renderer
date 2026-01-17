@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QPushButton>
+#include <QtWidgets/QStackedLayout>
 
 WolfApp::WolfApp()
 	: m_mainWin{ nullptr }, m_idleTimer( nullptr ), m_fpsTimer( nullptr ) {
@@ -19,25 +20,58 @@ bool WolfApp::init( App* appData ) {
 		return false;
 
 	m_renderer.SetAppData( appData );
-	float aspectRatio = static_cast<float>(
-		m_renderer.scene.settings.renderWidth ) /
+	float aspectRatio = static_cast<float>( m_renderer.scene.settings.renderWidth ) /
 		static_cast<float>(m_renderer.scene.settings.renderHeight);
+	// Make the window 80% of the screen size and then correct the aspect ratio.
+	m_mainWin->resize( m_mainWin->screen()->size() * 0.8 );
 	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
 
-	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
-		this, &WolfApp::onCameraPan
+	SetInitialValues();
+
+	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraPan,
+		this, &WolfApp::OnCameraPan
 	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraDolly,
-		this, &WolfApp::onCameraDolly
+	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraDolly,
+		this, &WolfApp::OnCameraDolly
 	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraFOV,
-		this, &WolfApp::onCameraFOV
+	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraFOV,
+		this, &WolfApp::OnCameraFOV
 	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::onMouseRotationChanged,
-		this, &WolfApp::onMouseRotationChanged
+	connect( m_mainWin->viewport, &WolfViewportWidget::OnMouseRotationChanged,
+		this, &WolfApp::OnMouseRotationChanged
 	);
-	connect( m_mainWin->GetUI().sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
-	connect( m_mainWin->GetUI().loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
+	connect( m_ui->sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
+	connect( m_ui->loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
+	connect( m_ui->moveSpeedSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MoveSpeedChangedSpin
+	);
+	connect( m_ui->moveSpeedSlider, &QSlider::valueChanged,
+		this, &WolfApp::MoveSpeedChangedSlider
+	);
+	connect( m_ui->moveSpeedMultSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MoveSpeedMultChanged
+	);
+	connect( m_ui->mouseSensitivityRTSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MouseSensitivityRTChanged
+	);
+	connect( m_ui->FOVRTSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::VerticalFoVRTChanged
+	);
+	connect( m_ui->camPosXSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( m_ui->camPosYSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( m_ui->camPosZSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( &m_mainWin->viewport->inputUpdateTimer, &QTimer::timeout,
+		this, &WolfApp::OnPositionChangedRT
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnChangeSpeedMult,
+		this, &WolfApp::OnChangeSpeedMult
+	);
 
 	m_mainWin->show();
 
@@ -58,20 +92,36 @@ bool WolfApp::init( App* appData ) {
 	QString fileAbsPath{ QDir::toNativeSeparators( QDir::cleanPath(
 		QDir().absoluteFilePath( QString::fromStdString( scenePath ) ) ) ) };
 
-	m_mainWin->GetUI().sceneFileEntry->setText( QDir::toNativeSeparators( fileAbsPath ) );
+	m_ui->sceneFileEntry->setText( QDir::toNativeSeparators( fileAbsPath ) );
 
 	return true;
 }
 
-void WolfApp::OnRenderModeChanged( bool rayTracingEnabled ) {
+void WolfApp::OnRenderModeChanged( bool rayTracingOn ) {
 	m_idleTimer->stop();
 	m_fpsTimer->stop();
 
-	SetRenderMode( rayTracingEnabled
-		? Core::RenderMode::RayTracing : Core::RenderMode::Rasterization );
+	Core::RenderMode renderMode = rayTracingOn ?
+		Core::RenderMode::RayTracing : Core::RenderMode::Rasterization;
+
+	ToggleWidgetVisibility( rayTracingOn );
+	SetRenderMode( renderMode );
 
 	m_idleTimer->start( 0 );
 	m_fpsTimer->start( 1'000 );
+}
+
+void WolfApp::ToggleWidgetVisibility( bool rayTracingOn ) {
+	m_ui->FOVRTSpin->setVisible( rayTracingOn );
+	m_ui->cameraPosBox->setVisible( rayTracingOn );
+	m_ui->moveSpeedLbl->setVisible( rayTracingOn );
+	m_ui->moveSpeedControls->setVisible( rayTracingOn );
+	m_ui->moveSpeedMultLbl->setVisible( rayTracingOn );
+	m_ui->moveSpeedMultSpin->setVisible( rayTracingOn );
+	m_ui->mouseSensitivityRTLbl->setVisible( rayTracingOn );
+	m_ui->mouseSensitivityRTSpin->setVisible( rayTracingOn );
+	m_ui->verticalFOVLbl->setVisible( rayTracingOn );
+	m_ui->FOVRTSpin->setVisible( rayTracingOn );
 }
 
 void WolfApp::OnQuit() {
@@ -94,8 +144,16 @@ void WolfApp::SetRenderMode( Core::RenderMode renderMode ) {
 	m_mainWin->SetRenderMode( renderMode );
 }
 
+void WolfApp::SetInitialValues() {
+	MoveSpeedChangedSpin();
+	MoveSpeedMultChanged();
+	MouseSensitivityRTChanged();
+	VerticalFoVRTChanged();
+}
+
 bool WolfApp::InitWindow() {
 	m_mainWin = new WolfMainWindow;
+	m_ui = &m_mainWin->GetUI();
 	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
 	connect( m_mainWin->GetActionExit(), &QAction::triggered, this, [this]() {
 		OnQuit(); QApplication::quit(); } );
@@ -109,20 +167,30 @@ void WolfApp::RenderFrame() {
 	++m_frameIdxAtLastFPSCalc;
 }
 
-void WolfApp::onCameraPan( float ndcX, float ndcY ) {
+void WolfApp::OnCameraPan( float ndcX, float ndcY ) {
 	m_renderer.AddToTargetOffset( ndcX, ndcY );
 }
 
-void WolfApp::onCameraDolly( float offsetZ ) {
+void WolfApp::OnCameraDolly( float offsetZ ) {
 	m_renderer.AddToOffsetZ( offsetZ );
 }
 
-void WolfApp::onCameraFOV( float offset ) {
+void WolfApp::OnCameraFOV( float offset ) {
 	m_renderer.AddToOffsetFOV( offset );
 }
 
-void WolfApp::onMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
+void WolfApp::OnMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
 	m_renderer.AddToTargetRotation( deltaAngleX, deltaAngleY );
+}
+
+void WolfApp::OnPositionChangedRT() {
+	QSignalBlocker blockX( m_ui->camPosXSpin );
+	QSignalBlocker blockY( m_ui->camPosYSpin );
+	QSignalBlocker blockZ( m_ui->camPosZSpin );
+
+	m_ui->camPosXSpin->setValue( m_renderer.cameraRT.position.x );
+	m_ui->camPosYSpin->setValue( m_renderer.cameraRT.position.y );
+	m_ui->camPosZSpin->setValue( -m_renderer.cameraRT.position.z );
 }
 
 void WolfApp::OpenSceneBtnClicked() {
@@ -139,11 +207,11 @@ void WolfApp::OpenSceneBtnClicked() {
 
 	// If user didn't cancel
 	if ( !file.isEmpty() )
-		m_mainWin->GetUI().sceneFileEntry->setText(QDir::toNativeSeparators(file));
+		m_ui->sceneFileEntry->setText(QDir::toNativeSeparators(file));
 }
 
 void WolfApp::LoadSceneClicked() {
-	QString scenePath{ QDir::cleanPath( m_mainWin->GetUI().sceneFileEntry->text().trimmed() ) };
+	QString scenePath{ QDir::cleanPath( m_ui->sceneFileEntry->text().trimmed() ) };
 	QFileInfo fileInfo( scenePath );
 
 	if ( !fileInfo.exists() || !fileInfo.isFile() ) {
@@ -164,4 +232,43 @@ void WolfApp::LoadSceneClicked() {
 
 	m_idleTimer->start( 0 );
 	m_fpsTimer->start( 1'000 );
+}
+
+void WolfApp::MoveSpeedChangedSpin() {
+	m_renderer.cameraRT.movementSpeed =
+		m_ui->moveSpeedSpin->value();
+
+	// Block slider signals so it doesn't call MoveSpeedChangedSlider() and
+	// round the value. Unblocks in destructor.
+	QSignalBlocker blockSlider( m_ui->moveSpeedSlider );
+	m_ui->moveSpeedSlider->setValue( std::round( m_renderer.cameraRT.movementSpeed ) );
+}
+
+void WolfApp::MoveSpeedChangedSlider() {
+	m_renderer.cameraRT.movementSpeed = m_ui->moveSpeedSlider->value();
+	m_ui->moveSpeedSpin->setValue( m_renderer.cameraRT.movementSpeed );
+}
+
+void WolfApp::MoveSpeedMultChanged() {
+	m_renderer.cameraRT.speedMult = m_ui->moveSpeedMultSpin->value();
+}
+
+void WolfApp::MouseSensitivityRTChanged() {
+	m_renderer.cameraRT.mouseSensitivity = m_ui->mouseSensitivityRTSpin->value();
+}
+
+void WolfApp::VerticalFoVRTChanged() {
+	m_renderer.cameraRT.setVerticalFOVDeg( m_ui->FOVRTSpin->value() );
+}
+
+void WolfApp::CameraPositionChangedRT() {
+	m_renderer.cameraRT.position.x = m_ui->camPosXSpin->value();
+	m_renderer.cameraRT.position.y = m_ui->camPosYSpin->value();
+	// Flipping the axis to make the UI more intuitive.
+	m_renderer.cameraRT.position.z = -m_ui->camPosZSpin->value();
+}
+
+void WolfApp::OnChangeSpeedMult( float offset ) {
+	m_ui->moveSpeedMultSpin->setValue( m_ui->moveSpeedMultSpin->value() + offset );
+	m_renderer.cameraRT.speedMult = m_ui->moveSpeedMultSpin->value();
 }

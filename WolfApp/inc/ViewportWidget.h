@@ -7,6 +7,8 @@
 #include <QImage>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QTimer>
+#include <QWidget>
 #include <QWidget>
 
 
@@ -14,7 +16,7 @@ class WolfViewportWidget : public QWidget {
 	Q_OBJECT
 
 public:
-	explicit WolfViewportWidget( QWidget* parent = nullptr ) :QWidget( parent ) {
+	explicit WolfViewportWidget( QWidget* parent = nullptr ): QWidget( parent ) {
 		// Assure no alpha will be used.
 		setAttribute( Qt::WA_OpaquePaintEvent );
 
@@ -32,6 +34,8 @@ public:
 
 		// Sets up the mouse as device to watch events for using Windwos API.
 		registerRawMouseInput();
+
+		inputUpdateTimer.setInterval( 16 ); // ~60 FPS
 	}
 
 	/// Change the viewport image with the given one
@@ -78,6 +82,7 @@ protected:
 			// Save current mouse coordinates as last mouse position on right click.
 			m_RMBDown = true;
 			m_lastRMBPos = event->pos();
+			inputUpdateTimer.start();
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			// Save current mouse coordinates as last mouse position on right click.
@@ -89,12 +94,24 @@ protected:
 		QWidget::mousePressEvent( event );
 	}
 
+	void mouseMoveEvent( QMouseEvent* event ) override {
+		// Keep mouse in the center of the screen.
+		if ( m_RMBDown ) {
+			QPoint globalCenter = mapToGlobal( rect().center() );
+			QCursor::setPos( globalCenter );
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::mouseMoveEvent( event );
+	}
+
 	void mouseReleaseEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
 		}
 		if ( event->button() == Qt::RightButton ) {
 			m_RMBDown = false;
+			inputUpdateTimer.stop();
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			m_MMBDown = false;
@@ -117,9 +134,11 @@ protected:
 		// using floats. Dividing the number by 8 converts it back to degrees.
 		// 15 degree interval is what most mouse wheels use. Dividing the
 		// angleDelta by 120 gives +/- 1. Flipping "zoom" direction.
+		int scrollUpDownVal{ (event->angleDelta() / 120).y() };
 		if ( m_renderMode == Core::RenderMode::Rasterization ) {
-			int scrollUpDownVal{ (event->angleDelta() / 120).y() };
-			emit onCameraDolly( -static_cast<float>(scrollUpDownVal) );
+			emit OnCameraDolly( -static_cast<float>(scrollUpDownVal) );
+		} else if ( m_renderMode == Core::RenderMode::RayTracing  && m_RMBDown) {
+			emit OnChangeSpeedMult( static_cast<float>(scrollUpDownVal) );
 		}
 
 		// Allow propagation if parent needs events.
@@ -129,16 +148,16 @@ protected:
 	void keyPressEvent( QKeyEvent* event ) override {
 		if ( m_renderMode == Core::RenderMode::RayTracing && m_RMBDown ) {
 			switch ( event->key() ) {
-				case Qt::Key_W: cameraInput.moveForward = true; break;
-				case Qt::Key_S: cameraInput.moveBackward = true; break;
-				case Qt::Key_A: cameraInput.moveLeft = true; break;
-				case Qt::Key_D: cameraInput.moveRight = true; break;
-				case Qt::Key_E: cameraInput.moveUp = true; break;
-				case Qt::Key_Q: cameraInput.moveDown = true; break;
+				case Qt::Key_W: case Qt::Key_Up: cameraInput.moveForward = true; break;
+				case Qt::Key_S: case Qt::Key_Down: cameraInput.moveBackward = true; break;
+				case Qt::Key_A: case Qt::Key_Left: cameraInput.moveLeft = true; break;
+				case Qt::Key_D: case Qt::Key_Right: cameraInput.moveRight = true; break;
+				case Qt::Key_E: case Qt::Key_PageUp: cameraInput.moveUp = true; break;
+				case Qt::Key_Q: case Qt::Key_PageDown: cameraInput.moveDown = true; break;
 				case Qt::Key_Shift: cameraInput.speedModifier = true; break;
-				default: QWidget::keyPressEvent( event );
-				return; // propagate
 			}
+
+			return QWidget::keyPressEvent( event ); // propagate
 		}
 
 		// Allow propagation if parent needs events.
@@ -148,15 +167,15 @@ protected:
 	void keyReleaseEvent( QKeyEvent* event ) override {
 		if ( m_renderMode == Core::RenderMode::RayTracing ) {
 			switch ( event->key() ) {
-				case Qt::Key_W: cameraInput.moveForward = false; break;
-				case Qt::Key_S: cameraInput.moveBackward = false; break;
-				case Qt::Key_A: cameraInput.moveLeft = false; break;
-				case Qt::Key_D: cameraInput.moveRight = false; break;
-				case Qt::Key_E: cameraInput.moveUp = false; break;
-				case Qt::Key_Q: cameraInput.moveDown = false; break;
+				case Qt::Key_W: case Qt::Key_Up: cameraInput.moveForward = false; break;
+				case Qt::Key_S: case Qt::Key_Down: cameraInput.moveBackward = false; break;
+				case Qt::Key_A: case Qt::Key_Left: cameraInput.moveLeft = false; break;
+				case Qt::Key_D: case Qt::Key_Right: cameraInput.moveRight = false; break;
+				case Qt::Key_E: case Qt::Key_PageUp: cameraInput.moveUp = false; break;
+				case Qt::Key_Q: case Qt::Key_PageDown: cameraInput.moveDown = false; break;
 				case Qt::Key_Shift: cameraInput.speedModifier = false; break;
-				default: QWidget::keyPressEvent( event ); return; // propagate
 			}
+			return QWidget::keyPressEvent( event ); // propagate
 		}
 
 		// Allow propagation if parent needs events.
@@ -209,13 +228,13 @@ protected:
 					cameraInput.mouseDeltaY -= dy;
 				} else if ( m_renderMode == Core::RenderMode::Rasterization ) {
 					if ( m_LMBDown ) {
-						emit onCameraPan( static_cast<float>(dx), static_cast<float>(-dy) );
+						emit OnCameraPan( static_cast<float>(dx), static_cast<float>(-dy) );
 					}
 					if ( m_RMBDown ) {
-						emit onMouseRotationChanged( static_cast<float>(dx), static_cast<float>(dy) );
+						emit OnMouseRotationChanged( static_cast<float>(dx), static_cast<float>(dy) );
 					}
 					if ( m_MMBDown ) {
-						emit onCameraFOV( static_cast<float>(dy) );
+						emit OnCameraFOV( static_cast<float>(dy) );
 					}
 				}
 			}
@@ -227,6 +246,7 @@ protected:
 
 public: // members
 	CameraInput cameraInput{};
+	QTimer inputUpdateTimer;
 private:
 	QImage m_image;
 	bool m_LMBDown{ false };
@@ -238,10 +258,11 @@ private:
 	Core::RenderMode m_renderMode;
 
 signals:
-	void onCameraPan( float offsetX, float offsetY );
-	void onCameraDolly( float offsetZ );
-	void onCameraFOV( float offset );
-	void onMouseRotationChanged( float deltaAngleX, float deltaAngleY );
+	void OnCameraPan( float offsetX, float offsetY );
+	void OnCameraDolly( float offsetZ );
+	void OnCameraFOV( float offset );
+	void OnMouseRotationChanged( float deltaAngleX, float deltaAngleY );
+	void OnChangeSpeedMult( float offset );
 };
 
 #endif // VIEWPORT_WIDGET_H

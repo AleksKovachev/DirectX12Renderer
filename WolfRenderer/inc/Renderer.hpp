@@ -107,6 +107,7 @@ namespace Core {
 	class WolfRenderer {
 	public: // Memebrs.
 		Scene scene{};
+		Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
 
 	public: // Functions.
@@ -485,7 +486,6 @@ namespace Core {
 		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
 		App* m_app{ nullptr }; ///< Pointer to application-level data.
 		Transformation m_transform{}; ///< Camera/object transformation data.
-		Camera m_cameraRT{}; ///< Camera used for RT mode.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

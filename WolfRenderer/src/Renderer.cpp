@@ -256,15 +256,15 @@ namespace Core {
 		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
 
 		// Slot 2: Camera Data.
-		m_cmdList->SetComputeRootConstantBufferView( 2, m_cameraRT.cb->GetGPUVirtualAddress() );
+		m_cmdList->SetComputeRootConstantBufferView( 2, cameraRT.cb->GetGPUVirtualAddress() );
 
-		m_cameraRT.cbData.cameraPosition = m_cameraRT.position;
-		m_cameraRT.cbData.cameraForward = m_cameraRT.forward;
-		m_cameraRT.cbData.cameraRight = m_cameraRT.right;
-		m_cameraRT.cbData.cameraUp = m_cameraRT.up;
-		m_cameraRT.cbData.verticalFOV = m_cameraRT.verticalFOV;
+		cameraRT.cbData.cameraPosition = cameraRT.position;
+		cameraRT.cbData.cameraForward = cameraRT.forward;
+		cameraRT.cbData.cameraRight = cameraRT.right;
+		cameraRT.cbData.cameraUp = cameraRT.up;
+		cameraRT.cbData.verticalFOV = cameraRT.verticalFOV;
 
-		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
+		memcpy( cameraRT.cbMappedPtr, &cameraRT.cbData, sizeof( cameraRT.cbData ) );
 
 		m_cmdList->SetPipelineState1( m_rtStateObject.Get() );
 		m_cmdList->DispatchRays( &m_dispatchRaysDesc );
@@ -1176,41 +1176,41 @@ namespace Core {
 	void WolfRenderer::UpdateRTCamera( CameraInput& input ) {
 		using namespace DirectX;
 
-		m_cameraRT.yaw += input.mouseDeltaX * m_cameraRT.mouseSensitivity;
-		m_cameraRT.setPitch( m_cameraRT.pitch + input.mouseDeltaY * m_cameraRT.mouseSensitivity );
+		cameraRT.yaw += input.mouseDeltaX * cameraRT.mouseSensitivity;
+		cameraRT.setPitch( cameraRT.pitch + input.mouseDeltaY * cameraRT.mouseSensitivity );
 
 		// Reset mouse delta for next frame.
 		input.mouseDeltaX = 0.f;
 		input.mouseDeltaY = 0.f;
 
-		m_cameraRT.ComputeBasisVectors();
+		cameraRT.ComputeBasisVectors();
 
 		XMVECTOR moveVec = XMVectorZero();
 		if ( input.moveForward )
-			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &cameraRT.forward ) );
 		if ( input.moveBackward )
-			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.forward ) );
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &cameraRT.forward ) );
 		if ( input.moveRight )
-			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &cameraRT.right ) );
 		if ( input.moveLeft )
-			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &m_cameraRT.right ) );
+			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &cameraRT.right ) );
 		if ( input.moveUp )
-			moveVec = XMVectorAdd( moveVec, m_cameraRT.worldUp );
+			moveVec = XMVectorAdd( moveVec, cameraRT.worldUp );
 		if ( input.moveDown )
-			moveVec = XMVectorSubtract( moveVec, m_cameraRT.worldUp );
+			moveVec = XMVectorSubtract( moveVec, cameraRT.worldUp );
 
 		if ( !XMVector3Equal( moveVec, XMVectorZero() ) ) {
-			float effectiveSpeed = m_cameraRT.movementSpeed;
+			float effectiveSpeed = cameraRT.movementSpeed;
 			if ( input.speedModifier )
-				effectiveSpeed *= m_cameraRT.speedMult;
+				effectiveSpeed *= cameraRT.speedMult;
 
 			// Normalize for correct diagonal movement.
 			moveVec = XMVector3Normalize( moveVec );
 			moveVec = XMVectorScale( moveVec, effectiveSpeed * m_app->deltaTime );
 
-			XMVECTOR pos = XMLoadFloat3( &m_cameraRT.position );
+			XMVECTOR pos = XMLoadFloat3( &cameraRT.position );
 			pos = XMVectorAdd( pos, moveVec );
-			XMStoreFloat3( &m_cameraRT.position, pos );
+			XMStoreFloat3( &cameraRT.position, pos );
 		}
 	}
 
@@ -1224,16 +1224,16 @@ namespace Core {
 			&resDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS( &m_cameraRT.cb )
+			IID_PPV_ARGS( &cameraRT.cb )
 		);
 		CHECK_HR( "Failed to create Camera constant buffer", hr, log );
 
 		// Map permanently for CPU writes
-		hr = m_cameraRT.cb->Map(
-			0, nullptr, reinterpret_cast<void**>(&m_cameraRT.cbMappedPtr) );
+		hr = cameraRT.cb->Map(
+			0, nullptr, reinterpret_cast<void**>(&cameraRT.cbMappedPtr) );
 		CHECK_HR( "Failed to map Camera constant buffer", hr, log );
 
-		memcpy( m_cameraRT.cbMappedPtr, &m_cameraRT.cbData, sizeof( m_cameraRT.cbData ) );
+		memcpy( cameraRT.cbMappedPtr, &cameraRT.cbData, sizeof( cameraRT.cbData ) );
 		log( "[ RayTracing ] Camera constant buffer created and mapped." );
 	}
 
