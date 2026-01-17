@@ -33,9 +33,11 @@ public:
 
 	QAction* GetActionExit() const;
 
+	const Ui::AppGUI& GetUI();
+
 signals:
 	void requestQuit();
 
 private:
-	Ui::AppGUI ui;
+	Ui::AppGUI m_ui;
 };

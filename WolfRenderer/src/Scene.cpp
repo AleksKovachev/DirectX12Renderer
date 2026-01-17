@@ -166,3 +166,12 @@ void Scene::LoadMesh(
 void Scene::SetRenderScene( const std::string& filePath ) {
 	m_filePath = filePath;
 }
+
+const std::string Scene::GetRenderScenePath() const {
+	return m_filePath;
+}
+
+void Scene::Cleanup() {
+	m_triangles.clear();
+	m_triIndices.clear();
+}

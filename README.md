@@ -53,6 +53,7 @@ If you have any issues building and running the application, you can try it out 
 
 #### Rendering Modes
 - **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime.
+- **Scene Reloading at Runtime**: Pick and load a different scene to render without closing the application.
 - **Rasterization Pipeline**
   - Traditional vertex/pixel shader pipeline.
   - Configurable viewport and scissor rectangles.
@@ -149,6 +150,7 @@ If you have any issues building and running the application, you can try it out 
   - Native window handle (HWND) for DirectX rendering.
   - Controls using mouse and keyboard.
   - Custom cursor feedback.
+  - Mouse events handled using Windows API for RAW position deltas between frames.
 
 #### Application Features
 - **Lifecycle Management**

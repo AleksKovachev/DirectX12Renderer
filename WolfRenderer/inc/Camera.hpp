@@ -32,14 +32,14 @@ struct Camera {
 	static constexpr float maxPitch{ DirectX::XMConvertToRadians( 89.f ) };
 
 	// Position & orientation.
-	DirectX::XMFLOAT3 position{ 0.f, 0.f, 0.f }; ///< World space.
+	DirectX::XMFLOAT3 position{ 0.f, 0.f, 20.f }; ///< World space.
 	float yaw{ DirectX::XM_PI }; ///< Rotation around world up (Y) in radians.
 	float pitch{ 0.f }; ///< Rotation around local X in radians.
 
 	// Movement.
 	float movementSpeed{ 10.f }; ///< Units per second.
 	float speedMult{ 2.5f }; ///< Multiplier when speed modifier is active.
-	float mouseSensitivity{ 0.0025f }; ///< Radians per pixel.
+	float mouseSensitivity{ 0.0005f }; ///< Radians per pixel.
 
 	// Projection.
 	float verticalFOV{ DirectX::XMConvertToRadians( 60.f ) }; ///< Radians.
@@ -74,8 +74,8 @@ struct Camera {
 			0.f
 		) );
 
-		XMVECTOR rightVec = XMVector3Normalize( XMVector3Cross( worldUp, forwardVec ) );
-		XMVECTOR upVec = XMVector3Cross( forwardVec, rightVec );
+		XMVECTOR rightVec = XMVector3Normalize( XMVector3Cross( forwardVec, worldUp ) );
+		XMVECTOR upVec = XMVector3Cross( rightVec , forwardVec );
 
 		XMStoreFloat3( &forward, forwardVec );
 		XMStoreFloat3( &right, rightVec );

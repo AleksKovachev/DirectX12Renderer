@@ -5,12 +5,12 @@
 
 WolfMainWindow::WolfMainWindow( QWidget* parent )
 	: QMainWindow( parent ) {
-	ui.setupUi( this );
-	viewport = ui.viewport;
+	m_ui.setupUi( this );
+	viewport = m_ui.viewport;
 
 	// Attach the FPS widgets to the status bar.
-	statusBar()->addPermanentWidget( ui.fpsLbl );
-	statusBar()->addPermanentWidget( ui.fpsVal );
+	statusBar()->addPermanentWidget( m_ui.fpsLbl );
+	statusBar()->addPermanentWidget( m_ui.fpsVal );
 	statusBar()->setStyleSheet( "QStatusBar::item { border: none; }" );
 
 	// Style the render mode switch to use the system accent color when checked.
@@ -18,22 +18,22 @@ WolfMainWindow::WolfMainWindow( QWidget* parent )
 	QColor accentColor = QGuiApplication::palette().color( QPalette::Highlight );
 	QString switchStyle = QString(
 		"QCheckBox:checked { background-color: %1; }").arg( accentColor.name() );
-	ui.renderModeSwitch->setStyleSheet( ui.renderModeSwitch->styleSheet() + switchStyle );
+	m_ui.renderModeSwitch->setStyleSheet( m_ui.renderModeSwitch->styleSheet() + switchStyle );
 
 	// Connect the menu action to the render mode switch.
-	connect( ui.actionToggleRenderMode, &QAction::triggered, [this]() {
-		ui.renderModeSwitch->toggle();
+	connect( m_ui.actionToggleRenderMode, &QAction::triggered, [this]() {
+		m_ui.renderModeSwitch->toggle();
 	} );
 }
 
 WolfMainWindow::~WolfMainWindow() {}
 
 void WolfMainWindow::SetFPS( const int fps ) {
-	ui.fpsVal->setText( QString::number( fps ) );
+	m_ui.fpsVal->setText( QString::number( fps ) );
 }
 
 void WolfMainWindow::UpdateViewport( const QImage& image ) {
-	ui.viewport->UpdateImage( image );
+	viewport->UpdateImage( image );
 }
 
 void WolfMainWindow::closeEvent( QCloseEvent* event ) {
@@ -42,17 +42,21 @@ void WolfMainWindow::closeEvent( QCloseEvent* event ) {
 }
 
 QCheckBox* WolfMainWindow::GetRenderModeSwitch() const {
-	return ui.renderModeSwitch;
+	return m_ui.renderModeSwitch;
 }
 
 WolfViewportWidget* WolfMainWindow::GetViewport() const {
-	return ui.viewport;
+	return viewport;
 }
 
 void WolfMainWindow::SetRenderMode( Core::RenderMode renderMode ) {
-	ui.viewport->SetRenderMode( renderMode );
+	viewport->SetRenderMode( renderMode );
 }
 
 QAction* WolfMainWindow::GetActionExit() const {
-	return ui.actionExit;
+	return m_ui.actionExit;
+}
+
+const Ui::AppGUI& WolfMainWindow::GetUI() {
+	return m_ui;
 }
