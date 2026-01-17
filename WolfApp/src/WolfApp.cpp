@@ -23,11 +23,6 @@ bool WolfApp::init( App* appData ) {
 		m_renderer.scene.settings.renderWidth ) /
 		static_cast<float>(m_renderer.scene.settings.renderHeight);
 	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
-	// Enable transparency.
-	m_mainWin->GetUI().overlayBox->setAttribute( Qt::WA_StyledBackground, true );
-	// Make click-through.
-	m_mainWin->GetUI().overlayBox->setAttribute( Qt::WA_TransparentForMouseEvents, false );
-
 
 	SetInitialValues();
 
@@ -42,9 +37,6 @@ bool WolfApp::init( App* appData ) {
 	);
 	connect( m_mainWin->viewport, &WolfViewportWidget::OnMouseRotationChanged,
 		this, &WolfApp::OnMouseRotationChanged
-	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::OnPositionChangedRT,
-		this, &WolfApp::OnPositionChangedRT
 	);
 	connect( m_mainWin->GetUI().sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
 	connect( m_mainWin->GetUI().loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
