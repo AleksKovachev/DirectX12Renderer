@@ -18,9 +18,9 @@ If you have any issues building and running the application, you can try it out 
 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 ![DirectX](https://img.shields.io/badge/DirectX_12-107C10?style=flat&logo=microsoft&logoColor=white)
-![Qt](https://img.shields.io/badge/Qt_6.8.0-41CD52?style=flat&logo=qt&logoColor=white)
+![Qt](https://img.shields.io/badge/Qt_6.10.1-41CD52?style=flat&logo=qt&logoColor=white)
 ![C++](https://img.shields.io/badge/C%2B%2B-00599C?style=flat&logo=c%2B%2B&logoColor=white)
-![Visual Studio](https://img.shields.io/badge/Visual_Studio_2022-5C2D91?style=flat&logo=visual-studio&logoColor=white)
+![Visual Studio](https://img.shields.io/badge/Visual_Studio_2026-5C2D91?style=flat&logo=visual-studio&logoColor=white)
 
 ## 📋 Table of Contents
 - [Overview](#-overview)
@@ -36,9 +36,11 @@ If you have any issues building and running the application, you can try it out 
 ## 🔭 Keyboard shortcuts
 - **Ray Tracing**
   - Right Mouse Button (**RMB**) click + mouse drag: Rotate the camera (look around).
-  - Right Mouse Button (**RMB**) click + **W**, **S**, **A**, or **D**: Move around the scene in Z and X axes.
-  - Right Mouse Button (**RMB**) click + **Q**, **E**: Move around the scene in Y axis.
-  - Right Mouse Button (**RMB**) click + **Shift** + **W**, **S**, **A**, **D**, **Q**, **E**: Faster movement in all axes.
+  - Right Mouse Button (**RMB**) click + **W**, **S**, **Up**, **Down**: Move around the scene in the Z axis.
+  - Right Mouse Button (**RMB**) click + **A**, **D**, **Left**, **Right**: Move around the scene in the X axis.
+  - Right Mouse Button (**RMB**) click + **Q**, **E**, **PageUp**, **PageDown**: Move around the scene in the Y axis.
+  - Right Mouse Button (**RMB**) click + **Shift** + movement: Faster movement in all axes.
+  - Right Mouse Button (**RMB**) click + mouse scroll up/down: Change movement speed multiplier.
 - **Rasterization**
   - Left Mouse Button (**LMB**) click + mouse drag: Move geometry along the 2D screen with
     smooth animation to reach the target destination.
@@ -128,7 +130,7 @@ If you have any issues building and running the application, you can try it out 
 ### WolfApp GUI Application
 
 #### User Interface
-- **Modern Qt 6.8.0 Interface**
+- **Modern Qt 6.10.1 Interface**
   - Responsive window with grid layout.
   - Custom viewport widget with native window handle for DirectX.
   - System accent color integration for theme consistency.
@@ -195,7 +197,7 @@ DirectX12Renderer
   - `WolfApp` - Application controller and rendering loop manager
   - `WolfMainWindow` - Main window with UI elements
   - `WolfViewportWidget` - Custom DirectX-integrated viewport
-- **Dependencies**: Qt 6.8.0 (Core, GUI, Widgets), WolfRenderer.lib, dxcompiler.dll, "shaders" directory in .exe directory, "rsc" directory in one directory up.
+- **Dependencies**: Qt 6.10.1 (Core, GUI, Widgets), WolfRenderer.lib, dxcompiler.dll, "shaders" directory in .exe directory, "rsc" directory in one directory up.
 
 ### Rendering Pipeline Flow
 
@@ -222,9 +224,9 @@ DirectX12Renderer
 
 ### Software
 - **OS**: Windows 10/11 (64-bit)
-- **IDE**: Visual Studio 2022 (Platform Toolset v145)
+- **IDE**: Visual Studio 2022 / 2026 (Platform Toolset v145)
 - **Windows SDK**: 10.0.26100.0 or later
-- **Qt**: 6.8.0 msvc2022_64
+- **Qt**: 6.10.1 msvc2022_64
 - **DirectX**: DirectX 12 capable GPU
 
 ### Hardware
@@ -233,7 +235,7 @@ DirectX12Renderer
 - **VRAM**: Minimum 2GB recommended.
 
 ### Build Tools
-- MSBuild or Visual Studio 2022.
+- MSBuild or Visual Studio 2022/2026.
 - DirectX Shader Compiler (DXC) - included in Windows SDK.
 - Qt Visual Studio Tools (optional, for .ui file editing).
 
@@ -251,7 +253,7 @@ msbuild DirectX12Renderer.slnx /p:Configuration=Release /p:Platform=x64
 
 ### Using Visual Studio
 
-1. Open `DirectX12Renderer.slnx` in Visual Studio 2022.
+1. Open `DirectX12Renderer.slnx` in Visual Studio 2022 / 2026.
 2. Select build configuration (Debug/Release) and platform (x64).
 3. Build → Build Solution (Ctrl+Shift+B).
 

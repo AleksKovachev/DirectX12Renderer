@@ -12,8 +12,8 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>300</width>
-    <height>300</height>
+    <width>800</width>
+    <height>400</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -42,351 +42,6 @@
        <bool>false</bool>
       </property>
      </widget>
-    </item>
-    <item row="2" column="0">
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QScrollArea" name="scrollAreaSettings">
-        <property name="minimumSize">
-         <size>
-          <width>270</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>270</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="autoFillBackground">
-         <bool>true</bool>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::Shape::StyledPanel</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Shadow::Sunken</enum>
-        </property>
-        <property name="horizontalScrollBarPolicy">
-         <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
-        </property>
-        <property name="widgetResizable">
-         <bool>true</bool>
-        </property>
-        <widget class="QWidget" name="scrollAreaContents">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>0</y>
-           <width>438</width>
-           <height>1174</height>
-          </rect>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <property name="leftMargin">
-           <number>0</number>
-          </property>
-          <property name="topMargin">
-           <number>0</number>
-          </property>
-          <property name="rightMargin">
-           <number>0</number>
-          </property>
-          <property name="bottomMargin">
-           <number>0</number>
-          </property>
-          <item>
-           <widget class="QFrame" name="scrollSettingsFrame">
-            <property name="frameShape">
-             <enum>QFrame::Shape::NoFrame</enum>
-            </property>
-            <property name="frameShadow">
-             <enum>QFrame::Shadow::Raised</enum>
-            </property>
-            <layout class="QFormLayout" name="formLayout">
-             <item row="0" column="0" colspan="2">
-              <widget class="QGroupBox" name="cameraPosBox">
-               <property name="maximumSize">
-                <size>
-                 <width>16777215</width>
-                 <height>70</height>
-                </size>
-               </property>
-               <property name="title">
-                <string>Position XYZ</string>
-               </property>
-               <property name="flat">
-                <bool>true</bool>
-               </property>
-               <property name="checkable">
-                <bool>false</bool>
-               </property>
-               <layout class="QHBoxLayout" name="horizontalLayout_3">
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosXSpin">
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosYSpin">
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosZSpin">
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                  <property name="value">
-                   <double>-20.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="moveSpeedLbl">
-               <property name="text">
-                <string>Move Speed</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="moveSpeedMultLbl">
-               <property name="text">
-                <string>Speed Multiplier</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QDoubleSpinBox" name="moveSpeedMultSpin">
-               <property name="toolTip">
-                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
-               </property>
-               <property name="statusTip">
-                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
-               </property>
-               <property name="buttonSymbols">
-                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-               </property>
-               <property name="minimum">
-                <double>1.000000000000000</double>
-               </property>
-               <property name="maximum">
-                <double>100.000000000000000</double>
-               </property>
-               <property name="singleStep">
-                <double>0.500000000000000</double>
-               </property>
-               <property name="value">
-                <double>3.500000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0">
-              <widget class="QLabel" name="mouseSensitivityRTLbl">
-               <property name="text">
-                <string>Mouse Sensitivity</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QDoubleSpinBox" name="mouseSensitivityRTSpin">
-               <property name="toolTip">
-                <string>Sensitivity of the mouse when looking around.</string>
-               </property>
-               <property name="statusTip">
-                <string>Sensitivity of the mouse when looking around.</string>
-               </property>
-               <property name="buttonSymbols">
-                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-               </property>
-               <property name="decimals">
-                <number>5</number>
-               </property>
-               <property name="minimum">
-                <double>0.000010000000000</double>
-               </property>
-               <property name="maximum">
-                <double>10.000000000000000</double>
-               </property>
-               <property name="singleStep">
-                <double>0.000100000000000</double>
-               </property>
-               <property name="value">
-                <double>0.000500000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="verticalFOVLbl">
-               <property name="text">
-                <string>Vertical FoV</string>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="FOVRTSpin">
-               <property name="toolTip">
-                <string>Vertical Field of View (in degrees).</string>
-               </property>
-               <property name="statusTip">
-                <string>Vertical Field of View (in degrees).</string>
-               </property>
-               <property name="buttonSymbols">
-                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-               </property>
-               <property name="suffix">
-                <string>°</string>
-               </property>
-               <property name="decimals">
-                <number>1</number>
-               </property>
-               <property name="maximum">
-                <double>179.900000000000006</double>
-               </property>
-               <property name="singleStep">
-                <double>1.000000000000000</double>
-               </property>
-               <property name="value">
-                <double>60.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QWidget" name="moveSpeedControls" native="true">
-               <layout class="QVBoxLayout" name="moveSpeedControls_OLD">
-                <item>
-                 <widget class="QSlider" name="moveSpeedSlider">
-                  <property name="minimum">
-                   <number>1</number>
-                  </property>
-                  <property name="maximum">
-                   <number>10</number>
-                  </property>
-                  <property name="pageStep">
-                   <number>1</number>
-                  </property>
-                  <property name="value">
-                   <number>5</number>
-                  </property>
-                  <property name="sliderPosition">
-                   <number>5</number>
-                  </property>
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="invertedAppearance">
-                   <bool>false</bool>
-                  </property>
-                  <property name="invertedControls">
-                   <bool>false</bool>
-                  </property>
-                  <property name="tickPosition">
-                   <enum>QSlider::TickPosition::TicksBothSides</enum>
-                  </property>
-                  <property name="tickInterval">
-                   <number>1</number>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QDoubleSpinBox" name="moveSpeedSpin">
-                  <property name="toolTip">
-                   <string>Shortcut: RMB + Scroll Up/Down.</string>
-                  </property>
-                  <property name="statusTip">
-                   <string>Shortcut: RMB + Scroll Up/Down.</string>
-                  </property>
-                  <property name="frame">
-                   <bool>true</bool>
-                  </property>
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="minimum">
-                   <double>1.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>10.000000000000000</double>
-                  </property>
-                  <property name="value">
-                   <double>5.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </widget>
-      </item>
-      <item>
-       <widget class="QWidget" name="viewportContainer" native="true">
-        <property name="minimumSize">
-         <size>
-          <width>160</width>
-          <height>0</height>
-         </size>
-        </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_4">
-         <item>
-          <widget class="WolfViewportWidget" name="viewport" native="true">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="cursor">
-            <cursorShape>OpenHandCursor</cursorShape>
-           </property>
-           <property name="focusPolicy">
-            <enum>Qt::FocusPolicy::StrongFocus</enum>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
     </item>
     <item row="4" column="0">
      <widget class="QLabel" name="fpsVal">
@@ -551,6 +206,399 @@ QCheckBox::indicator:checked {
        </item>
       </layout>
      </widget>
+    </item>
+    <item row="2" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QScrollArea" name="scrollAreaSettings">
+        <property name="minimumSize">
+         <size>
+          <width>270</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>270</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="autoFillBackground">
+         <bool>true</bool>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Shape::StyledPanel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Shadow::Sunken</enum>
+        </property>
+        <property name="horizontalScrollBarPolicy">
+         <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+        </property>
+        <property name="widgetResizable">
+         <bool>true</bool>
+        </property>
+        <widget class="QWidget" name="scrollAreaContents">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>0</y>
+           <width>268</width>
+           <height>1174</height>
+          </rect>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item alignment="Qt::AlignmentFlag::AlignTop">
+           <widget class="QFrame" name="scrollSettingsFrame">
+            <property name="frameShape">
+             <enum>QFrame::Shape::NoFrame</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Shadow::Raised</enum>
+            </property>
+            <layout class="QFormLayout" name="formLayout">
+             <item row="0" column="0" colspan="2">
+              <widget class="QGroupBox" name="cameraPosBox">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>70</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Position XYZ</string>
+               </property>
+               <property name="flat">
+                <bool>true</bool>
+               </property>
+               <property name="checkable">
+                <bool>false</bool>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_3">
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosXSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosYSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosZSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>-20.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QWidget" name="widget" native="true">
+               <layout class="QVBoxLayout" name="verticalLayout_2">
+                <item>
+                 <widget class="QLabel" name="moveSpeedLbl">
+                  <property name="text">
+                   <string>Move Speed</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QWidget" name="moveSpeedControls" native="true">
+               <layout class="QVBoxLayout" name="moveSpeedControls_OLD">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <widget class="QSlider" name="moveSpeedSlider">
+                  <property name="minimum">
+                   <number>1</number>
+                  </property>
+                  <property name="maximum">
+                   <number>10</number>
+                  </property>
+                  <property name="pageStep">
+                   <number>1</number>
+                  </property>
+                  <property name="value">
+                   <number>5</number>
+                  </property>
+                  <property name="sliderPosition">
+                   <number>5</number>
+                  </property>
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="invertedAppearance">
+                   <bool>false</bool>
+                  </property>
+                  <property name="invertedControls">
+                   <bool>false</bool>
+                  </property>
+                  <property name="tickPosition">
+                   <enum>QSlider::TickPosition::TicksBothSides</enum>
+                  </property>
+                  <property name="tickInterval">
+                   <number>1</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="moveSpeedSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Shortcut: RMB + Scroll Up/Down.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Shortcut: RMB + Scroll Up/Down.</string>
+                  </property>
+                  <property name="frame">
+                   <bool>true</bool>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="minimum">
+                   <double>1.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>10.000000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>5.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="moveSpeedMultLbl">
+               <property name="text">
+                <string>Speed Multiplier</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QDoubleSpinBox" name="moveSpeedMultSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
+               </property>
+               <property name="statusTip">
+                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="minimum">
+                <double>1.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="value">
+                <double>3.500000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="mouseSensitivityRTLbl">
+               <property name="text">
+                <string>Mouse Sensitivity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="mouseSensitivityRTSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Sensitivity of the mouse when looking around.</string>
+               </property>
+               <property name="statusTip">
+                <string>Sensitivity of the mouse when looking around.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="decimals">
+                <number>5</number>
+               </property>
+               <property name="minimum">
+                <double>0.000010000000000</double>
+               </property>
+               <property name="maximum">
+                <double>10.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.000100000000000</double>
+               </property>
+               <property name="value">
+                <double>0.000500000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="verticalFOVLbl">
+               <property name="text">
+                <string>Vertical FoV</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="FOVRTSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Vertical Field of View (in degrees).</string>
+               </property>
+               <property name="statusTip">
+                <string>Vertical Field of View (in degrees).</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>°</string>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <double>179.900000000000006</double>
+               </property>
+               <property name="singleStep">
+                <double>1.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>60.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+      <item>
+       <widget class="WolfViewportWidget" name="viewport" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>800</width>
+          <height>600</height>
+         </size>
+        </property>
+        <property name="cursor">
+         <cursorShape>OpenHandCursor</cursorShape>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::FocusPolicy::StrongFocus</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>

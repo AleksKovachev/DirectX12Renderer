@@ -94,6 +94,17 @@ protected:
 		QWidget::mousePressEvent( event );
 	}
 
+	void mouseMoveEvent( QMouseEvent* event ) override {
+		// Keep mouse in the center of the screen.
+		if ( m_RMBDown ) {
+			QPoint globalCenter = mapToGlobal( rect().center() );
+			QCursor::setPos( globalCenter );
+		}
+
+		// Allow propagation if parent needs events.
+		QWidget::mouseMoveEvent( event );
+	}
+
 	void mouseReleaseEvent( QMouseEvent* event ) override {
 		if ( event->button() == Qt::LeftButton ) {
 			m_LMBDown = false;
@@ -123,9 +134,11 @@ protected:
 		// using floats. Dividing the number by 8 converts it back to degrees.
 		// 15 degree interval is what most mouse wheels use. Dividing the
 		// angleDelta by 120 gives +/- 1. Flipping "zoom" direction.
+		int scrollUpDownVal{ (event->angleDelta() / 120).y() };
 		if ( m_renderMode == Core::RenderMode::Rasterization ) {
-			int scrollUpDownVal{ (event->angleDelta() / 120).y() };
 			emit OnCameraDolly( -static_cast<float>(scrollUpDownVal) );
+		} else if ( m_renderMode == Core::RenderMode::RayTracing  && m_RMBDown) {
+			emit OnChangeSpeedMult( static_cast<float>(scrollUpDownVal) );
 		}
 
 		// Allow propagation if parent needs events.
@@ -133,9 +146,6 @@ protected:
 	}
 
 	void keyPressEvent( QKeyEvent* event ) override {
-		//if ( event->isAutoRepeat() )
-		//	return;
-
 		if ( m_renderMode == Core::RenderMode::RayTracing && m_RMBDown ) {
 			switch ( event->key() ) {
 				case Qt::Key_W: case Qt::Key_Up: cameraInput.moveForward = true; break;
@@ -252,6 +262,7 @@ signals:
 	void OnCameraDolly( float offsetZ );
 	void OnCameraFOV( float offset );
 	void OnMouseRotationChanged( float deltaAngleX, float deltaAngleY );
+	void OnChangeSpeedMult( float offset );
 };
 
 #endif // VIEWPORT_WIDGET_H

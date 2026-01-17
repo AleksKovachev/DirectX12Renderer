@@ -53,6 +53,7 @@ private: // Members
 	int m_frameIdxAtLastFPSCalc{}; ///< Updated each second.
 	float m_offsetX{};
 	float m_offsetY{};
+	const Ui::AppGUI* m_ui{ nullptr };
 
 private slots:
 	void OnCameraPan( float, float );
@@ -68,6 +69,7 @@ private slots:
 	void MouseSensitivityRTChanged();
 	void VerticalFoVRTChanged();
 	void CameraPositionChangedRT();
+	void OnChangeSpeedMult( float );
 };
 
 
