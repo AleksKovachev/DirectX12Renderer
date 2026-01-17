@@ -127,12 +127,13 @@ void WolfApp::onMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
 
 void WolfApp::OpenSceneBtnClicked() {
 	// Open directory selection dialog.
-	QString executableParentDir{ QFileInfo( QCoreApplication::applicationDirPath() ).dir().path() };
+	QDir executableParentDir{ QFileInfo( QCoreApplication::applicationDirPath() ).dir() };
+	QString rscDirPath{ executableParentDir.absoluteFilePath( "rsc" ) };
 
 	QString file = QFileDialog::getOpenFileName(
 		m_mainWin,
 		tr( "Select Directory" ),
-		executableParentDir,
+		rscDirPath,
 		QString( "CRTScene (*.crtscene)" )
 	);
 
