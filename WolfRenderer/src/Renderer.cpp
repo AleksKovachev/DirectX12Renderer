@@ -59,19 +59,15 @@ namespace Core {
 			m_rtvHandles.emplace_back();
 		}
 
-		m_scene.settings.renderWidth = renderWidth;
-		m_scene.settings.renderHeight = renderHeight;
-		m_scene.ParseSceneFile();
+		scene.settings.renderWidth = renderWidth;
+		scene.settings.renderHeight = renderHeight;
+		scene.ParseSceneFile();
 	}
 
 	WolfRenderer::~WolfRenderer() {
 		log( "    => Closing application." );
 		if ( m_fenceEvent != nullptr )
 			CloseHandle( m_fenceEvent );
-	}
-
-	const Scene& WolfRenderer::GetScene() {
-		return m_scene;
 	}
 
 	void WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
@@ -154,10 +150,12 @@ namespace Core {
 		}
 		log( "Starting renderer initialization..." );
 
-		CreateDevice(); // Creates Factory, Adapter, Device
-		CreateFence();
-		CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
-		CreateSwapChain( hWnd );
+		if ( !m_reloadingScene ) {
+			CreateDevice(); // Creates Factory, Adapter, Device
+			CreateFence();
+			CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
+			CreateSwapChain( hWnd );
+		}
 		CreateDescriptorHeapForSwapChain();
 		CreateRenderTargetViewsFromSwapChain();
 
@@ -536,8 +534,8 @@ namespace Core {
 		// Describe the output texture.
 		D3D12_RESOURCE_DESC texDesc{ CD3DX12_RESOURCE_DESC::Tex2D(
 			DXGI_FORMAT_R8G8B8A8_UNORM,
-			m_scene.settings.renderWidth,
-			m_scene.settings.renderHeight,
+			scene.settings.renderWidth,
+			scene.settings.renderHeight,
 			1,
 			1
 		) };
@@ -717,8 +715,8 @@ namespace Core {
 		m_dispatchRaysDesc.HitGroupTable.SizeInBytes = recordSize;
 		m_dispatchRaysDesc.HitGroupTable.StrideInBytes = recordSize;
 
-		m_dispatchRaysDesc.Width = m_scene.settings.renderWidth;
-		m_dispatchRaysDesc.Height = m_scene.settings.renderHeight;
+		m_dispatchRaysDesc.Width = scene.settings.renderWidth;
+		m_dispatchRaysDesc.Height = scene.settings.renderHeight;
 		m_dispatchRaysDesc.Depth = 1;
 		m_dispatchRaysDesc.CallableShaderTable = {};
 
@@ -726,17 +724,17 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBufferRT() {
-		m_vertexCount = m_scene.GetTriangles().size() * 3;
+		m_vertexCount = scene.GetTriangles().size() * 3;
 		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
 
 		int vertIdxInBuffIdx{};
-		for ( int triIdx{}; triIdx < m_scene.GetTriangles().size(); ++triIdx ) {
-			Triangle tri{ m_scene.GetTriangles()[triIdx] };
+		for ( int triIdx{}; triIdx < scene.GetTriangles().size(); ++triIdx ) {
+			Triangle tri{ scene.GetTriangles()[triIdx] };
 			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
 				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
 				vertInBuff.x = tri.GetVertex( vertIdx ).x;
 				vertInBuff.y = tri.GetVertex( vertIdx ).y;
-				vertInBuff.z = tri.GetVertex( vertIdx ).z - 20.f;
+				vertInBuff.z = tri.GetVertex( vertIdx ).z;
 			}
 		}
 
@@ -1392,12 +1390,12 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBuffer() {
-		m_vertexCount = m_scene.GetTriangles().size() * 3;
+		m_vertexCount = scene.GetTriangles().size() * 3;
 		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
 
 		int vertIdxInBuffIdx{};
-		for ( int triIdx{}; triIdx < m_scene.GetTriangles().size(); ++triIdx ) {
-			Triangle tri{ m_scene.GetTriangles()[triIdx] };
+		for ( int triIdx{}; triIdx < scene.GetTriangles().size(); ++triIdx ) {
+			Triangle tri{ scene.GetTriangles()[triIdx] };
 			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
 				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
 				vertInBuff.x = tri.GetVertex( vertIdx ).x;
@@ -1488,15 +1486,15 @@ namespace Core {
 	void WolfRenderer::CreateViewport() {
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<FLOAT>(m_scene.settings.renderWidth);
-		m_viewport.Height = static_cast<FLOAT>(m_scene.settings.renderHeight);
+		m_viewport.Width = static_cast<FLOAT>(scene.settings.renderWidth);
+		m_viewport.Height = static_cast<FLOAT>(scene.settings.renderHeight);
 		m_viewport.MinDepth = 0.0f;
 		m_viewport.MaxDepth = 1.0f;
 
 		m_scissorRect.left = 0;
 		m_scissorRect.top = 0;
-		m_scissorRect.right = m_scene.settings.renderWidth;
-		m_scissorRect.bottom = m_scene.settings.renderHeight;
+		m_scissorRect.right = scene.settings.renderWidth;
+		m_scissorRect.bottom = scene.settings.renderHeight;
 		log( "[ Rasterization ] Viewport set up." );
 	}
 
@@ -1537,6 +1535,22 @@ namespace Core {
 
 	void WolfRenderer::SetAppData( App* appData ) {
 		m_app = appData;
+	}
+
+	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
+		m_reloadingScene = true;
+		m_isPrepared = false;
+		WaitForGPUSync();
+		scene.Cleanup();
+		scene.SetRenderScene( scenePath );
+		scene.ParseSceneFile();
+
+		m_vertexBufferRT.Reset();
+		m_blasResult.Reset();
+		m_tlasResult.Reset();
+
+		PrepareForRendering( winId );
+		m_reloadingScene = false;
 	}
 
 	void WolfRenderer::CreateTransformConstantBuffer() {
@@ -1622,8 +1636,8 @@ namespace Core {
 		DirectX::XMMATRIX WorldView = World * View;
 
 		// Create projection matrix (for simulating a camera).
-		unsigned& width = m_scene.settings.renderWidth;
-		unsigned& height = m_scene.settings.renderHeight;
+		unsigned& width = scene.settings.renderWidth;
+		unsigned& height = scene.settings.renderHeight;
 		tr.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
 		// Swap nearZ and farZ to use "reverse-Z" for better precision.
@@ -1660,8 +1674,8 @@ namespace Core {
 		// Depth texture.
 		D3D12_RESOURCE_DESC depthDesc{};
 		depthDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		depthDesc.Width = m_scene.settings.renderWidth;
-		depthDesc.Height = m_scene.settings.renderHeight;
+		depthDesc.Width = scene.settings.renderWidth;
+		depthDesc.Height = scene.settings.renderHeight;
 		depthDesc.DepthOrArraySize = 1;
 		depthDesc.MipLevels = 1;
 		depthDesc.Format = m_depthFormat;
@@ -1706,7 +1720,7 @@ namespace Core {
 
 	void WolfRenderer::FrameEnd() {
 		HRESULT hr{ m_cmdList->Close() };
-		assert( SUCCEEDED( hr ) ); // CHECK_HR( "Failed to close command list!", hr, log, LogLevel::Error );
+		assert( SUCCEEDED( hr ) ); // CHECK_HR( "Failed to close command list!", hr, log );
 
 		// Execute the command list.
 		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
@@ -1714,7 +1728,7 @@ namespace Core {
 
 		// Present the frame.
 		hr = m_swapChain->Present( 0, 0 ); // Sync Interval: 1 to enable VSync.
-		assert( SUCCEEDED( hr ) ); // CHECK_HR( "Failed to present the frame!", hr, log, LogLevel::Error );
+		assert( SUCCEEDED( hr ) ); // CHECK_HR( "Failed to present the frame!", hr, log );
 
 		WaitForGPUSync();
 
@@ -1875,8 +1889,8 @@ namespace Core {
 
 	void WolfRenderer::CreateSwapChain( HWND hWnd ) {
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-		swapChainDesc.Width = m_scene.settings.renderWidth;
-		swapChainDesc.Height = m_scene.settings.renderHeight;
+		swapChainDesc.Width = scene.settings.renderWidth;
+		swapChainDesc.Height = scene.settings.renderHeight;
 		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
 		swapChainDesc.BufferCount = m_bufferCount; // Double buffering
 		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1957,12 +1971,12 @@ namespace Core {
 
 	void WolfRenderer::CreateGPUTexture() {
 		m_textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2D texture.
-		m_textureDesc.Width = m_scene.settings.renderWidth;   // Width in pixels.
-		m_textureDesc.Height = m_scene.settings.renderHeight; // Height in pixels.
-		m_textureDesc.DepthOrArraySize = 1;                   // Single texture (not an array).
-		m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;    // 32-bit RGBA format (8-bit per channel).
-		m_textureDesc.SampleDesc.Count = 1;                   // No multisampling
-		m_textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;  // Let the system choose the layout.
+		m_textureDesc.Width = scene.settings.renderWidth;    // Width in pixels.
+		m_textureDesc.Height = scene.settings.renderHeight;  // Height in pixels.
+		m_textureDesc.DepthOrArraySize = 1;                  // Single texture (not an array).
+		m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;   // 32-bit RGBA format (8-bit per channel).
+		m_textureDesc.SampleDesc.Count = 1;                  // No multisampling
+		m_textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // Let the system choose the layout.
 		m_textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET; // No special flags.
 
 		D3D12_HEAP_PROPERTIES heapProps{};

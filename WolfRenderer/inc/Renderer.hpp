@@ -74,10 +74,10 @@ namespace Core {
 		float boundsX{};
 		float boundsY{};
 
-		float rotationSensitivityFactor{ 0.01f };
+		float rotationSensitivityFactor{ 0.001f };
 		float offsetZSensitivityFactor{ 0.5f };
 		float FOVSensitivityFactor{ 0.1f };
-		float offsetXYSensitivityFactor{ 0.1f };
+		float offsetXYSensitivityFactor{ 0.01f };
 
 		float currRotationX{};   // Radians
 		float currRotationY{};   // Radians
@@ -106,6 +106,7 @@ namespace Core {
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public: // Memebrs.
+		Scene scene{};
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
 
 	public: // Functions.
@@ -115,9 +116,6 @@ namespace Core {
 		/// @param[in] bufferCount   Number of buffers in the swap chain.
 		WolfRenderer( int renderWidth = 800, int renderHeight = 800, UINT bufferCount = 2 );
 		~WolfRenderer();
-
-		/// Gets the scene object containing all scene data.
-		const Scene& GetScene();
 
 		/// Sets the minimum logging level for the logger.
 		/// @param[in] level  Minimum log level to set.
@@ -164,6 +162,11 @@ namespace Core {
 		/// Sets the application-level data member.
 		/// @param[in] appData  App Pointer to the application data.
 		void SetAppData( App* );
+
+		/// Reloads the scene and re-prepares the renderer.
+		/// @param[in] scenePath  Path to the new scene file.
+		/// @param[in] winId      Handle to the application window.
+		void ReloadScene( std::string& scenePath, HWND winId );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -470,9 +473,9 @@ namespace Core {
 		DXGI_FORMAT m_depthFormat{ DXGI_FORMAT_D32_FLOAT };
 
 		// General members.
-		Scene m_scene{ "../rsc/scene1.crtscene" };
 		size_t m_frameIdx{};        ///< Current frame index.
 		bool m_isPrepared{ false }; ///< Flag indicating if the renderer is prepared.
+		bool m_reloadingScene{ false }; ///< Flag indicating the scene is reloading.
 		Logger log{ std::cout };    ///< Logger instance for logging messages.
 		UINT m_bufferCount{};       ///< Number of buffers in the swap chain.
 		UINT m_rtvDescriptorSize{}; ///< Size of the RTV descriptor.

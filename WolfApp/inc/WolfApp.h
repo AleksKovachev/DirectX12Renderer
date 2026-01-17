@@ -54,6 +54,8 @@ private slots:
 	void onCameraDolly( float );
 	void onCameraFOV( float );
 	void onMouseRotationChanged( float, float );
+	void OpenSceneBtnClicked();
+	void LoadSceneClicked();
 };
 
 

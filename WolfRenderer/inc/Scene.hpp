@@ -7,9 +7,9 @@
 
 #include "rapidjson/document.h" // Document, Value, Value::ConstArray
 
+#include "Geometry.hpp" // Triangle, Vertex3D
 #include "Logger.hpp" // Logger, LogLevel
 #include "Settings.hpp" // Settings
-#include "Geometry.hpp" // Triangle, Vertex3D
 
 
 class Scene {
@@ -32,8 +32,14 @@ public:
 	/// Set the name of the scene file to be processed and rendered.
 	/// @param[in] filePath  The path to the scene file.
 	void SetRenderScene( const std::string& );
+
+	/// Returns the path to the current scene file.
+	const std::string GetRenderScenePath() const;
+
+	/// Cleans up all loaded scene data.
+	void Cleanup();
 private:
-	std::string m_filePath;
+	std::string m_filePath{ "../rsc/scene1.crtscene" };
 	std::vector<Triangle> m_triangles; ///< All scene triangles
 	std::vector<int> m_triIndices; ///< Indices of all scene triangles
 

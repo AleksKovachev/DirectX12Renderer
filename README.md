@@ -2,6 +2,9 @@
 
 A Windows-based real-time rendering application implementing both **rasterization** and **ray tracing** pipelines using DirectX 12. The project features a Qt-based GUI with an interactive viewport that can dynamically switch between rendering modes at runtime.
 
+## [[ IMPORTANT ]]
+If you have any issues building and running the application, you can try it out by downloading the files from the Release section here on GitHub!
+
 ## Showcase
 ### Screenshots
 

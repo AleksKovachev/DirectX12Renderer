@@ -1,7 +1,9 @@
 #include "WolfApp.h"
 
+#include <QMessageBox>
 #include <QTimer>
-
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QPushButton>
 
 WolfApp::WolfApp()
 	: m_mainWin{ nullptr }, m_idleTimer( nullptr ), m_fpsTimer( nullptr ) {
@@ -18,8 +20,8 @@ bool WolfApp::init( App* appData ) {
 
 	m_renderer.SetAppData( appData );
 	float aspectRatio = static_cast<float>(
-		m_renderer.GetScene().settings.renderWidth ) /
-		static_cast<float>(m_renderer.GetScene().settings.renderHeight);
+		m_renderer.scene.settings.renderWidth ) /
+		static_cast<float>(m_renderer.scene.settings.renderHeight);
 	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
 
 	connect( m_mainWin->viewport, &WolfViewportWidget::onCameraPan,
@@ -34,6 +36,8 @@ bool WolfApp::init( App* appData ) {
 	connect( m_mainWin->viewport, &WolfViewportWidget::onMouseRotationChanged,
 		this, &WolfApp::onMouseRotationChanged
 	);
+	connect( m_mainWin->GetUI().sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
+	connect( m_mainWin->GetUI().loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
 
 	m_mainWin->show();
 
@@ -49,6 +53,12 @@ bool WolfApp::init( App* appData ) {
 
 	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled, this,
 		&WolfApp::OnRenderModeChanged );
+
+	std::string scenePath{ m_renderer.scene.GetRenderScenePath() };
+	QString fileAbsPath{ QDir::toNativeSeparators( QDir::cleanPath(
+		QDir().absoluteFilePath( QString::fromStdString( scenePath ) ) ) ) };
+
+	m_mainWin->GetUI().sceneFileEntry->setText( QDir::toNativeSeparators( fileAbsPath ) );
 
 	return true;
 }
@@ -113,4 +123,44 @@ void WolfApp::onCameraFOV( float offset ) {
 
 void WolfApp::onMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
 	m_renderer.AddToTargetRotation( deltaAngleX, deltaAngleY );
+}
+
+void WolfApp::OpenSceneBtnClicked() {
+	// Open directory selection dialog.
+	QString executableParentDir{ QFileInfo( QCoreApplication::applicationDirPath() ).dir().path() };
+
+	QString file = QFileDialog::getOpenFileName(
+		m_mainWin,
+		tr( "Select Directory" ),
+		executableParentDir,
+		QString( "CRTScene (*.crtscene)" )
+	);
+
+	// If user didn't cancel
+	if ( !file.isEmpty() )
+		m_mainWin->GetUI().sceneFileEntry->setText(QDir::toNativeSeparators(file));
+}
+
+void WolfApp::LoadSceneClicked() {
+	QString scenePath{ QDir::cleanPath( m_mainWin->GetUI().sceneFileEntry->text().trimmed() ) };
+	QFileInfo fileInfo( scenePath );
+
+	if ( !fileInfo.exists() || !fileInfo.isFile() ) {
+		QMessageBox::critical(
+			m_mainWin,
+			"File Not Found",
+			QString( "The specified scene file was not found.\nPlease check and try again!" ),
+			QMessageBox::Ok
+		);
+		return;
+	}
+
+	std::string scenePathStd{ scenePath.toStdString() };
+	m_idleTimer->stop();
+	m_fpsTimer->stop();
+
+	m_renderer.ReloadScene( scenePathStd, m_mainWin->viewport->GetNativeWindowHandle());
+
+	m_idleTimer->start( 0 );
+	m_fpsTimer->start( 1'000 );
 }

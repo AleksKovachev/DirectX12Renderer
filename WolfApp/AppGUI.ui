@@ -44,7 +44,7 @@
      </widget>
     </item>
     <item row="0" column="0">
-     <widget class="QFrame" name="frame">
+     <widget class="QFrame" name="renderModeFrame">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
         <horstretch>0</horstretch>
@@ -59,17 +59,43 @@
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
-        <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
+        <widget class="QPushButton" name="sceneFileBtn">
+         <property name="acceptDrops">
+          <bool>false</bool>
          </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>1792</width>
-           <height>20</height>
-          </size>
+         <property name="toolTip">
+          <string>Choose a scene file to load.</string>
          </property>
-        </spacer>
+         <property name="statusTip">
+          <string>Choose a scene file to load.</string>
+         </property>
+         <property name="text">
+          <string>Scene File...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="sceneFileEntry">
+         <property name="toolTip">
+          <string>Path to the scene file to be processed and rendered.</string>
+         </property>
+         <property name="statusTip">
+          <string>Path to the scene file to be processed and rendered.</string>
+         </property>
+         <property name="frame">
+          <bool>true</bool>
+         </property>
+         <property name="placeholderText">
+          <string>&lt;Scene File&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="loadSceneBtn">
+         <property name="text">
+          <string>Load Scene</string>
+         </property>
+        </widget>
        </item>
        <item>
         <widget class="QLabel" name="label">

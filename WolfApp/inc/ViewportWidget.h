@@ -29,6 +29,9 @@ public:
 
 		// Bypass Qt's paint system if using DirectX interop.
 		setAttribute( Qt::WA_PaintOnScreen, true );
+
+		// Sets up the mouse as device to watch events for using Windwos API.
+		registerRawMouseInput();
 	}
 
 	/// Change the viewport image with the given one
@@ -47,10 +50,24 @@ public:
 	}
 
 protected:
+	void registerRawMouseInput() {
+		RAWINPUTDEVICE device{};
+		// usUsagePage identifies a category of HID( Human Interface Device )
+		device.usUsagePage = 0x01; // Generic desktop controls (mouse, keyboard, joystick).
+		device.usUsage = 0x02; // Exact device within the usage page: mouse.
+		// Controls HOW and WHEN raw input is delivered.
+		// RIDEV_INPUTSINK: Raw input is sent even when the window is not focused.
+		device.dwFlags = 0; // 0: Raw input is sent ONLY when the window has focus.
+		// Specifies WHICH window should receive WM_INPUT messages.
+		device.hwndTarget = GetNativeWindowHandle();
+
+		RegisterRawInputDevices( &device, 1, sizeof( device ) );
+	}
+
 	void mousePressEvent( QMouseEvent* event ) override {
 		// Hide the cursor.
 		setCursor( Qt::BlankCursor );
-		ignoreNextMouseMove = true;
+		SetCapture( GetNativeWindowHandle() );
 
 		if ( event->button() == Qt::LeftButton ) {
 			// Save current mouse coordinates as last mouse position on left click.
@@ -61,7 +78,6 @@ protected:
 			// Save current mouse coordinates as last mouse position on right click.
 			m_RMBDown = true;
 			m_lastRMBPos = event->pos();
-			m_lastRMBPosRT = event->pos();
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			// Save current mouse coordinates as last mouse position on right click.
@@ -71,60 +87,6 @@ protected:
 
 		// Allow propagation if parent needs events.
 		QWidget::mousePressEvent( event );
-	}
-
-	void mouseMoveEvent( QMouseEvent* event ) override {
-		if ( !(m_LMBDown || m_RMBDown || m_MMBDown) ) {
-			// No buttons pressed, ignore.
-			QWidget::mouseMoveEvent( event );
-			return;
-		}
-
-		// Compute screen center.
-		QPoint screenCenter{ mapToGlobal( QPoint( width() / 2, height() / 2 ) ) };
-
-		// Mouse deltas relative to center.
-		QPointF delta = mapFromGlobal(
-			event->globalPosition() ) - QPointF( width() / 2.f, height() / 2.f );
-
-		// Avoid frame jumps because of mouse position reset.
-		if ( ignoreNextMouseMove ) {
-			delta = QPointF( 0.f, 0.f );
-			ignoreNextMouseMove = false;
-		}
-
-		// Send the delta from the last position.
-		if ( m_LMBDown ) {
-			if ( m_renderMode == Core::RenderMode::Rasterization ) {
-				emit onCameraPan( delta.x(), -delta.y() );
-			}
-		}
-		if ( m_RMBDown ) {
-			if ( m_renderMode == Core::RenderMode::Rasterization ) {
-				emit onMouseRotationChanged( delta.x(), delta.y() );
-			}
-			else if ( m_renderMode == Core::RenderMode::RayTracing ) {
-				cameraInput.mouseDeltaX = delta.x();
-				cameraInput.mouseDeltaY = -delta.y();
-			}
-		}
-		if ( m_MMBDown ) {
-			emit onCameraFOV( delta.y() );
-		}
-
-		// Reset cursor to screen center for next event.
-		QCursor::setPos( screenCenter );
-
-		// Update all "last positions" to match the center, so deltas are correct next frame.
-		if ( m_LMBDown )
-			m_lastLMBPos = mapFromGlobal( screenCenter );
-		if ( m_RMBDown )
-			m_lastRMBPos = mapFromGlobal( screenCenter );
-		if ( m_MMBDown )
-			m_lastMMBPos = mapFromGlobal( screenCenter );
-
-		// Allow propagation if parent needs events.
-		QWidget::mouseMoveEvent( event );
 	}
 
 	void mouseReleaseEvent( QMouseEvent* event ) override {
@@ -140,6 +102,7 @@ protected:
 
 		if ( !(m_LMBDown && m_RMBDown && m_MMBDown)) {
 			// Show the cursor.
+			ReleaseCapture();
 			unsetCursor();
 		}
 
@@ -200,6 +163,68 @@ protected:
 		QWidget::keyPressEvent( event );
 	}
 
+	/// Called when capturing RAW Windows events. Using this instead of Qt's
+	/// mouseMoveEvent to avoid calculations and issues when window is resized.
+	bool nativeEvent( const QByteArray& eventType, void* message, qintptr* result ) override {
+		if ( eventType != "windows_generic_MSG" )
+			return false;
+
+		MSG* msg = static_cast<MSG*>(message);
+
+		// WM_INPUT is sent by Windows when a raw input device reports data.
+		if ( msg->message == WM_INPUT ) {
+			UINT size{};
+			// First call tells us how large the RAWINPUT buffer must be.
+			GetRawInputData(
+				reinterpret_cast<HRAWINPUT>(msg->lParam),
+				RID_INPUT,
+				nullptr,
+				&size,
+				sizeof( RAWINPUTHEADER )
+			);
+
+			std::vector<BYTE> buffer( size );
+
+			// Second call actually retrieves the raw input data.
+			GetRawInputData(
+				reinterpret_cast<HRAWINPUT>(msg->lParam),
+				RID_INPUT,
+				buffer.data(),
+				&size,
+				sizeof( RAWINPUTHEADER )
+			);
+
+			RAWINPUT* raw = reinterpret_cast<RAWINPUT*>(buffer.data());
+
+			// Ignore if not mouse input.
+			if ( raw->header.dwType == RIM_TYPEMOUSE ) {
+
+				// These are relative deltas since last event, independent of
+				// cursor position, DPI scaling, or window size.
+				LONG dx = raw->data.mouse.lLastX;
+				LONG dy = raw->data.mouse.lLastY;
+
+				if ( m_renderMode == Core::RenderMode::RayTracing && m_RMBDown ) {
+					cameraInput.mouseDeltaX -= dx;
+					cameraInput.mouseDeltaY -= dy;
+				} else if ( m_renderMode == Core::RenderMode::Rasterization ) {
+					if ( m_LMBDown ) {
+						emit onCameraPan( static_cast<float>(dx), static_cast<float>(-dy) );
+					}
+					if ( m_RMBDown ) {
+						emit onMouseRotationChanged( static_cast<float>(dx), static_cast<float>(dy) );
+					}
+					if ( m_MMBDown ) {
+						emit onCameraFOV( static_cast<float>(dy) );
+					}
+				}
+			}
+		}
+
+		return QWidget::nativeEvent( eventType, message, result );
+	}
+
+
 public: // members
 	CameraInput cameraInput{};
 private:
@@ -207,13 +232,10 @@ private:
 	bool m_LMBDown{ false };
 	bool m_RMBDown{ false };
 	bool m_MMBDown{ false };
-	QPoint m_initialRMBPosRT;
-	QPoint m_lastRMBPosRT;
 	QPoint m_lastLMBPos;
 	QPoint m_lastRMBPos;
 	QPoint m_lastMMBPos;
 	Core::RenderMode m_renderMode;
-	bool ignoreNextMouseMove{ false };
 
 signals:
 	void onCameraPan( float offsetX, float offsetY );
