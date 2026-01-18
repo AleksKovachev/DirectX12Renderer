@@ -16,7 +16,7 @@ public:
 	~WolfApp();
 
 	/// Prepare the application for rendering.
-	bool init( App* appData );
+	bool init( Core::App* appData );
 
 public slots:
 	/// Initiate frame rendering.

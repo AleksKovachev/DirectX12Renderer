@@ -12,7 +12,7 @@ int main() {
 		std::chrono::high_resolution_clock::now() };
 
 	//renderer.PrepareForRendering();
-	CameraInput inputs{};
+	RT::CameraInput inputs{};
 	renderer.RenderFrame( inputs );
 	renderer.WriteImageToFile( "output.ppm" );
 

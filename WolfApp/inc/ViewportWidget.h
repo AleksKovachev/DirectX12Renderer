@@ -254,7 +254,7 @@ protected:
 
 
 public: // members
-	CameraInput cameraInput{};
+	RT::CameraInput cameraInput{};
 	QTimer inputUpdateTimer;
 private:
 	QImage m_image;

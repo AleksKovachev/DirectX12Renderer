@@ -16,7 +16,7 @@ WolfApp::~WolfApp() {
 	delete m_fpsTimer;
 }
 
-bool WolfApp::init( App* appData ) {
+bool WolfApp::init( Core::App* appData ) {
 	if ( InitWindow() == false )
 		return false;
 
@@ -81,22 +81,24 @@ void WolfApp::SetInitialValues() {
 	VerticalFoVRTChanged();
 	m_renderer.randomColorsRT = m_ui->randomColorsRTSwitch->isChecked();
 
-	m_renderer.transformRaster.offsetZ = m_ui->zoomRasterSpin->value();
-	m_renderer.transformRaster.offsetZSensitivityFactor = m_ui->zoomSensRasterSpin->value();
-	m_renderer.transformRaster.offsetXYSensitivityFactor = m_ui->panSensRasterSpin->value();
-	m_renderer.transformRaster.rotationSensitivityFactor = m_ui->rotSensRasterSpin->value();
-	m_renderer.transformRaster.SetFOVDeg( m_ui->FOVRasterSpin->value() );
-	m_renderer.transformRaster.FOVSensitivityFactor = m_ui->FOVSensRasterSpin->value();
-	m_renderer.transformRaster.smoothOffsetLerp = m_ui->panAnimSpeedRasterSpin->value();
-	m_renderer.transformRaster.smoothRotationLambda = m_ui->rotAnimSpeedRasterSpin->value();
-	m_renderer.transformRaster.nearZ = m_ui->nearZRasterSpin->value();
-	m_renderer.transformRaster.farZ = m_ui->farZRasterSpin->value();
-	m_renderer.transformRaster.aspectRatio = m_ui->aspectRatioRasterSpin->value();
+	m_renderer.cameraRaster.offsetZ = m_ui->zoomRasterSpin->value();
+	m_renderer.cameraRaster.offsetZSensitivityFactor = m_ui->zoomSensRasterSpin->value();
+	m_renderer.cameraRaster.offsetXYSensitivityFactor = m_ui->panSensRasterSpin->value();
+	m_renderer.cameraRaster.rotationSensitivityFactor = m_ui->rotSensRasterSpin->value();
+	m_renderer.cameraRaster.SetFOVDeg( m_ui->FOVRasterSpin->value() );
+	m_renderer.cameraRaster.FOVSensitivityFactor = m_ui->FOVSensRasterSpin->value();
+	m_renderer.cameraRaster.smoothOffsetLerp = m_ui->panAnimSpeedRasterSpin->value();
+	m_renderer.cameraRaster.smoothRotationLambda = m_ui->rotAnimSpeedRasterSpin->value();
+	m_renderer.cameraRaster.nearZ = m_ui->nearZRasterSpin->value();
+	m_renderer.cameraRaster.farZ = m_ui->farZRasterSpin->value();
+	m_renderer.cameraRaster.aspectRatio = m_ui->aspectRatioRasterSpin->value();
 	m_renderer.showBackfaces = m_ui->showBackfacesSwitch->isChecked();
 	m_renderer.wireframe = m_ui->wireframeRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.useRandomColors = m_ui->randomColorsRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.disco = m_ui->discoModeRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.discoSpeed = m_ui->discoModeSpeedSpin->value();
+	m_renderer.cameraRaster.coordinateSystem = static_cast<Raster::TransformCoordinateSystem>(
+		m_ui->rotOrientationRasterCombo->currentIndex() );
 }
 
 void WolfApp::HideIrrelevantWidgets() {
@@ -150,6 +152,8 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->discoModeSpeedSpin->setHidden( isRTMode );
 	m_ui->geomColorRasterLbl->setHidden( isRTMode );
 	m_ui->geomColorRasterBtn->setHidden( isRTMode );
+	m_ui->rotOrientationRasterLbl->setHidden( isRTMode );
+	m_ui->rotOrientationRasterCombo->setHidden( isRTMode );
 }
 
 void WolfApp::SetupMainWindowSizeAndPosition() {
@@ -239,46 +243,46 @@ void WolfApp::ConnectUIEvents() {
 
 	// Rasterization GUI connections.
 	connect( m_ui->zoomRasterSpin, &QDoubleSpinBox::valueChanged,
-		this, [this]() { m_renderer.transformRaster.offsetZ = m_ui->zoomRasterSpin->value(); }
+		this, [this]() { m_renderer.cameraRaster.offsetZ = m_ui->zoomRasterSpin->value(); }
 	);
 	connect( m_ui->zoomSensRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.offsetZSensitivityFactor = value;
+			m_renderer.cameraRaster.offsetZSensitivityFactor = value;
 	} );
 	connect( m_ui->panSensRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.offsetXYSensitivityFactor = value;
+			m_renderer.cameraRaster.offsetXYSensitivityFactor = value;
 	} );
 	connect( m_ui->rotSensRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.rotationSensitivityFactor = value;
+			m_renderer.cameraRaster.rotationSensitivityFactor = value;
 	} );
 	connect( m_ui->FOVRasterSpin, &QDoubleSpinBox::valueChanged,
-		this, [this](double value) { m_renderer.transformRaster.SetFOVDeg( value ); }
+		this, [this](double value) { m_renderer.cameraRaster.SetFOVDeg( value ); }
 	);
 	connect( m_ui->FOVSensRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.FOVSensitivityFactor = value;
+			m_renderer.cameraRaster.FOVSensitivityFactor = value;
 	} );
 	connect( m_ui->panAnimSpeedRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.smoothOffsetLerp = value;
+			m_renderer.cameraRaster.smoothOffsetLerp = value;
 	} );
 	connect( m_ui->rotAnimSpeedRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.smoothRotationLambda = value;
+			m_renderer.cameraRaster.smoothRotationLambda = value;
 	} );
 	connect( m_ui->nearZRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.nearZ = value;
+			m_renderer.cameraRaster.nearZ = value;
 	} );
 	connect( m_ui->farZRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.farZ = value;
+			m_renderer.cameraRaster.farZ = value;
 	} );
 	connect( m_ui->aspectRatioRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this](double value) {
-			m_renderer.transformRaster.aspectRatio = value;
+			m_renderer.cameraRaster.aspectRatio = value;
 	} );
 	connect( m_ui->showBackfacesSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) { m_renderer.showBackfaces = value; }
@@ -313,6 +317,11 @@ void WolfApp::ConnectUIEvents() {
 	);
 	connect( m_ui->geomColorRasterBtn, &QToolButton::clicked,
 		this, &WolfApp::SetupGeomRasterColorPicker
+	);
+	connect( m_ui->rotOrientationRasterCombo, &QComboBox::currentIndexChanged,
+		this, [this]( int value ) { m_renderer.cameraRaster.coordinateSystem =
+			static_cast<Raster::TransformCoordinateSystem>(value);
+		}
 	);
 }
 
@@ -350,7 +359,7 @@ void WolfApp::OnCameraPan( float ndcX, float ndcY ) {
 
 void WolfApp::OnCameraDolly( float offsetZ ) {
 	m_renderer.AddToOffsetZ( offsetZ );
-	m_ui->zoomRasterSpin->setValue( m_renderer.transformRaster.offsetZ );
+	m_ui->zoomRasterSpin->setValue( m_renderer.cameraRaster.offsetZ );
 }
 
 void WolfApp::OnCameraFOV( float offset ) {
