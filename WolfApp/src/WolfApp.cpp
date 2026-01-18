@@ -2,6 +2,7 @@
 
 #include <QMessageBox>
 #include <QTimer>
+#include <QtWidgets/QColorDialog>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QStackedLayout>
@@ -78,6 +79,24 @@ void WolfApp::SetInitialValues() {
 	MoveSpeedMultChanged();
 	MouseSensitivityRTChanged();
 	VerticalFoVRTChanged();
+	m_renderer.randomColorsRT = m_ui->randomColorsRTSwitch->isChecked();
+
+	m_renderer.transformRaster.offsetZ = m_ui->zoomRasterSpin->value();
+	m_renderer.transformRaster.offsetZSensitivityFactor = m_ui->zoomSensRasterSpin->value();
+	m_renderer.transformRaster.offsetXYSensitivityFactor = m_ui->panSensRasterSpin->value();
+	m_renderer.transformRaster.rotationSensitivityFactor = m_ui->rotSensRasterSpin->value();
+	m_renderer.transformRaster.SetFOVDeg( m_ui->FOVRasterSpin->value() );
+	m_renderer.transformRaster.FOVSensitivityFactor = m_ui->FOVSensRasterSpin->value();
+	m_renderer.transformRaster.smoothOffsetLerp = m_ui->panAnimSpeedRasterSpin->value();
+	m_renderer.transformRaster.smoothRotationLambda = m_ui->rotAnimSpeedRasterSpin->value();
+	m_renderer.transformRaster.nearZ = m_ui->nearZRasterSpin->value();
+	m_renderer.transformRaster.farZ = m_ui->farZRasterSpin->value();
+	m_renderer.transformRaster.aspectRatio = m_ui->aspectRatioRasterSpin->value();
+	m_renderer.showBackfaces = m_ui->showBackfacesSwitch->isChecked();
+	m_renderer.wireframe = m_ui->wireframeRasterSwitch->isChecked();
+	m_renderer.sceneDataRaster.useRandomColors = m_ui->randomColorsRasterSwitch->isChecked();
+	m_renderer.sceneDataRaster.disco = m_ui->discoModeRasterSwitch->isChecked();
+	m_renderer.sceneDataRaster.discoSpeed = m_ui->discoModeSpeedSpin->value();
 }
 
 void WolfApp::HideIrrelevantWidgets() {
@@ -93,8 +112,8 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->mouseSensitivityRTSpin->setVisible( isRTMode );
 	m_ui->verticalFOVLbl->setVisible( isRTMode );
 	m_ui->FOVRTSpin->setVisible( isRTMode );
-	m_ui->randomColorsLbl->setVisible( isRTMode );
-	m_ui->randomColorsSwitchRT->setVisible( isRTMode );
+	m_ui->randomColorsRTLbl->setVisible( isRTMode );
+	m_ui->randomColorsRTSwitch->setVisible( isRTMode );
 
 	m_ui->zoomRasterLbl->setHidden( isRTMode );
 	m_ui->zoomRasterSpin->setHidden( isRTMode );
@@ -121,6 +140,16 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->showBackfacesLbl->setHidden( isRTMode );
 	m_ui->showBackfacesSwitch->setHidden( isRTMode );
 	m_ui->computeAspectRatioBtn->setHidden( isRTMode );
+	m_ui->wireframeRasterLbl->setHidden( isRTMode );
+	m_ui->wireframeRasterSwitch->setHidden( isRTMode );
+	m_ui->randomColorsRasterLbl->setHidden( isRTMode );
+	m_ui->randomColorsRasterSwitch->setHidden( isRTMode );
+	m_ui->discoModeRasterLbl->setHidden( isRTMode );
+	m_ui->discoModeRasterSwitch->setHidden( isRTMode );
+	m_ui->discoModeSpeedLbl->setHidden( isRTMode );
+	m_ui->discoModeSpeedSpin->setHidden( isRTMode );
+	m_ui->geomColorRasterLbl->setHidden( isRTMode );
+	m_ui->geomColorRasterBtn->setHidden( isRTMode );
 }
 
 void WolfApp::SetupMainWindowSizeAndPosition() {
@@ -201,8 +230,8 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->camPosZSpin, &QDoubleSpinBox::valueChanged,
 		this, &WolfApp::CameraPositionChangedRT
 	);
-	connect( m_ui->randomColorsSwitchRT, &QCheckBox::toggled,
-		this, [this]() { m_renderer.renderRandomColors = !m_renderer.renderRandomColors; }
+	connect( m_ui->randomColorsRTSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.randomColorsRT = value; }
 	);
 	connect( &m_ui->viewport->inputUpdateTimer, &QTimer::timeout,
 		this, &WolfApp::OnPositionChangedRT
@@ -257,7 +286,34 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->computeAspectRatioBtn, &QPushButton::clicked,
 		this, [this](){ OnResize( m_ui->viewport->width(), m_ui->viewport->height()); }
 	);
+	connect( m_ui->wireframeRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.wireframe = value; }
+	);
+	connect( m_ui->randomColorsRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) {
+			m_renderer.sceneDataRaster.useRandomColors = value;
+			if ( value || m_ui->discoModeRasterSwitch->isChecked() )
+				m_ui->geomColorRasterBtn->setEnabled( false );
+			else
+				m_ui->geomColorRasterBtn->setEnabled( true );
+		}
+	);
+	connect( m_ui->discoModeRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) {
+			m_renderer.sceneDataRaster.disco = value;
+			if ( value || m_ui->randomColorsRasterSwitch->isChecked() )
+				m_ui->geomColorRasterBtn->setEnabled( false );
+			else
+				m_ui->geomColorRasterBtn->setEnabled( true );
 
+		}
+	);
+	connect( m_ui->discoModeSpeedSpin, &QSpinBox::valueChanged,
+		this, [this]( int value ) { m_renderer.sceneDataRaster.discoSpeed = value; }
+	);
+	connect( m_ui->geomColorRasterBtn, &QToolButton::clicked,
+		this, &WolfApp::SetupGeomRasterColorPicker
+	);
 }
 
 void WolfApp::SetupFPSTimers() {
@@ -399,14 +455,46 @@ void WolfApp::OnChangeSpeedMult( float offset ) {
 
 void WolfApp::OnResize( float width, float height ) {
 	m_renderer.cameraRT.aspectRatio = width / height;
-	m_renderer.scene.settings.renderWidth = static_cast<unsigned>(width);
-	m_renderer.scene.settings.renderHeight = static_cast<unsigned>(height);
 
 	if ( !m_ui->renderModeSwitch->isChecked() ) {
 		m_ui->aspectRatioRasterSpin->setValue( m_renderer.cameraRT.aspectRatio );
 	}
 }
 
-void WolfApp::SetAspectRatio() {
+void WolfApp::SetupGeomRasterColorPicker() {
+	// Open color picker dialog when Color Button is clicked.
+	QColor color = QColorDialog::getColor( Qt::white, m_mainWin, "Select Geometry Color" );
+	QString hoverColor;
+	if ( color.valueF() > 0.5f )
+		hoverColor = color.darker().name();
+	else if ( color.valueF() > 0.1f )
+		hoverColor = color.lighter().name();
+	else
+		hoverColor = "#222222";
 
+	if ( !color.isValid() )
+		return;
+
+		// Update the preview label.
+	QString btnStyle = QString( R"(
+		QToolButton {
+			background-color: %1;
+			border-radius: 6px;
+		}
+
+		QToolButton:hover {
+			background-color: %2;
+			border: 1px;
+			border-radius: 6px;
+		}
+
+		QToolTip {
+			background-color: palette(tooltip-base);
+			color: palette(tooltip-text);
+		})"
+	).arg( color.name(), hoverColor );
+
+	m_ui->geomColorRasterBtn->setStyleSheet( btnStyle );
+	float rawColor[4] = { color.redF(), color.greenF(), color.blueF(), color.alphaF() };
+	memcpy( m_renderer.sceneDataRaster.color, rawColor, sizeof( rawColor ) );
 }

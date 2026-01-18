@@ -253,7 +253,7 @@ namespace Core {
 			0, m_uavsrvHeap->GetGPUDescriptorHandleForHeapStart() );
 
 		// Slot 1: Root Constant.
-		m_cmdList->SetComputeRoot32BitConstant( 1, renderRandomColors, 0 );
+		m_cmdList->SetComputeRoot32BitConstant( 1, randomColorsRT, 0 );
 
 		// Slot 2: Camera Data.
 		m_cmdList->SetComputeRootConstantBufferView( 2, cameraRT.cb->GetGPUVirtualAddress() );
@@ -334,7 +334,7 @@ namespace Core {
 
 		// Pass the Root Signature Parameter to the Root Signature Description.
 		D3D12_ROOT_SIGNATURE_DESC1 rootSigDesc{};
-		rootSigDesc.NumParameters = 3;
+		rootSigDesc.NumParameters = _countof( rootParams );
 		rootSigDesc.pParameters = rootParams;
 		rootSigDesc.NumStaticSamplers = 0;
 		rootSigDesc.pStaticSamplers = nullptr;
@@ -1254,6 +1254,7 @@ namespace Core {
 		CreatePipelineState();
 		CreateVertexBuffer();
 		CreateTransformConstantBuffer();
+		CreateSceneDataConstantBuffer();
 		CreateViewport();
 		CreateDepthStencil();
 		log( "[ Rasterization ] Successful preparation." );
@@ -1283,17 +1284,24 @@ namespace Core {
 	void WolfRenderer::RenderFrameRasterization() {
 		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
 
-		// Mask the offset float values as uint values.
+		// Slot 0: Mask the offset float values as uint values.
 		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
 
-		// Bind transform CBV at root parameter 1.
+		// Slot 1:Transform CBV.
 		m_cmdList->SetGraphicsRootConstantBufferView(
 			1, transformRaster.transformCB->GetGPUVirtualAddress() );
 
-		if ( showBackfaces )
+		// Slot 2: Scene Data.
+		m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCB->GetGPUVirtualAddress() );
+
+		memcpy( m_sceneDataCBMappedPtr, &sceneDataRaster, sizeof( sceneDataRaster ) );
+
+		if ( wireframe )
+			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+		else if ( showBackfaces )
 			m_cmdList->SetPipelineState( m_pipelineStateNoCull.Get() );
 		else
-			m_cmdList->SetPipelineState( m_pipelineState.Get() );
+			m_cmdList->SetPipelineState( m_pipelineState3D.Get() );
 
 		// IA stands for Input Assembler.
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
@@ -1314,7 +1322,7 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER1 rootParams[2]{};
+		D3D12_ROOT_PARAMETER1 rootParams[3]{};
 
 		// Param 0 - frameIdx.
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -1328,6 +1336,12 @@ namespace Core {
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[1].Descriptor.ShaderRegister = 1;
 		rootParams[1].Descriptor.RegisterSpace = 0;
+
+		// Param 2 - Scene data.
+		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[2].Descriptor.ShaderRegister = 2;
+		rootParams[2].Descriptor.RegisterSpace = 0;
 
 		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -1391,7 +1405,7 @@ namespace Core {
 
 		HRESULT hr = m_device->CreateGraphicsPipelineState(
 			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineState )
+			IID_PPV_ARGS( &m_pipelineState3D )
 		);
 		CHECK_HR( "Failed to create pipeline state.", hr, log );
 
@@ -1402,6 +1416,14 @@ namespace Core {
 			IID_PPV_ARGS( &m_pipelineStateNoCull )
 		);
 		CHECK_HR( "Failed to create pipeline state without backface culling.", hr, log );
+
+		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME; // Wireframe.
+		hr = m_device->CreateGraphicsPipelineState(
+			&psoDesc,
+			IID_PPV_ARGS( &m_pipelineStateEdges )
+		);
+		CHECK_HR( "Failed to create pipeline state for wireframe.", hr, log );
+
 		log( "[ Rasterization ] Pipeline state created." );
 	}
 
@@ -1598,6 +1620,29 @@ namespace Core {
 			&transformRaster.transformData,
 			sizeof( transformRaster.transformData )
 		);
+		log( "[ Rasterization ] Transform constant buffer created and mapped." );
+	}
+
+	void WolfRenderer::CreateSceneDataConstantBuffer() {
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( SceneDataRasterCB ) );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_sceneDataCB )
+		);
+		CHECK_HR( "Failed to create Scene Data constant buffer.", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_sceneDataCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_sceneDataCBMappedPtr) );
+		CHECK_HR( "Failed to map Scene Data constant buffer.", hr, log );
+
+		memcpy( m_sceneDataCBMappedPtr, &sceneDataRaster, sizeof( sceneDataRaster ) );
 		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
 

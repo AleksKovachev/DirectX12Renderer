@@ -12,9 +12,10 @@ If you have any issues building and running the application, you can try it out 
   <img src="docs/rt_screenshot.png" width="45%" />
   <img src="docs/raster_screenshot.png" width="45%" />
 </p>
-
-### GUI
-![GUI](docs/gui_raster.png)
+<p float="left">
+  <img src="docs/gui_raster_wireframe.png" width="45%" />
+  <img src="docs/gui_raster.png" width="45%" />
+</p>
 
 ### Video (Outdated)
 [![Demo video](docs/gui_rt.png)](https://youtu.be/sAdg-p7nPXE)
@@ -59,23 +60,9 @@ If you have any issues building and running the application, you can try it out 
 #### Rendering Modes
 - **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime.
 - **Scene Reloading at Runtime**: Pick and load a different scene to render without closing the application.
-- **Rasterization Pipeline**
-  - Traditional vertex/pixel shader pipeline.
-  - Configurable viewport and scissor rectangles.
-  - Root constants for dynamic geometry transformation.
-  - Hardware-optimized triangle rendering.
-  - Real-time camera panning support via mouse interaction.
+- **Rasterization Controls**: Real-time camera panning support via mouse interaction.
   
-- **Ray Tracing Pipeline (DXR)**
-  - DirectX Raytracing (DXR) implementation.
-  - Ray generation, closest hit, and miss shaders.
-  - Bottom-Level Acceleration Structures (BLAS) for geometry.
-  - Top-Level Acceleration Structures (TLAS) for scene instances.
-  - Shader Binding Table (SBT) management.
-  - Configurable ray recursion depth.
-  - UAV (Unordered Access View) output texture.
-  - Root constant for random-coloring geometry primitives.
-  - Real-time camera panning + WSAD+QE movement support via mouse and keyboard interaction.
+- **Ray Tracing Pipeline (DXR) Controls**: Real-time camera panning + WSAD+QE movement support via mouse and keyboard interaction.
 
 #### DirectX 12 Infrastructure
 - **Device Management**
@@ -127,6 +114,7 @@ If you have any issues building and running the application, you can try it out 
 
 #### Geometry Support
 - 3D vertices for both rasterization and ray tracing (X, Y, Z coordinates).
+- Dynamic geometry loading from `.crtscene` file (`JSON`).
 - Triangle primitive topology.
 - Vertex buffer view configuration.
 
@@ -138,7 +126,7 @@ If you have any issues building and running the application, you can try it out 
   - Custom viewport widget with native window handle for DirectX.
   - System accent color integration for theme consistency.
   - Menu bar with keyboard shortcuts.
-  - Automatic window aspect ratio correction based on loaded scene.
+  - Automatic aspect ratio correction based on window size.
   
 - **Rendering Mode Toggle**
   - Visual toggle switch (Rasterization ↔ Ray Tracing).

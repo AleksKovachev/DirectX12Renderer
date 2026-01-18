@@ -10,7 +10,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-struct RTCameraCB {
+struct alignas(16) RTCameraCB {
 	DirectX::XMFLOAT3 cameraPosition;
 	float verticalFOV;
 
@@ -25,7 +25,6 @@ struct RTCameraCB {
 	DirectX::XMFLOAT3 cameraUp;
 	float _pad1;
 };
-
 
 struct Camera {
 	static constexpr DirectX::XMVECTOR worldUp{ 0.f, 1.f, 0.f };

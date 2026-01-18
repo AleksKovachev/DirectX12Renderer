@@ -79,7 +79,7 @@ private slots:
 	void CameraPositionChangedRT();
 	void OnChangeSpeedMult( float );
 	void OnResize( float, float );
-	void SetAspectRatio();
+	void SetupGeomRasterColorPicker();
 };
 
 

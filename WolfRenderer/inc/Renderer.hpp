@@ -107,15 +107,26 @@ namespace Core {
 		}
 	};
 
+	struct alignas(16) SceneDataRasterCB {
+		float color[4] = { 1.f, 1.f, 1.f, 1.f }; // R, G, B, A
+
+		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
+		uint32_t disco{ 0 }; // Converted to bool in shader.
+		uint32_t discoSpeed{ 200 };
+		float _padding = 0.f;
+	};
+
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public: // Memebrs.
 		Scene scene{};
 		Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
-		BOOL renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
+		uint32_t randomColorsRT{ 1 }; ///< Bool, whether to color each triangle in a random color.
 		Transformation transformRaster{}; ///< Camera/object transformation data.
 		bool showBackfaces{ false }; ///< Whether to render backfaces in Raster mode.
+		bool wireframe{ false }; ///< Whether to render wireframe in Raster mode.
+		SceneDataRasterCB sceneDataRaster{}; ///< Scene data for rasterization mode.
 
 	public: // Functions.
 		/// Constructor
@@ -312,6 +323,9 @@ namespace Core {
 		/// Creates a constant buffer for transform matrix.
 		void CreateTransformConstantBuffer();
 
+		/// Creates a constant buffer for scene data.
+		void CreateSceneDataConstantBuffer();
+
 		/// Updates the transform matrix using interpolation from the current
 		/// offset and rotation values to the target ones.
 		void UpdateSmoothMotion();
@@ -422,7 +436,9 @@ namespace Core {
 		/// The root signature defining the resources bound to the pipeline.
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
 		/// The pipeline state object holding the pipeline configuration.
-		ComPtr<ID3D12PipelineState> m_pipelineState{ nullptr };
+		ComPtr<ID3D12PipelineState> m_pipelineState3D{ nullptr };
+		/// The pipeline state object holding the pipeline configuration.
+		ComPtr<ID3D12PipelineState> m_pipelineStateEdges{ nullptr };
 		/// Another pipeline state object without backface culling.
 		ComPtr<ID3D12PipelineState> m_pipelineStateNoCull{ nullptr };
 
@@ -481,6 +497,9 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_depthStencilBuffer{ nullptr };
 		ComPtr<ID3D12DescriptorHeap> m_dsvHeap{ nullptr };
 		DXGI_FORMAT m_depthFormat{ DXGI_FORMAT_D32_FLOAT };
+
+		ComPtr<ID3D12Resource> m_sceneDataCB{ nullptr };
+		UINT8* m_sceneDataCBMappedPtr = nullptr;
 
 		// General members.
 		size_t m_frameIdx{};        ///< Current frame index.
