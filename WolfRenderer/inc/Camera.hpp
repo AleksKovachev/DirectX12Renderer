@@ -17,13 +17,13 @@ struct RTCameraCB {
 	// For the rest, XMFLOAT4 would add an unused w component and remove the _pad.
 
 	DirectX::XMFLOAT3 cameraForward;
-	float _pad0;
+	float aspectRatio;
 
 	DirectX::XMFLOAT3 cameraRight;
-	float _pad1;
+	float _pad0;
 
 	DirectX::XMFLOAT3 cameraUp;
-	float _pad2;
+	float _pad1;
 };
 
 

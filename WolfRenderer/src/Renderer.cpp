@@ -253,7 +253,7 @@ namespace Core {
 			0, m_uavsrvHeap->GetGPUDescriptorHandleForHeapStart() );
 
 		// Slot 1: Root Constant.
-		m_cmdList->SetComputeRoot32BitConstant( 1, m_renderRandomColors, 0 );
+		m_cmdList->SetComputeRoot32BitConstant( 1, renderRandomColors, 0 );
 
 		// Slot 2: Camera Data.
 		m_cmdList->SetComputeRootConstantBufferView( 2, cameraRT.cb->GetGPUVirtualAddress() );
@@ -263,6 +263,7 @@ namespace Core {
 		cameraRT.cbData.cameraRight = cameraRT.right;
 		cameraRT.cbData.cameraUp = cameraRT.up;
 		cameraRT.cbData.verticalFOV = cameraRT.verticalFOV;
+		cameraRT.cbData.aspectRatio = cameraRT.aspectRatio;
 
 		memcpy( cameraRT.cbMappedPtr, &cameraRT.cbData, sizeof( cameraRT.cbData ) );
 
@@ -1244,6 +1245,11 @@ namespace Core {
 	 *  ##  ##  ##   ##  ######    ##    ######  ##  ## */
 
 	void WolfRenderer::PrepareForRasterization() {
+		// Calculate aspect ratio for the transform CB.
+		unsigned& width = scene.settings.renderWidth;
+		unsigned& height = scene.settings.renderHeight;
+		transformRaster.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
 		CreateRootSignature();
 		CreatePipelineState();
 		CreateVertexBuffer();
@@ -1282,9 +1288,12 @@ namespace Core {
 
 		// Bind transform CBV at root parameter 1.
 		m_cmdList->SetGraphicsRootConstantBufferView(
-			1, m_transform.transformCB->GetGPUVirtualAddress() );
+			1, transformRaster.transformCB->GetGPUVirtualAddress() );
 
-		m_cmdList->SetPipelineState( m_pipelineState.Get() );
+		if ( showBackfaces )
+			m_cmdList->SetPipelineState( m_pipelineStateNoCull.Get() );
+		else
+			m_cmdList->SetPipelineState( m_pipelineState.Get() );
 
 		// IA stands for Input Assembler.
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
@@ -1372,7 +1381,6 @@ namespace Core {
 		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
 		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT );
 		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-		//psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
 		psoDesc.DSVFormat = m_depthFormat;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -1386,6 +1394,14 @@ namespace Core {
 			IID_PPV_ARGS( &m_pipelineState )
 		);
 		CHECK_HR( "Failed to create pipeline state.", hr, log );
+
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
+
+		hr = m_device->CreateGraphicsPipelineState(
+			&psoDesc,
+			IID_PPV_ARGS( &m_pipelineStateNoCull )
+		);
+		CHECK_HR( "Failed to create pipeline state without backface culling.", hr, log );
 		log( "[ Rasterization ] Pipeline state created." );
 	}
 
@@ -1501,7 +1517,7 @@ namespace Core {
 	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
 		// Add mouse offset to target offset.
 		// Clamp values to prevent offscreen value accumulation.
-		Transformation& tr = m_transform;
+		Transformation& tr = transformRaster;
 
 		CalculateViewportBounds();
 
@@ -1514,23 +1530,23 @@ namespace Core {
 	}
 
 	void WolfRenderer::AddToOffsetZ( float dz ) {
-		m_transform.offsetZ += dz * m_transform.offsetZSensitivityFactor;
+		transformRaster.offsetZ += dz * transformRaster.offsetZSensitivityFactor;
 	}
 
 	void WolfRenderer::AddToOffsetFOV( float offset ) {
-		float angleRadians{ DirectX::XMConvertToRadians( offset * m_transform.FOVSensitivityFactor ) };
-		m_transform.FOVAngle += angleRadians;
+		float angleRadians{ DirectX::XMConvertToRadians( offset * transformRaster.FOVSensitivityFactor ) };
+		transformRaster.FOVAngle += angleRadians;
 
 		// A value near 0 causes division by 0 and crashes the application.
 		// Clamping the value stops FOV at max zoom. Adding it again makes it
 		// go over to the negative numbers, causing inverted projection.
-		if ( DirectX::XMScalarNearEqual( m_transform.FOVAngle, 0.f, 0.00001f * 2.f ) )
-			m_transform.FOVAngle += angleRadians;
+		if ( DirectX::XMScalarNearEqual( transformRaster.FOVAngle, 0.f, 0.00001f * 2.f ) )
+			transformRaster.FOVAngle += angleRadians;
 	}
 
 	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
-		m_transform.targetRotationX += deltaAngleX * m_transform.rotationSensitivityFactor;
-		m_transform.targetRotationY += deltaAngleY * m_transform.rotationSensitivityFactor;
+		transformRaster.targetRotationX += deltaAngleX * transformRaster.rotationSensitivityFactor;
+		transformRaster.targetRotationY += deltaAngleY * transformRaster.rotationSensitivityFactor;
 	}
 
 	void WolfRenderer::SetAppData( App* appData ) {
@@ -1566,27 +1582,27 @@ namespace Core {
 			&resDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS( &m_transform.transformCB )
+			IID_PPV_ARGS( &transformRaster.transformCB )
 		);
 		CHECK_HR( "Failed to create Transform constant buffer.", hr, log );
 
 		// Map permanently for CPU writes
-		hr = m_transform.transformCB->Map(
-			0, nullptr, reinterpret_cast<void**>(&m_transform.transformCBMappedPtr) );
+		hr = transformRaster.transformCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&transformRaster.transformCBMappedPtr) );
 		CHECK_HR( "Failed to map Transform constant buffer.", hr, log );
 
 		// Initialize to identity matrix
-		DirectX::XMStoreFloat4x4( &m_transform.transformData.mat, DirectX::XMMatrixIdentity() );
+		DirectX::XMStoreFloat4x4( &transformRaster.transformData.mat, DirectX::XMMatrixIdentity() );
 		memcpy(
-			m_transform.transformCBMappedPtr,
-			&m_transform.transformData,
-			sizeof( m_transform.transformData )
+			transformRaster.transformCBMappedPtr,
+			&transformRaster.transformData,
+			sizeof( transformRaster.transformData )
 		);
 		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
 
 	void WolfRenderer::UpdateSmoothMotion() {
-		Transformation& tr{ m_transform };
+		Transformation& tr{ transformRaster };
 
 		// Compute smoothing factor for movement (frame-rate independent).
 		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * m_app->deltaTime);
@@ -1636,10 +1652,6 @@ namespace Core {
 		DirectX::XMMATRIX WorldView = World * View;
 
 		// Create projection matrix (for simulating a camera).
-		unsigned& width = scene.settings.renderWidth;
-		unsigned& height = scene.settings.renderHeight;
-		tr.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-
 		// Swap nearZ and farZ to use "reverse-Z" for better precision.
 		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
 			tr.FOVAngle, tr.aspectRatio, tr.farZ, tr.nearZ );
@@ -1651,14 +1663,14 @@ namespace Core {
 	}
 
 	void WolfRenderer::CalculateViewportBounds() {
-		float depth = std::abs( m_transform.offsetZ );
+		float depth = std::abs( transformRaster.offsetZ );
 
-		float halfHeight = depth * std::tan( m_transform.FOVAngle * 0.5f );
-		float halfWidth = halfHeight * m_transform.aspectRatio;
+		float halfHeight = depth * std::tan( transformRaster.FOVAngle * 0.5f );
+		float halfWidth = halfHeight * transformRaster.aspectRatio;
 
 		// If the object does not fit, lock movement instead of exploding.
-		m_transform.boundsX = std::abs( halfWidth - m_transform.dummyObjectRadius );
-		m_transform.boundsY = std::abs( halfHeight - m_transform.dummyObjectRadius );
+		transformRaster.boundsX = std::abs( halfWidth - transformRaster.dummyObjectRadius );
+		transformRaster.boundsY = std::abs( halfHeight - transformRaster.dummyObjectRadius );
 	}
 
 	void WolfRenderer::CreateDepthStencil() {

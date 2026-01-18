@@ -19,6 +19,8 @@ WolfMainWindow::WolfMainWindow( QWidget* parent )
 	QString switchStyle = QString(
 		"QCheckBox:checked { background-color: %1; }").arg( accentColor.name() );
 	m_ui.renderModeSwitch->setStyleSheet( m_ui.renderModeSwitch->styleSheet() + switchStyle );
+	m_ui.randomColorsSwitchRT->setStyleSheet( m_ui.randomColorsSwitchRT->styleSheet() + switchStyle );
+	m_ui.showBackfacesSwitch->setStyleSheet( m_ui.showBackfacesSwitch->styleSheet() + switchStyle );
 
 	// Connect the menu action to the render mode switch.
 	connect( m_ui.actionToggleRenderMode, &QAction::triggered, [this]() {
