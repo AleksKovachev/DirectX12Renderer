@@ -180,7 +180,7 @@ namespace Core {
 		WaitForGPUSync();
 	}
 
-	void WolfRenderer::RenderFrame( CameraInput& cameraInput ) {
+	void WolfRenderer::RenderFrame( RT::CameraInput& cameraInput ) {
 		static auto last = hrClock::now();
 		auto now = hrClock::now();
 
@@ -1174,7 +1174,7 @@ namespace Core {
 		log( "[ Ray Tracing ] TLAS shader resource view created." );
 	}
 
-	void WolfRenderer::UpdateRTCamera( CameraInput& input ) {
+	void WolfRenderer::UpdateRTCamera( RT::CameraInput& input ) {
 		using namespace DirectX;
 
 		cameraRT.yaw += input.mouseDeltaX * cameraRT.mouseSensitivity;
@@ -1217,7 +1217,7 @@ namespace Core {
 
 	void WolfRenderer::CreateCameraConstantBuffer() {
 		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( RTCameraCB ) );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( RT::CameraCB ) );
 
 		HRESULT hr = m_device->CreateCommittedResource(
 			&heapProps,
@@ -1248,7 +1248,7 @@ namespace Core {
 		// Calculate aspect ratio for the transform CB.
 		unsigned& width = scene.settings.renderWidth;
 		unsigned& height = scene.settings.renderHeight;
-		transformRaster.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		cameraRaster.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
 		CreateRootSignature();
 		CreatePipelineState();
@@ -1289,7 +1289,7 @@ namespace Core {
 
 		// Slot 1:Transform CBV.
 		m_cmdList->SetGraphicsRootConstantBufferView(
-			1, transformRaster.transformCB->GetGPUVirtualAddress() );
+			1, cameraRaster.transformCB->GetGPUVirtualAddress() );
 
 		// Slot 2: Scene Data.
 		m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCB->GetGPUVirtualAddress() );
@@ -1539,7 +1539,7 @@ namespace Core {
 	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
 		// Add mouse offset to target offset.
 		// Clamp values to prevent offscreen value accumulation.
-		Transformation& tr = transformRaster;
+		Raster::Transformation& tr = cameraRaster;
 
 		CalculateViewportBounds();
 
@@ -1552,23 +1552,23 @@ namespace Core {
 	}
 
 	void WolfRenderer::AddToOffsetZ( float dz ) {
-		transformRaster.offsetZ += dz * transformRaster.offsetZSensitivityFactor;
+		cameraRaster.offsetZ += dz * cameraRaster.offsetZSensitivityFactor;
 	}
 
 	void WolfRenderer::AddToOffsetFOV( float offset ) {
-		float angleRadians{ DirectX::XMConvertToRadians( offset * transformRaster.FOVSensitivityFactor ) };
-		transformRaster.FOVAngle += angleRadians;
+		float angleRadians{ DirectX::XMConvertToRadians( offset * cameraRaster.FOVSensitivityFactor ) };
+		cameraRaster.FOVAngle += angleRadians;
 
 		// A value near 0 causes division by 0 and crashes the application.
 		// Clamping the value stops FOV at max zoom. Adding it again makes it
 		// go over to the negative numbers, causing inverted projection.
-		if ( DirectX::XMScalarNearEqual( transformRaster.FOVAngle, 0.f, 0.00001f * 2.f ) )
-			transformRaster.FOVAngle += angleRadians;
+		if ( DirectX::XMScalarNearEqual( cameraRaster.FOVAngle, 0.f, 0.00001f * 2.f ) )
+			cameraRaster.FOVAngle += angleRadians;
 	}
 
 	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
-		transformRaster.targetRotationX += deltaAngleX * transformRaster.rotationSensitivityFactor;
-		transformRaster.targetRotationY += deltaAngleY * transformRaster.rotationSensitivityFactor;
+		cameraRaster.targetRotationX += deltaAngleX * cameraRaster.rotationSensitivityFactor;
+		cameraRaster.targetRotationY += deltaAngleY * cameraRaster.rotationSensitivityFactor;
 	}
 
 	void WolfRenderer::SetAppData( App* appData ) {
@@ -1593,7 +1593,7 @@ namespace Core {
 
 	void WolfRenderer::CreateTransformConstantBuffer() {
 		// Constant buffer must be 256-byte aligned. This is a precaution, should already be 256 bytes.
-		const UINT cbSize = (sizeof( Transformation::TransformData ) + 255) & ~255;
+		const UINT cbSize = (sizeof( Raster::Transformation::TransformDataCB ) + 255) & ~255;
 
 		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
 		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbSize );
@@ -1604,21 +1604,21 @@ namespace Core {
 			&resDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS( &transformRaster.transformCB )
+			IID_PPV_ARGS( &cameraRaster.transformCB )
 		);
 		CHECK_HR( "Failed to create Transform constant buffer.", hr, log );
 
 		// Map permanently for CPU writes
-		hr = transformRaster.transformCB->Map(
-			0, nullptr, reinterpret_cast<void**>(&transformRaster.transformCBMappedPtr) );
+		hr = cameraRaster.transformCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&cameraRaster.transformCBMappedPtr) );
 		CHECK_HR( "Failed to map Transform constant buffer.", hr, log );
 
 		// Initialize to identity matrix
-		DirectX::XMStoreFloat4x4( &transformRaster.transformData.mat, DirectX::XMMatrixIdentity() );
+		DirectX::XMStoreFloat4x4( &cameraRaster.cbData.mat, DirectX::XMMatrixIdentity() );
 		memcpy(
-			transformRaster.transformCBMappedPtr,
-			&transformRaster.transformData,
-			sizeof( transformRaster.transformData )
+			cameraRaster.transformCBMappedPtr,
+			&cameraRaster.cbData,
+			sizeof( cameraRaster.cbData )
 		);
 		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
@@ -1647,7 +1647,7 @@ namespace Core {
 	}
 
 	void WolfRenderer::UpdateSmoothMotion() {
-		Transformation& tr{ transformRaster };
+		Raster::Transformation& tr{ cameraRaster };
 
 		// Compute smoothing factor for movement (frame-rate independent).
 		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * m_app->deltaTime);
@@ -1683,9 +1683,9 @@ namespace Core {
 		// Create a world-view matrix. Multiplication order matters! Rotation,
 		// then translation - transform around world origin. Otherwise - around geometry origin.
 		DirectX::XMMATRIX World{};
-		if ( tr.coordinateSystem == TransformCoordinateSystem::Local )
+		if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::Local )
 			World = Rot * Trans;
-		else if ( tr.coordinateSystem == TransformCoordinateSystem::World )
+		else if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::World )
 			World = Trans * Rot;
 
 		DirectX::XMMATRIX View = DirectX::XMMatrixLookAtLH(
@@ -1701,21 +1701,24 @@ namespace Core {
 		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
 			tr.FOVAngle, tr.aspectRatio, tr.farZ, tr.nearZ );
 
-		XMStoreFloat4x4( &tr.transformData.mat, DirectX::XMMatrixTranspose( WorldView ) );
-		XMStoreFloat4x4( &tr.transformData.projection, DirectX::XMMatrixTranspose( Proj ) );
+		XMStoreFloat4x4( &tr.cbData.mat, DirectX::XMMatrixTranspose( WorldView ) );
+		XMStoreFloat4x4( &tr.cbData.projection, DirectX::XMMatrixTranspose( Proj ) );
 
-		memcpy( tr.transformCBMappedPtr, &tr.transformData, sizeof( tr.transformData ) );
+		//XMStoreFloat4x4( &tr.cbData.mat, WorldView );
+		//XMStoreFloat4x4( &tr.cbData.projection,Proj );
+
+		memcpy( tr.transformCBMappedPtr, &tr.cbData, sizeof( tr.cbData ) );
 	}
 
 	void WolfRenderer::CalculateViewportBounds() {
-		float depth = std::abs( transformRaster.offsetZ );
+		float depth = std::abs( cameraRaster.offsetZ );
 
-		float halfHeight = depth * std::tan( transformRaster.FOVAngle * 0.5f );
-		float halfWidth = halfHeight * transformRaster.aspectRatio;
+		float halfHeight = depth * std::tan( cameraRaster.FOVAngle * 0.5f );
+		float halfWidth = halfHeight * cameraRaster.aspectRatio;
 
 		// If the object does not fit, lock movement instead of exploding.
-		transformRaster.boundsX = std::abs( halfWidth - transformRaster.dummyObjectRadius );
-		transformRaster.boundsY = std::abs( halfHeight - transformRaster.dummyObjectRadius );
+		cameraRaster.boundsX = std::abs( halfWidth - cameraRaster.dummyObjectRadius );
+		cameraRaster.boundsY = std::abs( halfHeight - cameraRaster.dummyObjectRadius );
 	}
 
 	void WolfRenderer::CreateDepthStencil() {

@@ -33,12 +33,11 @@ using Microsoft::WRL::ComPtr;
 struct IDxcBlob;
 struct Transformation;
 
-/// Application-level settings and data.
-struct App {
-	float deltaTime{};
-};
-
 namespace Core {
+	/// Application-level settings and data.
+	struct App {
+		float deltaTime{};
+	};
 
 	/// The mode to use for rendering.
 	enum class RenderMode {
@@ -51,60 +50,6 @@ namespace Core {
 		Rasterization,
 		RayTracing,
 		Both
-	};
-
-	enum class TransformCoordinateSystem {
-		World,
-		Local
-	};
-
-	/// Transformation-related data for controlling renderer from the GUI.
-	struct Transformation {
-		/// The transform matrix used in the constant buffer to update object position.
-		ComPtr<ID3D12Resource> transformCB{ nullptr };
-
-		// Members related to geometry transform with mouse movemet.
-		float currOffsetX{};
-		float currOffsetY{};
-		float targetOffsetX{};
-		float targetOffsetY{};
-		float offsetZ{ 35.f };
-
-		float dummyObjectRadius{ 0.5f }; ///< Used for offset clamping to viewport bounds.
-		float boundsX{};
-		float boundsY{};
-
-		float rotationSensitivityFactor{ 0.001f };
-		float offsetZSensitivityFactor{ 0.5f };
-		float FOVSensitivityFactor{ 0.1f };
-		float offsetXYSensitivityFactor{ 0.01f };
-
-		float currRotationX{};   // Radians
-		float currRotationY{};   // Radians
-		float targetRotationX{}; // Radians
-		float targetRotationY{}; // Radians
-
-		// Motion speed and sensitivity.
-		float smoothOffsetLerp{ 2.f };
-		float smoothRotationLambda{ 6.f };
-
-		UINT8* transformCBMappedPtr = nullptr;
-
-		float FOVAngle{ DirectX::XMConvertToRadians( 45.f ) };
-		float aspectRatio{ 1.f }; ///< Calculate with render width/height.
-		float nearZ{ 0.1f }; ///< Camera near clipping plane.
-		float farZ{ 1000.f }; ///< Camera far clipping plane.
-
-		TransformCoordinateSystem coordinateSystem{ TransformCoordinateSystem::Local };
-
-		struct alignas(256) TransformData {
-			DirectX::XMFLOAT4X4 mat;
-			DirectX::XMFLOAT4X4 projection;
-		} transformData;
-
-		void SetFOVDeg( float degrees ) {
-			FOVAngle = DirectX::XMConvertToRadians( degrees );
-		}
 	};
 
 	struct alignas(16) SceneDataRasterCB {
@@ -120,10 +65,10 @@ namespace Core {
 	class WolfRenderer {
 	public: // Memebrs.
 		Scene scene{};
-		Camera cameraRT{}; ///< Camera used for RT mode.
+		RT::Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
 		uint32_t randomColorsRT{ 1 }; ///< Bool, whether to color each triangle in a random color.
-		Transformation transformRaster{}; ///< Camera/object transformation data.
+		Raster::Transformation cameraRaster{}; ///< Camera/object transformation data.
 		bool showBackfaces{ false }; ///< Whether to render backfaces in Raster mode.
 		bool wireframe{ false }; ///< Whether to render wireframe in Raster mode.
 		SceneDataRasterCB sceneDataRaster{}; ///< Scene data for rasterization mode.
@@ -155,7 +100,7 @@ namespace Core {
 
 		/// Executes the rendering commands and handles GPU-CPU synchronization.
 		/// @param[in] cameraInput  Camera input data for the frame. Used in RT mode.
-		void RenderFrame( CameraInput& );
+		void RenderFrame( RT::CameraInput& );
 
 		/// Sets the rendering mode to the provided one.
 		void SetRenderMode( RenderMode );
@@ -287,7 +232,7 @@ namespace Core {
 		void CreateTLASShaderResourceView();
 
 		/// Updates the camera parameters in the constant buffer. Used in RT mode.
-		void UpdateRTCamera( CameraInput& );
+		void UpdateRTCamera( RT::CameraInput& );
 
 		/// Creates a constant buffer for the camera parameters used in RT mode.
 		void CreateCameraConstantBuffer();
