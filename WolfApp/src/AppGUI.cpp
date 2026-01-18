@@ -21,10 +21,11 @@ WolfMainWindow::WolfMainWindow( QWidget* parent )
 	m_ui.renderModeSwitch->setStyleSheet( m_ui.renderModeSwitch->styleSheet() + switchStyle );
 	m_ui.randomColorsRTSwitch->setStyleSheet( m_ui.randomColorsRTSwitch->styleSheet() + switchStyle );
 	m_ui.showBackfacesSwitch->setStyleSheet( m_ui.showBackfacesSwitch->styleSheet() + switchStyle );
-	m_ui.wireframeRasterSwitch->setStyleSheet( m_ui.wireframeRasterSwitch->styleSheet() + switchStyle );
-	m_ui.wireframeRasterSwitch->setStyleSheet( m_ui.wireframeRasterSwitch->styleSheet() + switchStyle );
+	m_ui.renderEdgesRasterSwitch->setStyleSheet( m_ui.renderEdgesRasterSwitch->styleSheet() + switchStyle );
 	m_ui.randomColorsRasterSwitch->setStyleSheet( m_ui.randomColorsRasterSwitch->styleSheet() + switchStyle );
 	m_ui.discoModeRasterSwitch->setStyleSheet( m_ui.discoModeRasterSwitch->styleSheet() + switchStyle );
+	m_ui.renderFacesRasterSwitch->setStyleSheet( m_ui.renderFacesRasterSwitch->styleSheet() + switchStyle );
+	m_ui.renderVertsRasterSwitch->setStyleSheet( m_ui.renderVertsRasterSwitch->styleSheet() + switchStyle );
 
 	// Connect the menu action to the render mode switch.
 	connect( m_ui.actionToggleRenderMode, &QAction::triggered, [this]() {

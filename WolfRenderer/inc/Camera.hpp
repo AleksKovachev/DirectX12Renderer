@@ -151,6 +151,12 @@ namespace Raster {
 			FOVAngle = DirectX::XMConvertToRadians( degrees );
 		}
 	};
+
+	struct alignas(16) ScreenConstants {
+		DirectX::XMFLOAT2 viewportSize;
+		float vertSize;
+		float _padding{ 0.f };
+	};
 }
 
 #endif // CAMERA_HPP

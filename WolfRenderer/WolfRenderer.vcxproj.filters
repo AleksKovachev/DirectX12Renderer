@@ -79,5 +79,8 @@
   <ItemGroup>
     <FxCompile Include="shaders\ConstColor.hlsl" />
     <FxCompile Include="shaders\ConstColorVS.hlsl" />
+    <FxCompile Include="shaders\ConstColorVertexPass.hlsl" />
+    <FxCompile Include="shaders\GeometryShader.hlsl" />
+    <FxCompile Include="shaders\ConstColorWireframePass.hlsl" />
   </ItemGroup>
 </Project>
