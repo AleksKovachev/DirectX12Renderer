@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1281</width>
-    <height>1020</height>
+    <width>1887</width>
+    <height>1211</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -251,7 +251,7 @@ QCheckBox::indicator:checked {
            <x>0</x>
            <y>0</y>
            <width>268</width>
-           <height>839</height>
+           <height>1030</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -497,14 +497,14 @@ Sprint speed = Move Speed × Speed Multiplier..</string>
               </widget>
              </item>
              <item row="6" column="0">
-              <widget class="QLabel" name="randomColorsLbl">
+              <widget class="QLabel" name="randomColorsRTLbl">
                <property name="text">
                 <string>Random Colors</string>
                </property>
               </widget>
              </item>
              <item row="6" column="1">
-              <widget class="QCheckBox" name="randomColorsSwitchRT">
+              <widget class="QCheckBox" name="randomColorsRTSwitch">
                <property name="minimumSize">
                 <size>
                  <width>50</width>
@@ -1228,6 +1228,286 @@ This value changes when the window is resized.</string>
                </layout>
               </widget>
              </item>
+             <item row="20" column="0">
+              <widget class="QLabel" name="wireframeRasterLbl">
+               <property name="text">
+                <string>Wireframe</string>
+               </property>
+              </widget>
+             </item>
+             <item row="20" column="1">
+              <widget class="QCheckBox" name="wireframeRasterSwitch">
+               <property name="toolTip">
+                <string>Render geometry in wireframe.</string>
+               </property>
+               <property name="statusTip">
+                <string>Render geometry in wireframe.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="21" column="0">
+              <widget class="QLabel" name="randomColorsRasterLbl">
+               <property name="text">
+                <string>Random Colors</string>
+               </property>
+              </widget>
+             </item>
+             <item row="21" column="1">
+              <widget class="QCheckBox" name="randomColorsRasterSwitch">
+               <property name="toolTip">
+                <string>Switch between rendering geometry
+in solid color and each triangle
+having a random color.</string>
+               </property>
+               <property name="statusTip">
+                <string>Switch between rendering geometry in solid color and each triangle having a random color.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="22" column="0">
+              <widget class="QLabel" name="discoModeRasterLbl">
+               <property name="text">
+                <string>Disco Mode</string>
+               </property>
+              </widget>
+             </item>
+             <item row="22" column="1">
+              <widget class="QCheckBox" name="discoModeRasterSwitch">
+               <property name="toolTip">
+                <string>Turn on disco mode!</string>
+               </property>
+               <property name="statusTip">
+                <string>Turn on disco mode!</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="24" column="0">
+              <widget class="QLabel" name="geomColorRasterLbl">
+               <property name="text">
+                <string>Geometry Color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="24" column="1">
+              <widget class="QToolButton" name="geomColorRasterBtn">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+               </property>
+               <property name="toolTip">
+                <string>Choose geometry color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="statusTip">
+                <string>Choose geometry color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">QToolButton {
+	background-color:rgb(255, 255, 255);;
+	border-radius: 6px;
+}
+
+QToolButton:hover {
+	background-color: rgb(128, 128, 128);
+	border: 1px;
+	border-radius: 6px;
+}
+</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="23" column="0">
+              <widget class="QLabel" name="discoModeSpeedLbl">
+               <property name="text">
+                <string>Disco Speed</string>
+               </property>
+              </widget>
+             </item>
+             <item row="23" column="1">
+              <widget class="QSpinBox" name="discoModeSpeedSpin">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="maximum">
+                <number>10000</number>
+               </property>
+               <property name="value">
+                <number>800</number>
+               </property>
+               <property name="displayIntegerBase">
+                <number>10</number>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -1263,7 +1543,7 @@ This value changes when the window is resized.</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1281</width>
+     <width>1887</width>
      <height>21</height>
     </rect>
    </property>
@@ -1474,7 +1754,7 @@ This value changes when the window is resized.</string>
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>randomColorsLbl</receiver>
+   <receiver>randomColorsRTLbl</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -1490,7 +1770,7 @@ This value changes when the window is resized.</string>
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>randomColorsSwitchRT</receiver>
+   <receiver>randomColorsRTSwitch</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -1884,6 +2164,182 @@ This value changes when the window is resized.</string>
     <hint type="destinationlabel">
      <x>199</x>
      <y>729</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>wireframeRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>47</x>
+     <y>798</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>wireframeRasterSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>798</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>randomColorsRasterSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>830</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>randomColorsRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>60</x>
+     <y>830</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>discoModeRasterSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>862</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>discoModeRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>51</x>
+     <y>862</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>geomColorRasterBtn</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1933</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>924</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>geomColorRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1933</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>61</x>
+     <y>924</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>discoModeSpeedSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1933</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>894</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>discoModeSpeedLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1933</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>52</x>
+     <y>894</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>discoModeRasterSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>discoModeSpeedSpin</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>189</x>
+     <y>862</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>894</y>
     </hint>
    </hints>
   </connection>
