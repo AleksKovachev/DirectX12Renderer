@@ -11,6 +11,9 @@
 
 #include "ConstColor.hlsl.h"
 #include "ConstColorVS.hlsl.h"
+#include "ConstColorVertexPass.hlsl.h"
+#include "ConstColorWireframePass.hlsl.h"
+#include "GeometryShader.hlsl.h"
 
 #include <algorithm> // clamp
 #include <cassert> // assert
@@ -1255,6 +1258,7 @@ namespace Core {
 		CreateVertexBuffer();
 		CreateTransformConstantBuffer();
 		CreateSceneDataConstantBuffer();
+		CreateScreenDataConstantBuffer();
 		CreateViewport();
 		CreateDepthStencil();
 		log( "[ Rasterization ] Successful preparation." );
@@ -1296,21 +1300,42 @@ namespace Core {
 
 		memcpy( m_sceneDataCBMappedPtr, &sceneDataRaster, sizeof( sceneDataRaster ) );
 
-		if ( wireframe )
-			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
-		else if ( showBackfaces )
-			m_cmdList->SetPipelineState( m_pipelineStateNoCull.Get() );
-		else
-			m_cmdList->SetPipelineState( m_pipelineState3D.Get() );
-
-		// IA stands for Input Assembler.
-		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
 
 		m_cmdList->RSSetViewports( 1, &m_viewport );
 		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-		m_cmdList->DrawInstanced( static_cast<UINT>( m_vertexCount ), 1, 0, 0 );
+		// Slot 3: Screen Data.
+		m_cmdList->SetGraphicsRootConstantBufferView( 3, m_screenDataCB->GetGPUVirtualAddress() );
+
+		screenDataRaster.viewportSize = { static_cast<float>(scene.settings.renderWidth),
+								  static_cast<float>(scene.settings.renderWidth) };
+		screenDataRaster.vertSize = vertexSize;
+		memcpy( m_screenDataCBMappedPtr, &screenDataRaster, sizeof( screenDataRaster ) );
+
+		if ( renderFaces ) {
+			ID3D12PipelineState* state;
+			if ( showBackfaces )
+				state = m_pipelineStateNoCull.Get();
+			else
+				state = m_pipelineStateFaces.Get();
+			m_cmdList->SetPipelineState( state );
+		}
+
+		// IA stands for Input Assembler.
+		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+		m_cmdList->DrawInstanced( static_cast<UINT>(m_vertexCount), 1, 0, 0 );
+
+		if ( renderEdges ) {
+			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+			m_cmdList->DrawInstanced( static_cast<UINT>( m_vertexCount ), 1, 0, 0 );
+		}
+
+		if ( renderVerts ) {
+			m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
+			m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_POINTLIST );
+			m_cmdList->DrawInstanced( static_cast<UINT>( m_vertexCount ), 1, 0, 0 );
+		}
 	}
 
 	void WolfRenderer::FrameEndRasterization() {
@@ -1322,26 +1347,33 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER1 rootParams[3]{};
+		D3D12_ROOT_PARAMETER1 rootParams[4]{};
+		uint8_t shaderRegisterCBV{};
 
 		// Param 0 - frameIdx.
 		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[0].Constants.ShaderRegister = 0;
+		rootParams[0].Constants.ShaderRegister = shaderRegisterCBV++;
 		rootParams[0].Constants.RegisterSpace = 0;
 		rootParams[0].Constants.Num32BitValues = 1;
 
 		// Param 1 - transform matrix.
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[1].Descriptor.ShaderRegister = 1;
+		rootParams[1].Descriptor.ShaderRegister = shaderRegisterCBV++;
 		rootParams[1].Descriptor.RegisterSpace = 0;
 
 		// Param 2 - Scene data.
 		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[2].Descriptor.ShaderRegister = 2;
+		rootParams[2].Descriptor.ShaderRegister = shaderRegisterCBV++;
 		rootParams[2].Descriptor.RegisterSpace = 0;
+
+		// Param 3 - Screen data.
+		rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[3].Descriptor.ShaderRegister = shaderRegisterCBV++;
+		rootParams[3].Descriptor.RegisterSpace = 0;
 
 		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -1393,21 +1425,21 @@ namespace Core {
 		psoDesc.InputLayout = { inputLayout, _countof( inputLayout ) };
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
 		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
-		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT );
+		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT ); // DepthEnable = TRUE
 		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
 		psoDesc.DSVFormat = m_depthFormat;
 		psoDesc.SampleMask = UINT_MAX;
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;
 		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc.Count = 1;
+		psoDesc.SampleDesc.Count = 1; // MSAA multiplier. 1x - No MSAA. (2x, 4x, 8x).
 		psoDesc.SampleDesc.Quality = 0;
 
 		HRESULT hr = m_device->CreateGraphicsPipelineState(
 			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineState3D )
+			IID_PPV_ARGS( &m_pipelineStateFaces )
 		);
-		CHECK_HR( "Failed to create pipeline state.", hr, log );
+		CHECK_HR( "Failed to create pipeline state for faces.", hr, log );
 
 		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
 
@@ -1417,12 +1449,26 @@ namespace Core {
 		);
 		CHECK_HR( "Failed to create pipeline state without backface culling.", hr, log );
 
+		psoDesc.PS = { g_const_color_wire_ps, _countof( g_const_color_wire_ps ) };
 		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME; // Wireframe.
 		hr = m_device->CreateGraphicsPipelineState(
 			&psoDesc,
 			IID_PPV_ARGS( &m_pipelineStateEdges )
 		);
-		CHECK_HR( "Failed to create pipeline state for wireframe.", hr, log );
+		CHECK_HR( "Failed to create pipeline state for edges.", hr, log );
+
+		psoDesc.PS = { g_const_color_verts_ps, _countof( g_const_color_verts_ps ) };
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+		psoDesc.GS = { g_geometry_shader_gs, _countof( g_geometry_shader_gs ) };
+		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+
+		hr = m_device->CreateGraphicsPipelineState(
+			&psoDesc,
+			IID_PPV_ARGS( &m_pipelineStateVertices )
+		);
+		CHECK_HR( "Failed to create pipeline state for verteices.", hr, log );
 
 		log( "[ Rasterization ] Pipeline state created." );
 	}
@@ -1643,6 +1689,29 @@ namespace Core {
 		CHECK_HR( "Failed to map Scene Data constant buffer.", hr, log );
 
 		memcpy( m_sceneDataCBMappedPtr, &sceneDataRaster, sizeof( sceneDataRaster ) );
+		log( "[ Rasterization ] Transform constant buffer created and mapped." );
+	}
+
+	void WolfRenderer::CreateScreenDataConstantBuffer() {
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::ScreenConstants ) );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_screenDataCB )
+		);
+		CHECK_HR( "Failed to create Screen Data constant buffer.", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_screenDataCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_screenDataCBMappedPtr) );
+		CHECK_HR( "Failed to map Screen Data constant buffer.", hr, log );
+
+		memcpy( m_screenDataCBMappedPtr, &screenDataRaster, sizeof( screenDataRaster ) );
 		log( "[ Rasterization ] Transform constant buffer created and mapped." );
 	}
 

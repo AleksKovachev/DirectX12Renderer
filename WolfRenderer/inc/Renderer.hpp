@@ -64,14 +64,18 @@ namespace Core {
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public: // Memebrs.
+		bool renderFaces{ true }; ///< Whether to render a faces in Raster mode.
+		bool renderEdges{ false }; ///< Whether to render edges in Raster mode.
+		bool renderVerts{ false }; ///< Whether to render vertices in Raster mode.
 		Scene scene{};
 		RT::Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
 		uint32_t randomColorsRT{ 1 }; ///< Bool, whether to color each triangle in a random color.
 		Raster::Transformation cameraRaster{}; ///< Camera/object transformation data.
 		bool showBackfaces{ false }; ///< Whether to render backfaces in Raster mode.
-		bool wireframe{ false }; ///< Whether to render wireframe in Raster mode.
 		SceneDataRasterCB sceneDataRaster{}; ///< Scene data for rasterization mode.
+		Raster::ScreenConstants screenDataRaster{};
+		float vertexSize{ 2.f };
 
 	public: // Functions.
 		/// Constructor
@@ -271,6 +275,9 @@ namespace Core {
 		/// Creates a constant buffer for scene data.
 		void CreateSceneDataConstantBuffer();
 
+		/// Creates a constant buffer for screen data.
+		void CreateScreenDataConstantBuffer();
+
 		/// Updates the transform matrix using interpolation from the current
 		/// offset and rotation values to the target ones.
 		void UpdateSmoothMotion();
@@ -380,12 +387,14 @@ namespace Core {
 		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
 		/// The root signature defining the resources bound to the pipeline.
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
-		/// The pipeline state object holding the pipeline configuration.
-		ComPtr<ID3D12PipelineState> m_pipelineState3D{ nullptr };
-		/// The pipeline state object holding the pipeline configuration.
-		ComPtr<ID3D12PipelineState> m_pipelineStateEdges{ nullptr };
+		/// The pipeline state object holding the pipeline configuration for rendering faces.
+		ComPtr<ID3D12PipelineState> m_pipelineStateFaces{ nullptr };
 		/// Another pipeline state object without backface culling.
 		ComPtr<ID3D12PipelineState> m_pipelineStateNoCull{ nullptr };
+		/// Another pipeline state object for rendering edges.
+		ComPtr<ID3D12PipelineState> m_pipelineStateEdges{ nullptr };
+		/// Another pipeline state object for rendering vertices.
+		ComPtr<ID3D12PipelineState> m_pipelineStateVertices{ nullptr };
 
 		/// Viewport for rendering.
 		D3D12_VIEWPORT m_viewport{};
@@ -445,6 +454,9 @@ namespace Core {
 
 		ComPtr<ID3D12Resource> m_sceneDataCB{ nullptr };
 		UINT8* m_sceneDataCBMappedPtr = nullptr;
+
+		ComPtr<ID3D12Resource> m_screenDataCB{ nullptr };
+		UINT8* m_screenDataCBMappedPtr = nullptr;
 
 		// General members.
 		size_t m_frameIdx{};        ///< Current frame index.

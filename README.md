@@ -203,6 +203,7 @@ DirectX12Renderer
 - Bind root signature and vertex buffer.
 - Configure viewport/scissor.
 - Issue draw call with root constants (frame index, pan offsets).
+- Support for different passes (faces, edges, vertices).
 
 **Ray Tracing**:
 - Set compute root signature.

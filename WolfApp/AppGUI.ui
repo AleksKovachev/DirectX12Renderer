@@ -1228,20 +1228,20 @@ This value changes when the window is resized.</string>
                </layout>
               </widget>
              </item>
-             <item row="21" column="0">
-              <widget class="QLabel" name="wireframeRasterLbl">
+             <item row="22" column="0">
+              <widget class="QLabel" name="renderEdgesRasterLbl">
                <property name="text">
-                <string>Wireframe</string>
+                <string>Render Edges</string>
                </property>
               </widget>
              </item>
-             <item row="21" column="1">
-              <widget class="QCheckBox" name="wireframeRasterSwitch">
+             <item row="22" column="1">
+              <widget class="QCheckBox" name="renderEdgesRasterSwitch">
                <property name="toolTip">
-                <string>Render geometry in wireframe.</string>
+                <string>Render geometry edges.</string>
                </property>
                <property name="statusTip">
-                <string>Render geometry in wireframe.</string>
+                <string>Render geometry edges.</string>
                </property>
                <property name="styleSheet">
                 <string notr="true">/* The Track */
@@ -1290,14 +1290,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="22" column="0">
+             <item row="24" column="0">
               <widget class="QLabel" name="randomColorsRasterLbl">
                <property name="text">
                 <string>Random Colors</string>
                </property>
               </widget>
              </item>
-             <item row="22" column="1">
+             <item row="24" column="1">
               <widget class="QCheckBox" name="randomColorsRasterSwitch">
                <property name="toolTip">
                 <string>Switch between rendering geometry
@@ -1357,14 +1357,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="23" column="0">
+             <item row="25" column="0">
               <widget class="QLabel" name="discoModeRasterLbl">
                <property name="text">
                 <string>Disco Mode</string>
                </property>
               </widget>
              </item>
-             <item row="23" column="1">
+             <item row="25" column="1">
               <widget class="QCheckBox" name="discoModeRasterSwitch">
                <property name="toolTip">
                 <string>Turn on disco mode!</string>
@@ -1419,14 +1419,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="25" column="0">
+             <item row="27" column="0">
               <widget class="QLabel" name="geomColorRasterLbl">
                <property name="text">
                 <string>Geometry Color</string>
                </property>
               </widget>
              </item>
-             <item row="25" column="1">
+             <item row="27" column="1">
               <widget class="QToolButton" name="geomColorRasterBtn">
                <property name="enabled">
                 <bool>false</bool>
@@ -1470,14 +1470,14 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
-             <item row="24" column="0">
+             <item row="26" column="0">
               <widget class="QLabel" name="discoModeSpeedLbl">
                <property name="text">
                 <string>Disco Speed</string>
                </property>
               </widget>
              </item>
-             <item row="24" column="1">
+             <item row="26" column="1">
               <widget class="QSpinBox" name="discoModeSpeedSpin">
                <property name="enabled">
                 <bool>false</bool>
@@ -1493,6 +1493,12 @@ QToolButton:hover {
                  <width>70</width>
                  <height>16777215</height>
                 </size>
+               </property>
+               <property name="toolTip">
+                <string>Smaller values = more disco!</string>
+               </property>
+               <property name="statusTip">
+                <string>Smaller values = more disco!</string>
                </property>
                <property name="buttonSymbols">
                 <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
@@ -1566,6 +1572,133 @@ QToolButton:hover {
                  <string>World</string>
                 </property>
                </item>
+              </widget>
+             </item>
+             <item row="23" column="0">
+              <widget class="QLabel" name="renderVertsRasterLbl">
+               <property name="text">
+                <string>Render Vertices</string>
+               </property>
+              </widget>
+             </item>
+             <item row="23" column="1">
+              <widget class="QCheckBox" name="renderVertsRasterSwitch">
+               <property name="toolTip">
+                <string>Render geometry vertices (points).</string>
+               </property>
+               <property name="statusTip">
+                <string>Render geometry vertices (points).</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="21" column="0">
+              <widget class="QLabel" name="renderFacesRasterLbl">
+               <property name="text">
+                <string>Render Faces</string>
+               </property>
+              </widget>
+             </item>
+             <item row="21" column="1">
+              <widget class="QCheckBox" name="renderFacesRasterSwitch">
+               <property name="toolTip">
+                <string>Render geometry faces.</string>
+               </property>
+               <property name="statusTip">
+                <string>Render geometry faces.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
             </layout>
@@ -2230,7 +2363,7 @@ QToolButton:hover {
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>wireframeRasterLbl</receiver>
+   <receiver>renderEdgesRasterLbl</receiver>
    <slot>setHidden(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -2246,7 +2379,7 @@ QToolButton:hover {
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>wireframeRasterSwitch</receiver>
+   <receiver>renderEdgesRasterSwitch</receiver>
    <slot>setHidden(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -2432,6 +2565,70 @@ QToolButton:hover {
     <hint type="destinationlabel">
      <x>50</x>
      <y>388</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>renderVertsRasterSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>892</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>renderVertsRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>60</x>
+     <y>892</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>renderFacesRasterSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>828</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>renderFacesRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>54</x>
+     <y>828</y>
     </hint>
    </hints>
   </connection>

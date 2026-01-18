@@ -93,7 +93,7 @@ void WolfApp::SetInitialValues() {
 	m_renderer.cameraRaster.farZ = m_ui->farZRasterSpin->value();
 	m_renderer.cameraRaster.aspectRatio = m_ui->aspectRatioRasterSpin->value();
 	m_renderer.showBackfaces = m_ui->showBackfacesSwitch->isChecked();
-	m_renderer.wireframe = m_ui->wireframeRasterSwitch->isChecked();
+	m_renderer.renderEdges = m_ui->renderEdgesRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.useRandomColors = m_ui->randomColorsRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.disco = m_ui->discoModeRasterSwitch->isChecked();
 	m_renderer.sceneDataRaster.discoSpeed = m_ui->discoModeSpeedSpin->value();
@@ -142,8 +142,8 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->showBackfacesLbl->setHidden( isRTMode );
 	m_ui->showBackfacesSwitch->setHidden( isRTMode );
 	m_ui->computeAspectRatioBtn->setHidden( isRTMode );
-	m_ui->wireframeRasterLbl->setHidden( isRTMode );
-	m_ui->wireframeRasterSwitch->setHidden( isRTMode );
+	m_ui->renderEdgesRasterLbl->setHidden( isRTMode );
+	m_ui->renderEdgesRasterSwitch->setHidden( isRTMode );
 	m_ui->randomColorsRasterLbl->setHidden( isRTMode );
 	m_ui->randomColorsRasterSwitch->setHidden( isRTMode );
 	m_ui->discoModeRasterLbl->setHidden( isRTMode );
@@ -154,6 +154,10 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->geomColorRasterBtn->setHidden( isRTMode );
 	m_ui->rotOrientationRasterLbl->setHidden( isRTMode );
 	m_ui->rotOrientationRasterCombo->setHidden( isRTMode );
+	m_ui->renderFacesRasterLbl->setHidden( isRTMode );
+	m_ui->renderFacesRasterSwitch->setHidden( isRTMode );
+	m_ui->renderVertsRasterLbl->setHidden( isRTMode );
+	m_ui->renderVertsRasterSwitch->setHidden( isRTMode );
 }
 
 void WolfApp::SetupMainWindowSizeAndPosition() {
@@ -290,8 +294,14 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->computeAspectRatioBtn, &QPushButton::clicked,
 		this, [this](){ OnResize( m_ui->viewport->width(), m_ui->viewport->height()); }
 	);
-	connect( m_ui->wireframeRasterSwitch, &QCheckBox::toggled,
-		this, [this]( bool value ) { m_renderer.wireframe = value; }
+	connect( m_ui->renderFacesRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.renderFaces = value; }
+	);
+	connect( m_ui->renderEdgesRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.renderEdges = value; }
+	);
+	connect( m_ui->renderVertsRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.renderVerts = value; }
 	);
 	connect( m_ui->randomColorsRasterSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) {
