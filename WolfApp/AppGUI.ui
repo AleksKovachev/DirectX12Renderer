@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1956</width>
-    <height>1355</height>
+    <width>1281</width>
+    <height>1020</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>800</width>
-    <height>400</height>
+    <height>600</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -132,7 +132,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QLabel" name="label">
+        <widget class="QLabel" name="renderModeLbl">
          <property name="text">
           <string>Rasterization / Ray Tracing</string>
          </property>
@@ -159,39 +159,46 @@
           <string>Switch between Rasterization and Ray Tracing.</string>
          </property>
          <property name="styleSheet">
-          <string notr="true">/* The switch track */
+          <string notr="true">/* The Track */
 QCheckBox {
-    background-color: #3a3a3a;
-    border-radius: 13px;
     min-width: 50px;
     max-width: 50px;
     min-height: 26px;
     max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
 }
 
-/* Checked track color */
+/* Checked track color (ignored, later set in code according to windows theme) */
 QCheckBox:checked {
-    background-color: #000000; /* Placeholder. Changed at runtime */
+    background-color: #000000;
 }
 
-/* Circle indicator */
+/* The Indicator (The Full Hit-box) */
 QCheckBox::indicator {
-    width: 20px;
-    height: 20px;
-    margin: 3px;
-    border-radius: 10px;
-    background-color: white;
+    width: 50px;
+    height: 50px; 
+    outline: none;
 }
 
-/* Thumb position */
+/* The Bigger Circle Logic */
 QCheckBox::indicator:unchecked {
-    margin-left: 4px;
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
 }
 
 QCheckBox::indicator:checked {
-    margin-left: 26px;
-}
-</string>
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
          </property>
          <property name="text">
           <string/>
@@ -244,7 +251,7 @@ QCheckBox::indicator:checked {
            <x>0</x>
            <y>0</y>
            <width>268</width>
-           <height>1174</height>
+           <height>839</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -269,100 +276,10 @@ QCheckBox::indicator:checked {
              <enum>QFrame::Shadow::Raised</enum>
             </property>
             <layout class="QFormLayout" name="formLayout">
-             <item row="0" column="0" colspan="2">
-              <widget class="QGroupBox" name="cameraPosBox">
-               <property name="maximumSize">
-                <size>
-                 <width>16777215</width>
-                 <height>70</height>
-                </size>
-               </property>
-               <property name="title">
-                <string>Position XYZ</string>
-               </property>
-               <property name="flat">
-                <bool>true</bool>
-               </property>
-               <property name="checkable">
-                <bool>false</bool>
-               </property>
-               <layout class="QHBoxLayout" name="horizontalLayout_3">
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosXSpin">
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosYSpin">
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QDoubleSpinBox" name="camPosZSpin">
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-                  </property>
-                  <property name="accelerated">
-                   <bool>true</bool>
-                  </property>
-                  <property name="minimum">
-                   <double>-10000000000000000000000.000000000000000</double>
-                  </property>
-                  <property name="maximum">
-                   <double>9999999999999999455752309870428160.000000000000000</double>
-                  </property>
-                  <property name="value">
-                   <double>-20.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
              <item row="1" column="0">
-              <widget class="QWidget" name="widget" native="true">
+              <widget class="QWidget" name="moveSpeedLblBox" native="true">
                <layout class="QVBoxLayout" name="verticalLayout_2">
-                <item>
+                <item alignment="Qt::AlignmentFlag::AlignTop">
                  <widget class="QLabel" name="moveSpeedLbl">
                   <property name="text">
                    <string>Move Speed</string>
@@ -471,13 +388,17 @@ QCheckBox::indicator:checked {
                 </size>
                </property>
                <property name="toolTip">
-                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
+                <string>Use Shift + Move to sprint.
+Sprint speed = Move Speed × Speed Multiplier..</string>
                </property>
                <property name="statusTip">
                 <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
                </property>
                <property name="buttonSymbols">
                 <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>x</string>
                </property>
                <property name="minimum">
                 <double>1.000000000000000</double>
@@ -575,6 +496,738 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="randomColorsLbl">
+               <property name="text">
+                <string>Random Colors</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QCheckBox" name="randomColorsSwitchRT">
+               <property name="minimumSize">
+                <size>
+                 <width>50</width>
+                 <height>26</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>50</width>
+                 <height>26</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Switch between rendering geometry
+in solid color and each triangle
+having a random color.</string>
+               </property>
+               <property name="statusTip">
+                <string>Switch between rendering geometry in solid color and each triangle having a random color.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="zoomRasterLbl">
+               <property name="text">
+                <string>Distance From Scene</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="zoomRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Zoom level.
+Moves the camera closer/further.</string>
+               </property>
+               <property name="statusTip">
+                <string>Zoom level. Moves the camera closer/further.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="minimum">
+                <double>-10000000000000000000000.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>9999999999999999455752309870428160.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>35.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QGroupBox" name="cameraPosBox">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>70</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Position XYZ</string>
+               </property>
+               <property name="flat">
+                <bool>true</bool>
+               </property>
+               <property name="checkable">
+                <bool>false</bool>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_3">
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosXSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosYSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="camPosZSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="accelerated">
+                   <bool>true</bool>
+                  </property>
+                  <property name="minimum">
+                   <double>-10000000000000000000000.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>9999999999999999455752309870428160.000000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>-20.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="10" column="0">
+              <widget class="QLabel" name="rotSensRasterLbl">
+               <property name="frameShape">
+                <enum>QFrame::Shape::NoFrame</enum>
+               </property>
+               <property name="text">
+                <string>Rotation Sensitivity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="panSensRasterLbl">
+               <property name="text">
+                <string>Pan Sensitivity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QDoubleSpinBox" name="panSensRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>How much the geometry will respond
+to mouse movement when panning.</string>
+               </property>
+               <property name="statusTip">
+                <string>How much the geometry will respond to mouse movement when panning.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>x</string>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>0.001000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.001000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.010000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="1">
+              <widget class="QDoubleSpinBox" name="rotSensRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>How much the geometry will
+respond to mouse movement when rotating.</string>
+               </property>
+               <property name="statusTip">
+                <string>How much the geometry will respond to mouse movement when rotating.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>x</string>
+               </property>
+               <property name="decimals">
+                <number>4</number>
+               </property>
+               <property name="minimum">
+                <double>0.000100000000000</double>
+               </property>
+               <property name="maximum">
+                <double>0.010000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.001000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.000100000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="zoomSensRasterLbl">
+               <property name="text">
+                <string>Zoom Sensitivity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="zoomSensRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>How much the zoom will
+change with each mouse scroll.</string>
+               </property>
+               <property name="statusTip">
+                <string>How much the zoom will change with each mouse scroll.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>x</string>
+               </property>
+               <property name="decimals">
+                <number>2</number>
+               </property>
+               <property name="minimum">
+                <double>0.010000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>20.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.500000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="0">
+              <widget class="QLabel" name="FOVSensRasterLbl">
+               <property name="text">
+                <string>FoV Sensitivity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="1">
+              <widget class="QDoubleSpinBox" name="FOVSensRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>How much the camera will respond
+to mouse movement when changing FoV.</string>
+               </property>
+               <property name="statusTip">
+                <string>How much the camera will respond to mouse movement when changing FoV.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>x</string>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="minimum">
+                <double>0.001000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>1.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.010000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.100000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="0">
+              <widget class="QLabel" name="FOVRasterLbl">
+               <property name="text">
+                <string>FoV</string>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="1">
+              <widget class="QDoubleSpinBox" name="FOVRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>The camera's Field of View.</string>
+               </property>
+               <property name="statusTip">
+                <string>The camera's Field of View.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string>°</string>
+               </property>
+               <property name="maximum">
+                <double>179.900000000000006</double>
+               </property>
+               <property name="value">
+                <double>45.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="13" column="0">
+              <widget class="QLabel" name="panAnimSpeedRasterLbl">
+               <property name="toolTip">
+                <string>Delay</string>
+               </property>
+               <property name="text">
+                <string>Pan Animation Speed</string>
+               </property>
+              </widget>
+             </item>
+             <item row="13" column="1">
+              <widget class="QDoubleSpinBox" name="panAnimSpeedRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>The delay the geometry will have
+until reaching the target destination.</string>
+               </property>
+               <property name="statusTip">
+                <string>The delay the geometry will have until reaching the target destination.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string/>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="minimum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="value">
+                <double>2.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="0">
+              <widget class="QLabel" name="rotAnimSpeedRasterLbl">
+               <property name="text">
+                <string>Rotation Animation Speed</string>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="1">
+              <widget class="QDoubleSpinBox" name="rotAnimSpeedRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>The delay the geometry will have
+until reaching the target rotation.</string>
+               </property>
+               <property name="statusTip">
+                <string>The delay the geometry will have until reaching the target rotation.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="suffix">
+                <string/>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="minimum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="value">
+                <double>6.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="0">
+              <widget class="QLabel" name="nearZRasterLbl">
+               <property name="text">
+                <string>Near Z Plane</string>
+               </property>
+              </widget>
+             </item>
+             <item row="16" column="0">
+              <widget class="QLabel" name="farZRasterLbl">
+               <property name="text">
+                <string>Far Z Plane</string>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="1">
+              <widget class="QDoubleSpinBox" name="nearZRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>The plane of the nearest point before which
+the camera won't be able to see objects.</string>
+               </property>
+               <property name="statusTip">
+                <string>The plane of the nearest point before which the camera won't be able to see objects.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="decimals">
+                <number>4</number>
+               </property>
+               <property name="minimum">
+                <double>0.000100000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.100000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="16" column="1">
+              <widget class="QDoubleSpinBox" name="farZRasterSpin">
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>The plane of the furthest point beyond which
+the camera won't be able to see objects.</string>
+               </property>
+               <property name="statusTip">
+                <string>The plane of the furthest point beyond which the camera won't be able to see objects.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="minimum">
+                <double>10.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100000.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>1000.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="17" column="0">
+              <widget class="QLabel" name="aspectRatioRasterLbl">
+               <property name="toolTip">
+                <string>The aspect ratio used for matrix calculation.</string>
+               </property>
+               <property name="statusTip">
+                <string>The aspect ratio used for matrix calculation.</string>
+               </property>
+               <property name="text">
+                <string>Aspect Ratio</string>
+               </property>
+              </widget>
+             </item>
+             <item row="19" column="0">
+              <widget class="QLabel" name="showBackfacesLbl">
+               <property name="text">
+                <string>Show Backfaces</string>
+               </property>
+              </widget>
+             </item>
+             <item row="19" column="1">
+              <widget class="QCheckBox" name="showBackfacesSwitch">
+               <property name="toolTip">
+                <string>Disable backface culling and show geometry's front and back.</string>
+               </property>
+               <property name="statusTip">
+                <string>Disable backface culling and show geometry's front and back.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="17" column="1">
+              <widget class="QWidget" name="widget" native="true">
+               <layout class="QVBoxLayout" name="verticalLayout_3">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <widget class="QDoubleSpinBox" name="aspectRatioRasterSpin">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Aspect ratio used for matrix calculations.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Aspect ratio used for matrix calculations.</string>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="minimum">
+                   <double>0.010000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>10.000000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>0.010000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>1.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="computeAspectRatioBtn">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Sets the correct aspect ratio of the viewport.
+This value changes when the window is resized.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Sets the correct aspect ratio of the viewport. This value changes when the window is resized.</string>
+                  </property>
+                  <property name="text">
+                   <string>Reset</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -586,8 +1239,8 @@ QCheckBox::indicator:checked {
        <widget class="WolfViewportWidget" name="viewport" native="true">
         <property name="minimumSize">
          <size>
-          <width>800</width>
-          <height>600</height>
+          <width>400</width>
+          <height>200</height>
          </size>
         </property>
         <property name="cursor">
@@ -595,6 +1248,9 @@ QCheckBox::indicator:checked {
         </property>
         <property name="focusPolicy">
          <enum>Qt::FocusPolicy::StrongFocus</enum>
+        </property>
+        <property name="styleSheet">
+         <string notr="true"/>
         </property>
        </widget>
       </item>
@@ -607,7 +1263,7 @@ QCheckBox::indicator:checked {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1956</width>
+     <width>1281</width>
      <height>21</height>
     </rect>
    </property>
@@ -654,5 +1310,582 @@ QCheckBox::indicator:checked {
  <resources>
   <include location="rsc/WolfApp.qrc"/>
  </resources>
- <connections/>
+ <connections>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>zoomRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1917</x>
+     <y>71</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>174</x>
+     <y>390</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>zoomRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>35</x>
+     <y>384</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>moveSpeedLblBox</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>62</x>
+     <y>211</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>moveSpeedControls</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>194</x>
+     <y>211</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>moveSpeedMultLbl</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>63</x>
+     <y>258</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>moveSpeedMultSpin</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>153</x>
+     <y>258</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mouseSensitivityRTLbl</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>66</x>
+     <y>295</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>mouseSensitivityRTSpin</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>153</x>
+     <y>295</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>verticalFOVLbl</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>51</x>
+     <y>326</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>FOVRTSpin</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>153</x>
+     <y>326</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>randomColorsLbl</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>60</x>
+     <y>357</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>randomColorsSwitchRT</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>143</x>
+     <y>357</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>cameraPosBox</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>144</x>
+     <y>143</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>zoomSensRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>63</x>
+     <y>420</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>zoomSensRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>420</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>panSensRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>57</x>
+     <y>451</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>panSensRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>451</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>rotSensRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>70</x>
+     <y>482</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>rotSensRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>482</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>FOVRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>30</x>
+     <y>513</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>FOVRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>513</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>FOVSensRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>58</x>
+     <y>544</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>FOVSensRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>544</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>panAnimSpeedRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>76</x>
+     <y>575</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>panAnimSpeedRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>575</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>rotAnimSpeedRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>89</x>
+     <y>606</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>rotAnimSpeedRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>606</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>nearZRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>53</x>
+     <y>637</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>nearZRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>637</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>farZRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>48</x>
+     <y>668</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>farZRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>668</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>aspectRatioRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>72</x>
+     <y>699</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>aspectRatioRasterSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1911</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>699</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>showBackfacesLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>61</x>
+     <y>730</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>showBackfacesSwitch</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>730</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>computeAspectRatioBtn</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1236</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>729</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

@@ -182,6 +182,15 @@ protected:
 		QWidget::keyPressEvent( event );
 	}
 
+	void resizeEvent( QResizeEvent* event ) override {
+		float width = static_cast<float>(event->size().width());
+		float height = static_cast<float>(event->size().height());
+		emit OnResize( width, height );
+
+		// Allow propagation if parent needs events.
+		QWidget::resizeEvent( event );
+	}
+
 	/// Called when capturing RAW Windows events. Using this instead of Qt's
 	/// mouseMoveEvent to avoid calculations and issues when window is resized.
 	bool nativeEvent( const QByteArray& eventType, void* message, qintptr* result ) override {
@@ -263,6 +272,7 @@ signals:
 	void OnCameraFOV( float offset );
 	void OnMouseRotationChanged( float deltaAngleX, float deltaAngleY );
 	void OnChangeSpeedMult( float offset );
+	void OnResize( float width, float height );
 };
 
 #endif // VIEWPORT_WIDGET_H

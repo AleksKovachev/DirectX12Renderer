@@ -101,6 +101,10 @@ namespace Core {
 			DirectX::XMFLOAT4X4 mat;
 			DirectX::XMFLOAT4X4 projection;
 		} transformData;
+
+		void SetFOVDeg( float degrees ) {
+			FOVAngle = DirectX::XMConvertToRadians( degrees );
+		}
 	};
 
 	// The main Renderer class managing the GPU commands.
@@ -109,6 +113,9 @@ namespace Core {
 		Scene scene{};
 		Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
+		BOOL renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
+		Transformation transformRaster{}; ///< Camera/object transformation data.
+		bool showBackfaces{ false }; ///< Whether to render backfaces in Raster mode.
 
 	public: // Functions.
 		/// Constructor
@@ -416,6 +423,8 @@ namespace Core {
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
 		/// The pipeline state object holding the pipeline configuration.
 		ComPtr<ID3D12PipelineState> m_pipelineState{ nullptr };
+		/// Another pipeline state object without backface culling.
+		ComPtr<ID3D12PipelineState> m_pipelineStateNoCull{ nullptr };
 
 		/// Viewport for rendering.
 		D3D12_VIEWPORT m_viewport{};
@@ -483,9 +492,7 @@ namespace Core {
 		UINT m_scFrameIdx{};        ///< Swap Chain frame index.
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
 		size_t m_vertexCount{};     ///< Number of vertices to render.
-		BOOL m_renderRandomColors{ 1 }; ///< Whether to color each triangle in a random color.
 		App* m_app{ nullptr }; ///< Pointer to application-level data.
-		Transformation m_transform{}; ///< Camera/object transformation data.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

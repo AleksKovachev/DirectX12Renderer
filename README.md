@@ -13,8 +13,11 @@ If you have any issues building and running the application, you can try it out 
   <img src="docs/raster_screenshot.png" width="45%" />
 </p>
 
-### Video
-[![Demo video](docs/gui.png)](https://youtu.be/sAdg-p7nPXE)
+### GUI
+![GUI](docs/gui_raster.png)
+
+### Video (Outdated)
+[![Demo video](docs/gui_rt.png)](https://youtu.be/sAdg-p7nPXE)
 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 ![DirectX](https://img.shields.io/badge/DirectX_12-107C10?style=flat&logo=microsoft&logoColor=white)

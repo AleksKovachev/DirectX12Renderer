@@ -7,7 +7,7 @@
 #include <QtWidgets/QStackedLayout>
 
 WolfApp::WolfApp()
-	: m_mainWin{ nullptr }, m_idleTimer( nullptr ), m_fpsTimer( nullptr ) {
+	: m_mainWin{ nullptr }, m_idleTimer{ nullptr }, m_fpsTimer{ nullptr } {
 }
 
 WolfApp::~WolfApp() {
@@ -20,81 +20,34 @@ bool WolfApp::init( App* appData ) {
 		return false;
 
 	m_renderer.SetAppData( appData );
-	float aspectRatio = static_cast<float>( m_renderer.scene.settings.renderWidth ) /
-		static_cast<float>(m_renderer.scene.settings.renderHeight);
-	// Make the window 80% of the screen size and then correct the aspect ratio.
-	m_mainWin->resize( m_mainWin->screen()->size() * 0.8 );
-	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
-
+	HideIrrelevantWidgets();
+	SetupMainWindowSizeAndPosition();
 	SetInitialValues();
-
-	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraPan,
-		this, &WolfApp::OnCameraPan
-	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraDolly,
-		this, &WolfApp::OnCameraDolly
-	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::OnCameraFOV,
-		this, &WolfApp::OnCameraFOV
-	);
-	connect( m_mainWin->viewport, &WolfViewportWidget::OnMouseRotationChanged,
-		this, &WolfApp::OnMouseRotationChanged
-	);
-	connect( m_ui->sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
-	connect( m_ui->loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
-	connect( m_ui->moveSpeedSpin, &QDoubleSpinBox::editingFinished,
-		this, &WolfApp::MoveSpeedChangedSpin
-	);
-	connect( m_ui->moveSpeedSlider, &QSlider::valueChanged,
-		this, &WolfApp::MoveSpeedChangedSlider
-	);
-	connect( m_ui->moveSpeedMultSpin, &QDoubleSpinBox::editingFinished,
-		this, &WolfApp::MoveSpeedMultChanged
-	);
-	connect( m_ui->mouseSensitivityRTSpin, &QDoubleSpinBox::editingFinished,
-		this, &WolfApp::MouseSensitivityRTChanged
-	);
-	connect( m_ui->FOVRTSpin, &QDoubleSpinBox::valueChanged,
-		this, &WolfApp::VerticalFoVRTChanged
-	);
-	connect( m_ui->camPosXSpin, &QDoubleSpinBox::valueChanged,
-		this, &WolfApp::CameraPositionChangedRT
-	);
-	connect( m_ui->camPosYSpin, &QDoubleSpinBox::valueChanged,
-		this, &WolfApp::CameraPositionChangedRT
-	);
-	connect( m_ui->camPosZSpin, &QDoubleSpinBox::valueChanged,
-		this, &WolfApp::CameraPositionChangedRT
-	);
-	connect( &m_mainWin->viewport->inputUpdateTimer, &QTimer::timeout,
-		this, &WolfApp::OnPositionChangedRT
-	);
-	connect( m_ui->viewport, &WolfViewportWidget::OnChangeSpeedMult,
-		this, &WolfApp::OnChangeSpeedMult
-	);
+	ConnectUIEvents();
 
 	m_mainWin->show();
+	m_renderer.PrepareForRendering( m_ui->viewport->GetNativeWindowHandle() );
 
-	m_renderer.PrepareForRendering( m_mainWin->viewport->GetNativeWindowHandle() );
-
-	m_idleTimer = new QTimer( m_mainWin );
-	connect( m_idleTimer, &QTimer::timeout, this, &WolfApp::OnIdleTick );
-	m_idleTimer->start( 0 ); // Continuous rendering.
-
-	m_fpsTimer = new QTimer( m_mainWin );
-	connect( m_fpsTimer, &QTimer::timeout, this, &WolfApp::UpdateRenderStats );
-	m_fpsTimer->start( 1'000 ); // Update FPS every second.
-
-	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled, this,
-		&WolfApp::OnRenderModeChanged );
-
-	std::string scenePath{ m_renderer.scene.GetRenderScenePath() };
-	QString fileAbsPath{ QDir::toNativeSeparators( QDir::cleanPath(
-		QDir().absoluteFilePath( QString::fromStdString( scenePath ) ) ) ) };
-
-	m_ui->sceneFileEntry->setText( QDir::toNativeSeparators( fileAbsPath ) );
+	SetupFPSTimers();
+	SetInitialSceneFileLocation();
 
 	return true;
+}
+
+bool WolfApp::InitWindow() {
+	m_mainWin = new WolfMainWindow;
+	m_ui = &m_mainWin->GetUI();
+	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
+	connect( m_mainWin->GetActionExit(), &QAction::triggered, this, [this]() {
+		OnQuit(); QApplication::quit(); } );
+	m_mainWin->SetRenderMode( m_renderer.renderMode );
+	return true;
+}
+
+void WolfApp::RenderFrame() {
+	m_renderer.RenderFrame( m_ui->viewport->cameraInput );
+
+	++m_frameIdxAtLastFPSCalc;
 }
 
 void WolfApp::OnRenderModeChanged( bool rayTracingOn ) {
@@ -104,34 +57,10 @@ void WolfApp::OnRenderModeChanged( bool rayTracingOn ) {
 	Core::RenderMode renderMode = rayTracingOn ?
 		Core::RenderMode::RayTracing : Core::RenderMode::Rasterization;
 
-	ToggleWidgetVisibility( rayTracingOn );
 	SetRenderMode( renderMode );
 
 	m_idleTimer->start( 0 );
 	m_fpsTimer->start( 1'000 );
-}
-
-void WolfApp::ToggleWidgetVisibility( bool rayTracingOn ) {
-	m_ui->FOVRTSpin->setVisible( rayTracingOn );
-	m_ui->cameraPosBox->setVisible( rayTracingOn );
-	m_ui->moveSpeedLbl->setVisible( rayTracingOn );
-	m_ui->moveSpeedControls->setVisible( rayTracingOn );
-	m_ui->moveSpeedMultLbl->setVisible( rayTracingOn );
-	m_ui->moveSpeedMultSpin->setVisible( rayTracingOn );
-	m_ui->mouseSensitivityRTLbl->setVisible( rayTracingOn );
-	m_ui->mouseSensitivityRTSpin->setVisible( rayTracingOn );
-	m_ui->verticalFOVLbl->setVisible( rayTracingOn );
-	m_ui->FOVRTSpin->setVisible( rayTracingOn );
-}
-
-void WolfApp::OnQuit() {
-	m_idleTimer->stop();
-	m_fpsTimer->stop();
-	m_renderer.StopRendering();
-}
-
-void WolfApp::OnIdleTick() {
-	RenderFrame();
 }
 
 void WolfApp::UpdateRenderStats() {
@@ -151,20 +80,212 @@ void WolfApp::SetInitialValues() {
 	VerticalFoVRTChanged();
 }
 
-bool WolfApp::InitWindow() {
-	m_mainWin = new WolfMainWindow;
-	m_ui = &m_mainWin->GetUI();
-	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
-	connect( m_mainWin->GetActionExit(), &QAction::triggered, this, [this]() {
-		OnQuit(); QApplication::quit(); } );
-	m_mainWin->SetRenderMode( m_renderer.renderMode );
-	return true;
+void WolfApp::HideIrrelevantWidgets() {
+	bool isRTMode{ m_ui->renderModeSwitch->isChecked() };
+
+	m_ui->cameraPosBox->setVisible( isRTMode );
+	m_ui->moveSpeedLblBox->setVisible( isRTMode );
+	m_ui->moveSpeedSlider->setVisible( isRTMode );
+	m_ui->moveSpeedSpin->setVisible( isRTMode );
+	m_ui->moveSpeedMultLbl->setVisible( isRTMode );
+	m_ui->moveSpeedMultSpin->setVisible( isRTMode );
+	m_ui->mouseSensitivityRTLbl->setVisible( isRTMode );
+	m_ui->mouseSensitivityRTSpin->setVisible( isRTMode );
+	m_ui->verticalFOVLbl->setVisible( isRTMode );
+	m_ui->FOVRTSpin->setVisible( isRTMode );
+	m_ui->randomColorsLbl->setVisible( isRTMode );
+	m_ui->randomColorsSwitchRT->setVisible( isRTMode );
+
+	m_ui->zoomRasterLbl->setHidden( isRTMode );
+	m_ui->zoomRasterSpin->setHidden( isRTMode );
+	m_ui->zoomSensRasterLbl->setHidden( isRTMode );
+	m_ui->zoomSensRasterSpin->setHidden( isRTMode );
+	m_ui->panSensRasterLbl->setHidden( isRTMode );
+	m_ui->panSensRasterSpin->setHidden( isRTMode );
+	m_ui->rotSensRasterLbl->setHidden( isRTMode );
+	m_ui->rotSensRasterSpin->setHidden( isRTMode );
+	m_ui->FOVRasterLbl->setHidden( isRTMode );
+	m_ui->FOVRasterSpin->setHidden( isRTMode );
+	m_ui->FOVSensRasterLbl->setHidden( isRTMode );
+	m_ui->FOVSensRasterSpin->setHidden( isRTMode );
+	m_ui->panAnimSpeedRasterLbl->setHidden( isRTMode );
+	m_ui->panAnimSpeedRasterSpin->setHidden( isRTMode );
+	m_ui->rotAnimSpeedRasterLbl->setHidden( isRTMode );
+	m_ui->rotAnimSpeedRasterSpin->setHidden( isRTMode );
+	m_ui->nearZRasterLbl->setHidden( isRTMode );
+	m_ui->nearZRasterSpin->setHidden( isRTMode );
+	m_ui->farZRasterLbl->setHidden( isRTMode );
+	m_ui->farZRasterSpin->setHidden( isRTMode );
+	m_ui->aspectRatioRasterLbl->setHidden( isRTMode );
+	m_ui->aspectRatioRasterSpin->setHidden( isRTMode );
+	m_ui->showBackfacesLbl->setHidden( isRTMode );
+	m_ui->showBackfacesSwitch->setHidden( isRTMode );
+	m_ui->computeAspectRatioBtn->setHidden( isRTMode );
 }
 
-void WolfApp::RenderFrame() {
-	m_renderer.RenderFrame( m_mainWin->viewport->cameraInput );
+void WolfApp::SetupMainWindowSizeAndPosition() {
 
-	++m_frameIdxAtLastFPSCalc;
+	QScreen* screen = m_mainWin->screen();
+	if ( screen == nullptr )
+		screen = QApplication::primaryScreen();
+
+	float aspectRatio{ static_cast<float>(m_renderer.scene.settings.renderWidth) /
+		static_cast<float>(m_renderer.scene.settings.renderHeight) };
+
+	// Make the window 80% of the screen size and then correct the aspect ratio.
+	m_mainWin->resize( m_mainWin->screen()->size() * 0.8 );
+	m_mainWin->resize( m_mainWin->width(), static_cast<int>(m_mainWin->width() / aspectRatio) );
+
+	// Center the application window on the screen.
+	const QRect screenGeometry = screen->availableGeometry();
+	const QPoint screenCenter = screenGeometry.center();
+	QRect windowGeometry = m_mainWin->frameGeometry();
+
+	windowGeometry.moveCenter( screenCenter );
+	m_mainWin->move( windowGeometry.topLeft() );
+
+	// Set aspect ratio value in GUI to the aspect ratio of the viewport, NOT scene.
+	float aspectRatioViewport{ static_cast<float>(
+		m_ui->viewport->width() ) / static_cast<float>( m_ui->viewport->height() ) };
+	m_ui->aspectRatioRasterSpin->setValue( aspectRatioViewport );
+	m_renderer.cameraRT.aspectRatio = aspectRatioViewport;
+}
+
+void WolfApp::ConnectUIEvents() {
+	connect( m_ui->sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
+	connect( m_ui->loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
+
+	// Viewport bindings.
+	connect( m_ui->viewport, &WolfViewportWidget::OnMouseRotationChanged,
+	this, &WolfApp::OnRotateGeometry
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnCameraPan,
+	this, &WolfApp::OnCameraPan
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnCameraDolly,
+		this, &WolfApp::OnCameraDolly
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnCameraFOV,
+		this, &WolfApp::OnCameraFOV
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnChangeSpeedMult,
+		this, &WolfApp::OnChangeSpeedMult
+	);
+	connect( m_ui->viewport, &WolfViewportWidget::OnResize, this, &WolfApp::OnResize );
+
+	// Ray Tracing GUI connections.
+	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled,
+		this, &WolfApp::OnRenderModeChanged
+	);
+	connect( m_ui->moveSpeedSlider, &QSlider::valueChanged,
+		this, &WolfApp::MoveSpeedChangedSlider
+	);
+	connect( m_ui->moveSpeedMultSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MoveSpeedMultChanged
+	);
+	connect( m_ui->moveSpeedSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MoveSpeedChangedSpin
+	);
+	connect( m_ui->mouseSensitivityRTSpin, &QDoubleSpinBox::editingFinished,
+		this, &WolfApp::MouseSensitivityRTChanged
+	);
+	connect( m_ui->FOVRTSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::VerticalFoVRTChanged
+	);
+	connect( m_ui->camPosXSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( m_ui->camPosYSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( m_ui->camPosZSpin, &QDoubleSpinBox::valueChanged,
+		this, &WolfApp::CameraPositionChangedRT
+	);
+	connect( m_ui->randomColorsSwitchRT, &QCheckBox::toggled,
+		this, [this]() { m_renderer.renderRandomColors = !m_renderer.renderRandomColors; }
+	);
+	connect( &m_ui->viewport->inputUpdateTimer, &QTimer::timeout,
+		this, &WolfApp::OnPositionChangedRT
+	);
+
+	// Rasterization GUI connections.
+	connect( m_ui->zoomRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this]() { m_renderer.transformRaster.offsetZ = m_ui->zoomRasterSpin->value(); }
+	);
+	connect( m_ui->zoomSensRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.offsetZSensitivityFactor = value;
+	} );
+	connect( m_ui->panSensRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.offsetXYSensitivityFactor = value;
+	} );
+	connect( m_ui->rotSensRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.rotationSensitivityFactor = value;
+	} );
+	connect( m_ui->FOVRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) { m_renderer.transformRaster.SetFOVDeg( value ); }
+	);
+	connect( m_ui->FOVSensRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.FOVSensitivityFactor = value;
+	} );
+	connect( m_ui->panAnimSpeedRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.smoothOffsetLerp = value;
+	} );
+	connect( m_ui->rotAnimSpeedRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.smoothRotationLambda = value;
+	} );
+	connect( m_ui->nearZRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.nearZ = value;
+	} );
+	connect( m_ui->farZRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.farZ = value;
+	} );
+	connect( m_ui->aspectRatioRasterSpin, &QDoubleSpinBox::valueChanged,
+		this, [this](double value) {
+			m_renderer.transformRaster.aspectRatio = value;
+	} );
+	connect( m_ui->showBackfacesSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) { m_renderer.showBackfaces = value; }
+	);
+	connect( m_ui->computeAspectRatioBtn, &QPushButton::clicked,
+		this, [this](){ OnResize( m_ui->viewport->width(), m_ui->viewport->height()); }
+	);
+
+}
+
+void WolfApp::SetupFPSTimers() {
+	m_idleTimer = new QTimer( m_mainWin );
+	connect( m_idleTimer, &QTimer::timeout, this, &WolfApp::OnIdleTick );
+	m_idleTimer->start( 0 ); // Continuous rendering.
+
+	m_fpsTimer = new QTimer( m_mainWin );
+	connect( m_fpsTimer, &QTimer::timeout, this, &WolfApp::UpdateRenderStats );
+	m_fpsTimer->start( 1'000 ); // Update FPS every second.
+}
+
+void WolfApp::OnQuit() {
+	m_idleTimer->stop();
+	m_fpsTimer->stop();
+	m_renderer.StopRendering();
+}
+
+void WolfApp::OnIdleTick() {
+	RenderFrame();
+}
+
+void WolfApp::SetInitialSceneFileLocation() {
+	std::string scenePath{ m_renderer.scene.GetRenderScenePath() };
+	QString fileAbsPath{ QDir::toNativeSeparators( QDir::cleanPath(
+		QDir().absoluteFilePath( QString::fromStdString( scenePath ) ) ) ) };
+
+	m_ui->sceneFileEntry->setText( QDir::toNativeSeparators( fileAbsPath ) );
 }
 
 void WolfApp::OnCameraPan( float ndcX, float ndcY ) {
@@ -173,13 +294,14 @@ void WolfApp::OnCameraPan( float ndcX, float ndcY ) {
 
 void WolfApp::OnCameraDolly( float offsetZ ) {
 	m_renderer.AddToOffsetZ( offsetZ );
+	m_ui->zoomRasterSpin->setValue( m_renderer.transformRaster.offsetZ );
 }
 
 void WolfApp::OnCameraFOV( float offset ) {
 	m_renderer.AddToOffsetFOV( offset );
 }
 
-void WolfApp::OnMouseRotationChanged( float deltaAngleX, float deltaAngleY ) {
+void WolfApp::OnRotateGeometry( float deltaAngleX, float deltaAngleY ) {
 	m_renderer.AddToTargetRotation( deltaAngleX, deltaAngleY );
 }
 
@@ -228,7 +350,9 @@ void WolfApp::LoadSceneClicked() {
 	m_idleTimer->stop();
 	m_fpsTimer->stop();
 
-	m_renderer.ReloadScene( scenePathStd, m_mainWin->viewport->GetNativeWindowHandle());
+	m_renderer.ReloadScene( scenePathStd, m_ui->viewport->GetNativeWindowHandle());
+	// Update aspect ratio in case the new scene updated it.
+	OnResize( m_ui->viewport->width(), m_ui->viewport->height() );
 
 	m_idleTimer->start( 0 );
 	m_fpsTimer->start( 1'000 );
@@ -271,4 +395,18 @@ void WolfApp::CameraPositionChangedRT() {
 void WolfApp::OnChangeSpeedMult( float offset ) {
 	m_ui->moveSpeedMultSpin->setValue( m_ui->moveSpeedMultSpin->value() + offset );
 	m_renderer.cameraRT.speedMult = m_ui->moveSpeedMultSpin->value();
+}
+
+void WolfApp::OnResize( float width, float height ) {
+	m_renderer.cameraRT.aspectRatio = width / height;
+	m_renderer.scene.settings.renderWidth = static_cast<unsigned>(width);
+	m_renderer.scene.settings.renderHeight = static_cast<unsigned>(height);
+
+	if ( !m_ui->renderModeSwitch->isChecked() ) {
+		m_ui->aspectRatioRasterSpin->setValue( m_renderer.cameraRT.aspectRatio );
+	}
+}
+
+void WolfApp::SetAspectRatio() {
+
 }
