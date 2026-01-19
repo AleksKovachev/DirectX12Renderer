@@ -218,6 +218,14 @@ void WolfApp::ConnectUIEvents() {
 		this, &WolfApp::OnChangeSpeedMult
 	);
 	connect( m_ui->viewport, &WolfViewportWidget::OnResize, this, &WolfApp::OnResize );
+	connect( m_ui->randomColorsRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) {
+			if ( value )
+				m_ui->discoModeRasterSwitch->setChecked( false ); } );
+	connect( m_ui->discoModeRasterSwitch, &QCheckBox::toggled,
+		this, [this]( bool value ) {
+			if ( value )
+				m_ui->randomColorsRasterSwitch->setChecked( false ); } );
 
 	// Ray Tracing GUI connections.
 	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled,
@@ -309,7 +317,13 @@ void WolfApp::ConnectUIEvents() {
 		this, [this](){ OnResize( m_ui->viewport->width(), m_ui->viewport->height()); }
 	);
 	connect( m_ui->renderFacesRasterSwitch, &QCheckBox::toggled,
-		this, [this]( bool value ) { m_renderer.dataRaster.renderFaces = value; }
+		this, [this]( bool value ) {
+			m_renderer.dataRaster.renderFaces = value;
+			if ( value || !m_ui->randomColorsRasterSwitch->isChecked() || !m_ui->discoModeRasterSwitch->isChecked() )
+				m_ui->faceColorRasterBtn->setEnabled( false );
+			else
+				m_ui->faceColorRasterBtn->setEnabled( true );
+		}
 	);
 	connect( m_ui->renderEdgesRasterSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) { m_renderer.dataRaster.renderEdges = value; }
@@ -320,7 +334,7 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->randomColorsRasterSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) {
 			m_renderer.dataRaster.sceneData.useRandomColors = value;
-			if ( value || m_ui->discoModeRasterSwitch->isChecked() )
+			if ( value || m_ui->discoModeRasterSwitch->isChecked() || !m_ui->renderFacesRasterSwitch->isChecked() )
 				m_ui->faceColorRasterBtn->setEnabled( false );
 			else
 				m_ui->faceColorRasterBtn->setEnabled( true );
@@ -329,11 +343,10 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->discoModeRasterSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) {
 			m_renderer.dataRaster.sceneData.disco = value;
-			if ( value || m_ui->randomColorsRasterSwitch->isChecked() )
+			if ( value || m_ui->randomColorsRasterSwitch->isChecked() || !m_ui->renderFacesRasterSwitch->isChecked() )
 				m_ui->faceColorRasterBtn->setEnabled( false );
 			else
 				m_ui->faceColorRasterBtn->setEnabled( true );
-
 		}
 	);
 	connect( m_ui->discoModeSpeedSpin, &QSpinBox::valueChanged,
@@ -341,7 +354,8 @@ void WolfApp::ConnectUIEvents() {
 	);
 	connect( m_ui->faceColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker();
+			ColorPickerData data = SetupColorPicker(
+				UnpackColor(m_renderer.dataRaster.sceneData.packedColor ) );
 			if ( !data.color.isValid() )
 				return;
 			m_ui->faceColorRasterBtn->setStyleSheet( data.style );
@@ -350,16 +364,18 @@ void WolfApp::ConnectUIEvents() {
 	);
 	connect( m_ui->edgeColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker();
+			ColorPickerData data = SetupColorPicker(
+				UnpackColor( m_renderer.dataRaster.edgeColor ) );
 			if ( !data.color.isValid() )
 				return;
 			m_ui->edgeColorRasterBtn->setStyleSheet( data.style );
-			m_renderer.dataRaster.edgesColor = PackColor( data.color );
+			m_renderer.dataRaster.edgeColor = PackColor( data.color );
 		}
 	);
 	connect( m_ui->vertexColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker();
+			ColorPickerData data = SetupColorPicker(
+				UnpackColor( m_renderer.dataRaster.vertexColor ) );
 			if ( !data.color.isValid() )
 				return;
 			m_ui->vertexColorRasterBtn->setStyleSheet( data.style );
@@ -383,6 +399,15 @@ uint32_t WolfApp::PackColor( QColor& color ) {
 	uint32_t a32 = static_cast<uint32_t>(color.alpha());
 
 	return (a32 << 24) | (b32 << 16) | (g32 << 8) | r32;
+}
+
+QColor WolfApp::UnpackColor( uint32_t packedColor ) {
+	int alpha{ (packedColor >> 24) & 0xFF };
+	int blue{ (packedColor >> 16) & 0xFF };
+	int green{ (packedColor >> 8) & 0xFF };
+	int red{ packedColor & 0xFF };
+
+	return QColor( red, green, blue, alpha );
 }
 
 void WolfApp::SetupFPSTimers() {
@@ -539,9 +564,9 @@ void WolfApp::ToggleFullscreen() {
 	m_ui->scrollAreaSettings->setVisible( !m_ui->scrollAreaSettings->isVisible() );
 }
 
-ColorPickerData WolfApp::SetupColorPicker() {
+ColorPickerData WolfApp::SetupColorPicker( QColor currColor ) {
 	// Open color picker dialog when Color Button is clicked.
-	QColor color = QColorDialog::getColor( Qt::white, m_mainWin, "Select Geometry Color" );
+	QColor color = QColorDialog::getColor( currColor, m_mainWin, "Select Geometry Color" );
 
 	QString hoverColor;
 	if ( color.valueF() > 0.5f )

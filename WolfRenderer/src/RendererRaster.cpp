@@ -91,7 +91,7 @@ namespace Core {
 		}
 
 		// Slot 4: Edges color.
-		m_cmdList->SetGraphicsRoot32BitConstant( 4, dataRaster.edgesColor, 0 );
+		m_cmdList->SetGraphicsRoot32BitConstant( 4, dataRaster.edgeColor, 0 );
 
 		// Slot 5: Vertex color.
 		m_cmdList->SetGraphicsRoot32BitConstant( 5, dataRaster.vertexColor, 0 );
