@@ -42,8 +42,8 @@ namespace Raster {
 		bool renderVerts{ false }; ///< Whether to render vertices.
 		bool showBackfaces{ false }; ///< Whether to render backfaces.
 		float vertexSize{ 2.f }; ///< Size in pixels of the displayed vertices.
-		uint32_t edgesColor{}; ///< Default color for rendered edges.
-		uint32_t vertexColor{ 0xFF1980E6 }; ///< Default color for rendered vertices.
+		uint32_t edgeColor{}; ///< Default color for rendered edges.
+		uint32_t vertexColor{ 0xFFFF7224 }; ///< Default color for rendered vertices.
 	};
 }
 

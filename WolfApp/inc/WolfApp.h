@@ -62,6 +62,9 @@ private: // Functions
 	/// Packs a QColor into a single uint32_t to save GPU memory.
 	uint32_t PackColor( QColor& );
 
+	/// Unpakcs a uint32_t-packed color in AABBGGRR format to a QColor.
+	QColor UnpackColor( uint32_t );
+
 private: // Members
 	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.
 	WolfMainWindow* m_mainWin;     ///< The main window of the application.
@@ -89,7 +92,7 @@ private slots:
 	void OnChangeSpeedMult( float );
 	void OnResize( float, float );
 	void ToggleFullscreen();
-	ColorPickerData SetupColorPicker();
+	ColorPickerData SetupColorPicker( QColor );
 };
 
 

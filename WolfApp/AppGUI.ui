@@ -1784,7 +1784,7 @@ QToolButton:hover {
                </property>
                <property name="styleSheet">
                 <string notr="true">QToolButton {
-	background-color:rgb(230, 128, 25);;
+	background-color:rgb(36, 114, 255);;
 	border-radius: 6px;
 }
 
