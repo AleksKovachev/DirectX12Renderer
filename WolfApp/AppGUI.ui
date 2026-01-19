@@ -1710,6 +1710,9 @@ QCheckBox::indicator:checked {
              </item>
              <item row="28" column="1">
               <widget class="QToolButton" name="edgeColorRasterBtn">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
                <property name="minimumSize">
                 <size>
                  <width>70</width>
@@ -1758,6 +1761,9 @@ QToolButton:hover {
              </item>
              <item row="29" column="1">
               <widget class="QToolButton" name="vertexColorRasterBtn">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
                <property name="minimumSize">
                 <size>
                  <width>70</width>
@@ -2951,6 +2957,38 @@ QCheckBox::indicator:checked {
     <hint type="destinationlabel">
      <x>83</x>
      <y>1108</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderEdgesRasterSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>edgeColorRasterBtn</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>189</x>
+     <y>843</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>1024</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderVertsRasterSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>vertexColorRasterBtn</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>189</x>
+     <y>875</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>1049</y>
     </hint>
    </hints>
   </connection>

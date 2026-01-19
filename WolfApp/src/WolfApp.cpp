@@ -342,6 +342,8 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->faceColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
 			ColorPickerData data = SetupColorPicker();
+			if ( !data.color.isValid() )
+				return;
 			m_ui->faceColorRasterBtn->setStyleSheet( data.style );
 			m_renderer.dataRaster.sceneData.packedColor = PackColor( data.color );
 		}
@@ -349,6 +351,8 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->edgeColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
 			ColorPickerData data = SetupColorPicker();
+			if ( !data.color.isValid() )
+				return;
 			m_ui->edgeColorRasterBtn->setStyleSheet( data.style );
 			m_renderer.dataRaster.edgesColor = PackColor( data.color );
 		}
@@ -356,6 +360,8 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->vertexColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
 			ColorPickerData data = SetupColorPicker();
+			if ( !data.color.isValid() )
+				return;
 			m_ui->vertexColorRasterBtn->setStyleSheet( data.style );
 			m_renderer.dataRaster.vertexColor = PackColor( data.color );
 		}
@@ -536,6 +542,7 @@ void WolfApp::ToggleFullscreen() {
 ColorPickerData WolfApp::SetupColorPicker() {
 	// Open color picker dialog when Color Button is clicked.
 	QColor color = QColorDialog::getColor( Qt::white, m_mainWin, "Select Geometry Color" );
+
 	QString hoverColor;
 	if ( color.valueF() > 0.5f )
 		hoverColor = color.darker().name();
