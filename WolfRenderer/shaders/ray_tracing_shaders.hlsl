@@ -17,7 +17,7 @@ cbuffer RTCameraCB : register( b1 ) {
     float aspectRatio;
 
     float3 cameraRight;
-    float _pad0;
+    int forwardMult;
 
     float3 cameraUp;
     float _pad1;
@@ -109,7 +109,8 @@ void rayGen() {
     // cameraRay.Direction = float3( screenR, screenG, 0.f );
     // frameTexture[pixelRasterCoords] = float4( cameraRay.Direction, 1.f );
 
-    x *= width / height; // Adjust for aspect ratio.
+    // Commented out as tanHalfFOV is later used.
+    // x *= width / height; // Adjust for aspect ratio.
 
     // float aspectR = abs( x );
     // float aspectG = abs( y );
@@ -118,8 +119,8 @@ void rayGen() {
 
     float tanHalfFOV = tan( verticalFOV * 0.5f );
 
-    // Set the Z component to -1 to point into the scene.
-    float3 rayDirection = float3( cameraForward +
+    // Use -cameraForward to match Rasterization projection.
+    float3 rayDirection = float3( cameraForward * forwardMult +
                                   x * aspectRatio * tanHalfFOV * cameraRight +
                                   y * tanHalfFOV * cameraUp
     );

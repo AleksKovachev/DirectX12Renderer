@@ -26,6 +26,7 @@ WolfMainWindow::WolfMainWindow( QWidget* parent )
 	m_ui.discoModeRasterSwitch->setStyleSheet( m_ui.discoModeRasterSwitch->styleSheet() + switchStyle );
 	m_ui.renderFacesRasterSwitch->setStyleSheet( m_ui.renderFacesRasterSwitch->styleSheet() + switchStyle );
 	m_ui.renderVertsRasterSwitch->setStyleSheet( m_ui.renderVertsRasterSwitch->styleSheet() + switchStyle );
+	m_ui.matchRTCamSwitch->setStyleSheet( m_ui.matchRTCamSwitch->styleSheet() + switchStyle );
 
 	// Connect the menu action to the render mode switch.
 	connect( m_ui.actionToggleRenderMode, &QAction::triggered, [this]() {

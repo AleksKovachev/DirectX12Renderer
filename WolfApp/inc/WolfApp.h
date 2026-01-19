@@ -88,6 +88,7 @@ private slots:
 	void CameraPositionChangedRT();
 	void OnChangeSpeedMult( float );
 	void OnResize( float, float );
+	void ToggleFullscreen();
 	ColorPickerData SetupColorPicker();
 };
 

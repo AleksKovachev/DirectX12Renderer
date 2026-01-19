@@ -127,6 +127,13 @@ protected:
 		QWidget::mouseReleaseEvent( event );
 	}
 
+	void mouseDoubleClickEvent( QMouseEvent* event ) override {
+		emit ToggleFullscreen();
+
+		// Allow propagation if parent needs events.
+		QWidget::mouseDoubleClickEvent( event );
+	}
+
 	void wheelEvent( QWheelEvent* event ) override {
 		// event->pixelDelta(); // Used for high-precision touchpads
 		// 120 is a usual value for a single scroll. This is done by
@@ -156,9 +163,9 @@ protected:
 				case Qt::Key_Q: case Qt::Key_PageDown: cameraInput.moveDown = true; break;
 				case Qt::Key_Shift: cameraInput.speedModifier = true; break;
 			}
-
-			return QWidget::keyPressEvent( event ); // propagate
 		}
+		if ( event->key() == Qt::Key_F && !event->isAutoRepeat() )
+			emit ToggleFullscreen();
 
 		// Allow propagation if parent needs events.
 		QWidget::keyPressEvent( event );
@@ -252,7 +259,6 @@ protected:
 		return QWidget::nativeEvent( eventType, message, result );
 	}
 
-
 public: // members
 	RT::CameraInput cameraInput{};
 	QTimer inputUpdateTimer;
@@ -273,6 +279,7 @@ signals:
 	void OnMouseRotationChanged( float deltaAngleX, float deltaAngleY );
 	void OnChangeSpeedMult( float offset );
 	void OnResize( float width, float height );
+	void ToggleFullscreen();
 };
 
 #endif // VIEWPORT_WIDGET_H

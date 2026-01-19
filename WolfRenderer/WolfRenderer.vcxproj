@@ -185,9 +185,12 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\RendererRaster.cpp" />
+    <ClCompile Include="src\RenderRT.cpp" />
     <ClCompile Include="src\Scene.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\d3d12.h" />
@@ -201,6 +204,7 @@ xcopy "$(ProjectDir)shaders" "$(SolutionDir)WolfApp\shaders" /E /I /Y</Command>
     <ClInclude Include="inc\Camera.hpp" />
     <ClInclude Include="inc\Logger.hpp" />
     <ClInclude Include="inc\Renderer.hpp" />
+    <ClInclude Include="inc\RenderParams.hpp" />
     <ClInclude Include="inc\Settings.hpp" />
     <ClInclude Include="inc\Scene.hpp" />
     <ClInclude Include="inc\Geometry.hpp" />

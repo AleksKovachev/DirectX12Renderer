@@ -52,6 +52,8 @@ If you have any issues building and running the application, you can try it out 
     smooth animation to reach the target destination.
   - Middle Mouse Button (**MMB**) scroll: Zoom camera in/out.
   - Middle Mouse Button (**MMB**) click + mouse drag up/down: Change camera Field Of View (FOV) angle.
+- **General**
+  - Mouse **`Double Click`** / Keyboard **`F`**: Toggle Fullscreen.
 
 ## ✨ Features
 
@@ -61,8 +63,8 @@ If you have any issues building and running the application, you can try it out 
 - **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime.
 - **Scene Reloading at Runtime**: Pick and load a different scene to render without closing the application.
 - **Rasterization Controls**: Real-time camera panning support via mouse interaction.
-  
 - **Ray Tracing Pipeline (DXR) Controls**: Real-time camera panning + WSAD+QE movement support via mouse and keyboard interaction.
+- **Ray Tracing Camera Coordinates Switch**: Switch for the ray tracing camera's coordinate system to mimic the projection matrix of the one used in rasterization mode.
 
 #### DirectX 12 Infrastructure
 - **Device Management**
