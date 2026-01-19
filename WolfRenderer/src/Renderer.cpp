@@ -1322,6 +1322,12 @@ namespace Core {
 			m_cmdList->SetPipelineState( state );
 		}
 
+		// Slot 4: Edges color.
+		m_cmdList->SetGraphicsRoot32BitConstant( 4, edgesColor, 0 );
+
+		// Slot 5: Vertex color.
+		m_cmdList->SetGraphicsRoot32BitConstant( 5, vertexColor, 0 );
+
 		// IA stands for Input Assembler.
 		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 		m_cmdList->DrawInstanced( static_cast<UINT>(m_vertexCount), 1, 0, 0 );
@@ -1347,33 +1353,53 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER1 rootParams[4]{};
+		D3D12_ROOT_PARAMETER1 rootParams[6]{};
 		uint8_t shaderRegisterCBV{};
 
 		// Param 0 - frameIdx.
-		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[0].Constants.ShaderRegister = shaderRegisterCBV++;
-		rootParams[0].Constants.RegisterSpace = 0;
-		rootParams[0].Constants.Num32BitValues = 1;
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
+		shaderRegisterCBV++;
 
 		// Param 1 - transform matrix.
-		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[1].Descriptor.ShaderRegister = shaderRegisterCBV++;
-		rootParams[1].Descriptor.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
 
 		// Param 2 - Scene data.
-		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[2].Descriptor.ShaderRegister = shaderRegisterCBV++;
-		rootParams[2].Descriptor.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
 
 		// Param 3 - Screen data.
-		rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[3].Descriptor.ShaderRegister = shaderRegisterCBV++;
-		rootParams[3].Descriptor.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
+
+		// Param 4 - Edges color.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
+		shaderRegisterCBV++;
+
+		// Param 5 - Vertex color.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
+		shaderRegisterCBV++;
 
 		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;

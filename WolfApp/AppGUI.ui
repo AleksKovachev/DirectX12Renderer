@@ -1420,14 +1420,14 @@ QCheckBox::indicator:checked {
               </widget>
              </item>
              <item row="27" column="0">
-              <widget class="QLabel" name="geomColorRasterLbl">
+              <widget class="QLabel" name="faceColorRasterLbl">
                <property name="text">
-                <string>Geometry Color</string>
+                <string>Face Color</string>
                </property>
               </widget>
              </item>
              <item row="27" column="1">
-              <widget class="QToolButton" name="geomColorRasterBtn">
+              <widget class="QToolButton" name="faceColorRasterBtn">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -1447,10 +1447,10 @@ QCheckBox::indicator:checked {
                 <cursorShape>PointingHandCursor</cursorShape>
                </property>
                <property name="toolTip">
-                <string>Choose geometry color for when Random Colors and Disco Mode are disabled.</string>
+                <string>Choose geometry face color for when Random Colors and Disco Mode are disabled.</string>
                </property>
                <property name="statusTip">
-                <string>Choose geometry color for when Random Colors and Disco Mode are disabled.</string>
+                <string>Choose geometry face color for when Random Colors and Disco Mode are disabled.</string>
                </property>
                <property name="styleSheet">
                 <string notr="true">QToolButton {
@@ -1698,6 +1698,137 @@ QCheckBox::indicator:checked {
                </property>
                <property name="checked">
                 <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="28" column="0">
+              <widget class="QLabel" name="edgeColorRasterLbl">
+               <property name="text">
+                <string>Edge Color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="28" column="1">
+              <widget class="QToolButton" name="edgeColorRasterBtn">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Choose geometry edge color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="statusTip">
+                <string>Choose geometry edge color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="accessibleName">
+                <string/>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">QToolButton {
+	background-color:rgb(0, 0, 0);;
+	border-radius: 6px;
+}
+
+QToolButton:hover {
+	background-color: rgb(128, 128, 128);
+	border: 1px;
+	border-radius: 6px;
+}
+</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="29" column="0">
+              <widget class="QLabel" name="vertexColorRasterLbl">
+               <property name="text">
+                <string>Vertex Color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="29" column="1">
+              <widget class="QToolButton" name="vertexColorRasterBtn">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Choose geometry vertex color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="statusTip">
+                <string>Choose geometry vertex color for when Random Colors and Disco Mode are disabled.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">QToolButton {
+	background-color:rgb(230, 128, 25);;
+	border-radius: 6px;
+}
+
+QToolButton:hover {
+	background-color: rgb(128, 128, 128);
+	border: 1px;
+	border-radius: 6px;
+}
+</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="30" column="0">
+              <widget class="QLabel" name="vertexSizeLbl">
+               <property name="text">
+                <string>Vertex Size</string>
+               </property>
+              </widget>
+             </item>
+             <item row="30" column="1">
+              <widget class="QDoubleSpinBox" name="vertexSizeSpin">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Size of the displayed vertices (in pixels).</string>
+               </property>
+               <property name="statusTip">
+                <string>Size of the displayed vertices (in pixels).</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="maximum">
+                <double>10.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>2.000000000000000</double>
                </property>
               </widget>
              </item>
@@ -2459,7 +2590,7 @@ QCheckBox::indicator:checked {
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>geomColorRasterBtn</receiver>
+   <receiver>faceColorRasterBtn</receiver>
    <slot>setHidden(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -2475,7 +2606,7 @@ QCheckBox::indicator:checked {
   <connection>
    <sender>renderModeSwitch</sender>
    <signal>toggled(bool)</signal>
-   <receiver>geomColorRasterLbl</receiver>
+   <receiver>faceColorRasterLbl</receiver>
    <slot>setHidden(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -2629,6 +2760,102 @@ QCheckBox::indicator:checked {
     <hint type="destinationlabel">
      <x>54</x>
      <y>828</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>vertexColorRasterBtn</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>1066</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>vertexColorRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>44</x>
+     <y>1066</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>edgeColorRasterBtn</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>1041</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>edgeColorRasterLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>49</x>
+     <y>1041</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>vertexSizeSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>199</x>
+     <y>1094</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>vertexSizeLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>48</x>
+     <y>1094</y>
     </hint>
    </hints>
   </connection>

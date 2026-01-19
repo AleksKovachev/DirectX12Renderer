@@ -53,12 +53,11 @@ namespace Core {
 	};
 
 	struct alignas(16) SceneDataRasterCB {
-		float color[4] = { 1.f, 1.f, 1.f, 1.f }; // R, G, B, A
+		uint32_t packedColor{ 0xFFFFFFFF }; // 0xAABBGGRR, because of GPU Endiannes.
 
 		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
 		uint32_t disco{ 0 }; // Converted to bool in shader.
 		uint32_t discoSpeed{ 200 };
-		float _padding = 0.f;
 	};
 
 	// The main Renderer class managing the GPU commands.
@@ -67,6 +66,9 @@ namespace Core {
 		bool renderFaces{ true }; ///< Whether to render a faces in Raster mode.
 		bool renderEdges{ false }; ///< Whether to render edges in Raster mode.
 		bool renderVerts{ false }; ///< Whether to render vertices in Raster mode.
+		uint32_t edgesColor{}; ///< Default color for rendered edges in Raster mode.
+		uint32_t vertexColor{ 0xFF1980E6 }; ///< Default color for rendered vertices in Raster mode.
+
 		Scene scene{};
 		RT::Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.

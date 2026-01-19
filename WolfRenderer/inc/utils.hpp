@@ -32,3 +32,8 @@ std::string wideStrToUTF8( const std::wstring& wide ) {
 		utf8.data(), size_needed, nullptr, nullptr );
 	return utf8;
 }
+
+/// Converts a color value from sRGB to Linear.
+float SRGBToLinear( int value ) {
+	return (value <= 0.04045f) ? value / 12.92f : std::pow( (value + 0.055f) / 1.055f, 2.4f );
+}
