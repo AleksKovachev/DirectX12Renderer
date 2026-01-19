@@ -1,20 +1,21 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
-#include <DirectXMath.h>
 #include <iostream>
 #include <vector>
 #include <wrl/client.h>
 
 #include "d3d12.h"
+#include "dxcapi.use.h" // IDxcBlob, can't forward-declare because of TU created due to source split.
 #include <dxgi1_6.h>
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxcompiler.lib")
-// #pragma comment(lib, "dxgi.lib d3d12.lib, dxcompiler.lib") is also valid
+// #pragma comment(lib, "dxgi.lib d3d12.lib dxcompiler.lib") is also valid
 
 #include "Camera.hpp"
 #include "Logger.hpp"
+#include "RenderParams.hpp"
 #include "Scene.hpp"
 
 // Undefine "min" and "max" macros defined in windows.h
@@ -30,19 +31,12 @@
  * This allows for more structured project configuration. */
 
 using Microsoft::WRL::ComPtr;
-struct IDxcBlob;
 struct Transformation;
 
 namespace Core {
 	/// Application-level settings and data.
 	struct App {
 		float deltaTime{};
-	};
-
-	/// The mode to use for rendering.
-	enum class RenderMode {
-		Rasterization,
-		RayTracing
 	};
 
 	/// The preparation needed before rendering. Use Both to switch between modes.
@@ -52,33 +46,13 @@ namespace Core {
 		Both
 	};
 
-	struct alignas(16) SceneDataRasterCB {
-		uint32_t packedColor{ 0xFFFFFFFF }; // 0xAABBGGRR, because of GPU Endiannes.
-
-		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
-		uint32_t disco{ 0 }; // Converted to bool in shader.
-		uint32_t discoSpeed{ 200 };
-	};
-
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public: // Memebrs.
-		bool renderFaces{ true }; ///< Whether to render a faces in Raster mode.
-		bool renderEdges{ false }; ///< Whether to render edges in Raster mode.
-		bool renderVerts{ false }; ///< Whether to render vertices in Raster mode.
-		uint32_t edgesColor{}; ///< Default color for rendered edges in Raster mode.
-		uint32_t vertexColor{ 0xFF1980E6 }; ///< Default color for rendered vertices in Raster mode.
-
+		RT::Data dataRT{};
+		Raster::Data dataRaster{};
 		Scene scene{};
-		RT::Camera cameraRT{}; ///< Camera used for RT mode.
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
-		uint32_t randomColorsRT{ 1 }; ///< Bool, whether to color each triangle in a random color.
-		Raster::Transformation cameraRaster{}; ///< Camera/object transformation data.
-		bool showBackfaces{ false }; ///< Whether to render backfaces in Raster mode.
-		SceneDataRasterCB sceneDataRaster{}; ///< Scene data for rasterization mode.
-		Raster::ScreenConstants screenDataRaster{};
-		float vertexSize{ 2.f };
-
 	public: // Functions.
 		/// Constructor
 		/// @param[in] renderWidth   Render resolution width.

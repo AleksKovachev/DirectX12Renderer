@@ -21,7 +21,7 @@ namespace RT {
 		float aspectRatio;
 
 		DirectX::XMFLOAT3 cameraRight;
-		float _pad0;
+		int32_t forwardMult;
 
 		DirectX::XMFLOAT3 cameraUp;
 		float _pad1;
@@ -32,9 +32,9 @@ namespace RT {
 		static constexpr float maxPitch{ DirectX::XMConvertToRadians( 89.f ) };
 
 		// Position & orientation.
-		DirectX::XMFLOAT3 position{ 0.f, 0.f, 20.f }; ///< World space.
-		float yaw{ DirectX::XM_PI }; ///< Rotation around world up (Y) in radians.
-		float pitch{ 0.f }; ///< Rotation around local X in radians.
+		DirectX::XMFLOAT3 position{ 0.f, 0.f, -35.f }; ///< World space.
+		float yaw{}; ///< Rotation around world up (Y) in radians.
+		float pitch{}; ///< Rotation around local X in radians.
 
 		// Movement.
 		float movementSpeed{ 5.f }; ///< Units per second.
@@ -65,12 +65,12 @@ namespace RT {
 			verticalFOV = DirectX::XMConvertToRadians( value );
 		}
 
-		void ComputeBasisVectors() {
+		void ComputeBasisVectors( float zDir ) {
 			using namespace DirectX;
 			XMVECTOR forwardVec = XMVector3Normalize( XMVectorSet(
 				std::cosf( pitch ) * std::sinf( yaw ),
 				std::sinf( pitch ),
-				std::cosf( pitch ) * std::cosf( yaw ),
+				zDir * std::cosf( pitch ) * std::cosf( yaw ),
 				0.f
 			) );
 
@@ -106,36 +106,35 @@ namespace Raster {
 	/// Transformation-related data for controlling renderer from the GUI.
 	struct Transformation {
 		/// The transform matrix used in the constant buffer to update object position.
-		ComPtr<ID3D12Resource> transformCB{ nullptr };
-
-		// Members related to geometry transform with mouse movemet.
-		float currOffsetX{};
-		float currOffsetY{};
-		float targetOffsetX{};
-		float targetOffsetY{};
-		float offsetZ{ 35.f };
-
-		float dummyObjectRadius{ 0.5f }; ///< Used for offset clamping to viewport bounds.
-		float boundsX{};
-		float boundsY{};
-
-		float rotationSensitivityFactor{ 0.005f };
-		float offsetZSensitivityFactor{ 0.5f };
-		float FOVSensitivityFactor{ 0.1f };
-		float offsetXYSensitivityFactor{ 0.01f };
-
-		float currRotationX{};   // Radians
-		float currRotationY{};   // Radians
-		float targetRotationX{}; // Radians
-		float targetRotationY{}; // Radians
-
-		// Motion speed and sensitivity.
-		float smoothOffsetLerp{ 2.f };
-		float smoothRotationLambda{ 6.f };
-
+		ComPtr<ID3D12Resource> const_buffer{ nullptr };
 		UINT8* transformCBMappedPtr = nullptr;
 
-		float FOVAngle{ DirectX::XMConvertToRadians( 45.f ) };
+		// Members related to geometry transform with mouse movemet.
+		float currOffsetX{}; ///< Camera offset on X axis interpolated to reach targetOffsetX.
+		float currOffsetY{}; ///< Camera offset on Y axis interpolated to reach targetOffsetY.
+		float targetOffsetX{}; ///< The final destination for the camera offset on the X axis.
+		float targetOffsetY{}; ///< The final destination for the camera offset on the Y axis.
+		float offsetZ{ 35.f }; ///< Camera offset on the Z axis.
+
+		float dummyObjectRadius{ 0.5f }; ///< Used for offset clamping to viewport bounds.
+		float boundsX{}; ///< The current X axis screen boundary the geometry isn't allowed to leave.
+		float boundsY{}; ///< The current Y axis screen boundary the geometry isn't allowed to leave.
+
+		float rotSens{ 0.005f }; ///< Rotation sensitivity factor.
+		float offsetZSens{ 0.5f }; ///< Sensitivity factor for offset on Z axis.
+		float FOVSens{ 0.1f }; ///< Sensitivity factor for controlling the FOV.
+		float offsetXYSens{ 0.01f }; ///< Sensitivity factor for offset on XY axes.
+
+		float currRotationX{}; ///< Camera rotation in radians on X axis interpolated to reach targetRotationX.
+		float currRotationY{}; ///< Camera rotation in radians on Y axis interpolated to reach targetRotationY.
+		float targetRotationX{}; ///< The final destination for the camera rotation on the X axis (in radians).
+		float targetRotationY{}; ///< The final destination for the camera rotation on the Y axis (in radians).
+
+		// Motion speed and sensitivity.
+		float smoothOffsetLerp{ 2.f }; ///< Interpolation factor for camera offset (curr->target).
+		float smoothRotationLambda{ 6.f };  ///< Interpolation factor for camera rotation (curr->target)
+
+		float FOVAngle{ DirectX::XMConvertToRadians( 60.f ) }; ///< Vertical Field of View angle (in radians).
 		float aspectRatio{ 1.f }; ///< Calculate with render width/height.
 		float nearZ{ 0.1f }; ///< Camera near clipping plane.
 		float farZ{ 1000.f }; ///< Camera far clipping plane.

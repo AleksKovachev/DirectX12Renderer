@@ -249,9 +249,9 @@ QCheckBox::indicator:checked {
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>0</y>
-           <width>268</width>
-           <height>1030</height>
+           <y>-17</y>
+           <width>264</width>
+           <height>1047</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -694,7 +694,7 @@ Moves the camera closer/further.</string>
                    <double>9999999999999999455752309870428160.000000000000000</double>
                   </property>
                   <property name="value">
-                   <double>-20.000000000000000</double>
+                   <double>-35.000000000000000</double>
                   </property>
                  </widget>
                 </item>
@@ -912,7 +912,7 @@ to mouse movement when changing FoV.</string>
                 <double>179.900000000000006</double>
                </property>
                <property name="value">
-                <double>45.000000000000000</double>
+                <double>60.000000000000000</double>
                </property>
               </widget>
              </item>
@@ -1829,6 +1829,69 @@ QToolButton:hover {
                </property>
                <property name="value">
                 <double>2.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="31" column="0">
+              <widget class="QLabel" name="matchRTCamLbl">
+               <property name="text">
+                <string>Match Camera to Raster</string>
+               </property>
+              </widget>
+             </item>
+             <item row="31" column="1">
+              <widget class="QCheckBox" name="matchRTCamSwitch">
+               <property name="toolTip">
+                <string>Changes the camera's coordinate system so that
+it mimics the projection matrix in Rasterization mode.</string>
+               </property>
+               <property name="statusTip">
+                <string>Changes the camera's coordinate system so that it mimics the projection matrix in Rasterization mode.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">/* The Track */
+QCheckBox {
+    min-width: 50px;
+    max-width: 50px;
+    min-height: 26px;
+    max-height: 26px;
+    background-color: #3a3a3a;
+    border-radius: 13px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Checked track color (ignored, later set in code according to windows theme) */
+QCheckBox:checked {
+    background-color: #000000;
+}
+
+/* The Indicator (The Full Hit-box) */
+QCheckBox::indicator {
+    width: 50px;
+    height: 50px; 
+    outline: none;
+}
+
+/* The Bigger Circle Logic */
+QCheckBox::indicator:unchecked {
+    /* Radius increased to 0.23, cx moved slightly to keep it from hitting the edge */
+	/* Use cx:25, cy:0.5, radius:0.2, fx:0.25, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.26, cy:0.5, radius:0.23, fx:0.26, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}
+
+QCheckBox::indicator:checked {
+    /* Radius increased to 0.23, cx moved slightly right */
+    /* Use cx:75, cy:0.5, radius:0.2, fx:0.75, fy:0.5 for smaller circle */
+    background: qradialgradient(cx:0.74, cy:0.5, radius:0.23, fx:0.74, fy:0.5, 
+                stop:0 white, stop:0.85 white, 
+                stop:0.86 transparent, stop:1 transparent);
+}</string>
+               </property>
+               <property name="text">
+                <string/>
                </property>
               </widget>
              </item>
@@ -2856,6 +2919,38 @@ QToolButton:hover {
     <hint type="destinationlabel">
      <x>48</x>
      <y>1094</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>matchRTCamSwitch</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>189</x>
+     <y>1108</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>matchRTCamLbl</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1842</x>
+     <y>69</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>83</x>
+     <y>1108</y>
     </hint>
    </hints>
   </connection>

@@ -68,4 +68,14 @@ private:
 	);
 };
 
+namespace Raster {
+	struct alignas(16) SceneDataCB {
+		uint32_t packedColor{ 0xFFFFFFFF }; // 0xAABBGGRR, because of GPU Endiannes.
+
+		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
+		uint32_t disco{ 0 }; // Converted to bool in shader.
+		uint32_t discoSpeed{ 200 };
+	};
+}
+
 #endif // SCENE_HPP
