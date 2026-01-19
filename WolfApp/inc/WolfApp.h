@@ -8,6 +8,11 @@
 
 struct App;
 
+struct ColorPickerData {
+	QColor color;
+	QString style;
+};
+
 class WolfApp : public QObject {
 	Q_OBJECT
 
@@ -53,6 +58,10 @@ private: // Functions
 	void SetupFPSTimers();
 
 	void SetInitialSceneFileLocation();
+
+	/// Packs a QColor into a single uint32_t to save GPU memory.
+	uint32_t PackColor( QColor& );
+
 private: // Members
 	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.
 	WolfMainWindow* m_mainWin;     ///< The main window of the application.
@@ -79,7 +88,7 @@ private slots:
 	void CameraPositionChangedRT();
 	void OnChangeSpeedMult( float );
 	void OnResize( float, float );
-	void SetupGeomRasterColorPicker();
+	ColorPickerData SetupColorPicker();
 };
 
 

@@ -1,5 +1,9 @@
 #include "Common.hlsli"
 
+cbuffer RootConstants : register( b4 ) {
+    uint packedColor;
+};
+
 float4 PSMain( PSInput input ) : SV_Target {
-    return float4( 0.f, 0.f, 0.f, 1.f );
+    return UnpackColor( packedColor );
 }

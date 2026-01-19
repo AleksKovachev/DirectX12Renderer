@@ -5,11 +5,11 @@ cbuffer RootConstants : register( b0 ) {
 };
 
 cbuffer SceneData : register( b2 ) {
-    float4 geomColor;
+    uint geomColorPacked;
     bool useRandomColors;
     bool disco;
     uint discoSpeed;
-    float _padding;
+    //float _padding;
 };
 
 float4 PSMain( PSInput input, uint primID : SV_PrimitiveID ) : SV_TARGET {
@@ -44,6 +44,7 @@ float4 PSMain( PSInput input, uint primID : SV_PrimitiveID ) : SV_TARGET {
             return purpleColor;
         }
     } else {
-        return geomColor;
+        // Manual way.
+        return UnpackColor( geomColorPacked );
     }
 }
