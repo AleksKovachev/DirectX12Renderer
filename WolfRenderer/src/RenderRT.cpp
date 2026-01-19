@@ -978,24 +978,29 @@ namespace Core {
 	void WolfRenderer::UpdateRTCamera( RT::CameraInput& input ) {
 		using namespace DirectX;
 
-		float dir = static_cast<float>(dataRT.GetMatchRTCameraToRaster());
-		assert( dir == 1.f || dir == -1.f );
+		float zDir = static_cast<float>(dataRT.GetMatchRTCameraToRaster());
+		assert( zDir == 1.f || zDir == -1.f );
 
 		dataRT.camera.yaw += input.mouseDeltaX * dataRT.camera.mouseSensitivity;
 		dataRT.camera.setPitch(
-			dataRT.camera.pitch + input.mouseDeltaY * dataRT.camera.mouseSensitivity * dir );
+			dataRT.camera.pitch + input.mouseDeltaY * dataRT.camera.mouseSensitivity * zDir );
 
 		// Reset mouse delta for next frame.
 		input.mouseDeltaX = 0.f;
 		input.mouseDeltaY = 0.f;
 
-		dataRT.camera.ComputeBasisVectors( dir );
+		dataRT.camera.ComputeBasisVectors( zDir );
 
 		XMVECTOR moveVec = XMVectorZero();
-		if ( input.moveForward )
-			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &dataRT.camera.forward ) );
-		if ( input.moveBackward )
-			moveVec = XMVectorSubtract( moveVec, XMLoadFloat3( &dataRT.camera.forward ) );
+
+		if ( input.moveForward ) {
+			XMVECTOR forwardVec = XMLoadFloat3( &dataRT.camera.forward );
+			moveVec = XMVectorAdd( moveVec, XMVectorScale( forwardVec, zDir ) );
+		}
+		if ( input.moveBackward ) {
+			XMVECTOR forwardVec = XMLoadFloat3( &dataRT.camera.forward );
+			moveVec = XMVectorSubtract( moveVec, XMVectorScale( forwardVec, zDir ) );
+		}
 		if ( input.moveRight )
 			moveVec = XMVectorAdd( moveVec, XMLoadFloat3( &dataRT.camera.right ) );
 		if ( input.moveLeft )
@@ -1005,8 +1010,6 @@ namespace Core {
 		if ( input.moveDown )
 			moveVec = XMVectorSubtract( moveVec, dataRT.camera.worldUp );
 
-		// Flip the Z axis sign depending on RT / Raster camera mode.
-		moveVec = XMVectorMultiply( moveVec, XMVectorSet( 1.0f, 1.0f, dir, 1.0f ) );
 
 		if ( !XMVector3Equal( moveVec, XMVectorZero() ) ) {
 			float effectiveSpeed = dataRT.camera.movementSpeed;

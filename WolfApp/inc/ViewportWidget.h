@@ -69,9 +69,11 @@ protected:
 	}
 
 	void mousePressEvent( QMouseEvent* event ) override {
-		// Hide the cursor.
-		setCursor( Qt::BlankCursor );
-		SetCapture( GetNativeWindowHandle() );
+		if ( m_renderMode == Core::RenderMode::Rasterization ) {
+			// Hide the cursor.
+			setCursor( Qt::BlankCursor );
+			SetCapture( GetNativeWindowHandle() );
+		}
 
 		if ( event->button() == Qt::LeftButton ) {
 			// Save current mouse coordinates as last mouse position on left click.
@@ -83,6 +85,11 @@ protected:
 			m_RMBDown = true;
 			m_lastRMBPos = event->pos();
 			inputUpdateTimer.start();
+			if ( m_renderMode == Core::RenderMode::RayTracing ) {
+				// Hide the cursor.
+				setCursor( Qt::BlankCursor );
+				SetCapture( GetNativeWindowHandle() );
+			}
 		}
 		if ( event->button() == Qt::MiddleButton ) {
 			// Save current mouse coordinates as last mouse position on right click.

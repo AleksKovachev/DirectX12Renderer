@@ -264,6 +264,8 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->matchRTCamSwitch, &QCheckBox::toggled,
 		this, [this]( bool value ) {
 			m_renderer.dataRT.SetMatchRTCameraToRaster( value );
+			m_renderer.dataRT.camera.yaw += DirectX::XM_PI;
+			m_renderer.dataRT.camera.position.z *=-1;
 		}
 	);
 
@@ -464,7 +466,7 @@ void WolfApp::OnPositionChangedRT() {
 
 	m_ui->camPosXSpin->setValue( m_renderer.dataRT.camera.position.x );
 	m_ui->camPosYSpin->setValue( m_renderer.dataRT.camera.position.y );
-	m_ui->camPosZSpin->setValue( m_renderer.dataRT.camera.position.z * zSign );
+	m_ui->camPosZSpin->setValue( -m_renderer.dataRT.camera.position.z * zSign );
 }
 
 void WolfApp::OpenSceneBtnClicked() {

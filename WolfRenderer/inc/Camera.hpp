@@ -32,8 +32,8 @@ namespace RT {
 		static constexpr float maxPitch{ DirectX::XMConvertToRadians( 89.f ) };
 
 		// Position & orientation.
-		DirectX::XMFLOAT3 position{ 0.f, 0.f, -35.f }; ///< World space.
-		float yaw{}; ///< Rotation around world up (Y) in radians.
+		DirectX::XMFLOAT3 position{ 0.f, 0.f, 35.f }; ///< World space.
+		float yaw{ DirectX::XM_PI }; ///< Rotation around world up (Y) in radians.
 		float pitch{}; ///< Rotation around local X in radians.
 
 		// Movement.
