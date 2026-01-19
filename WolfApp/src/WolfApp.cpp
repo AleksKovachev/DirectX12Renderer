@@ -195,6 +195,7 @@ void WolfApp::SetupMainWindowSizeAndPosition() {
 }
 
 void WolfApp::ConnectUIEvents() {
+	connect( m_ui->viewport, &WolfViewportWidget::ToggleFullscreen, this, &WolfApp::ToggleFullscreen );
 	connect( m_ui->sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
 	connect( m_ui->loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
 
@@ -516,6 +517,12 @@ void WolfApp::OnResize( float width, float height ) {
 	}
 }
 
+void WolfApp::ToggleFullscreen() {
+	m_ui->menuBar->setVisible( !m_ui->menuBar->isVisible() );
+	m_ui->renderModeFrame->setVisible( !m_ui->renderModeFrame->isVisible() );
+	m_ui->scrollAreaSettings->setVisible( !m_ui->scrollAreaSettings->isVisible() );
+}
+
 ColorPickerData WolfApp::SetupColorPicker() {
 	// Open color picker dialog when Color Button is clicked.
 	QColor color = QColorDialog::getColor( Qt::white, m_mainWin, "Select Geometry Color" );
@@ -527,7 +534,7 @@ ColorPickerData WolfApp::SetupColorPicker() {
 	else
 		hoverColor = "#222222";
 
-		// Update the preview label.
+	// Update the preview label.
 	QString btnStyle = QString( R"(
 		QToolButton {
 			background-color: %1;

@@ -52,6 +52,8 @@ If you have any issues building and running the application, you can try it out 
     smooth animation to reach the target destination.
   - Middle Mouse Button (**MMB**) scroll: Zoom camera in/out.
   - Middle Mouse Button (**MMB**) click + mouse drag up/down: Change camera Field Of View (FOV) angle.
+- **General**
+  - Mouse **`Double Click`** / Keyboard **`F`**: Toggle Fullscreen.
 
 ## ✨ Features
 
