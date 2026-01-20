@@ -3,6 +3,7 @@ struct PSInput {
     float2 localPos : TEXCOORD0; // [-1, 1] quad space
 };
 
+/// Unpack an 8-bit color, packed in a uint's bits.
 float4 UnpackColor( uint packed ) {
     return float4(
         ( packed & 0xFF ), // R

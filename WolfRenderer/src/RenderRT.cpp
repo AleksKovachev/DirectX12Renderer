@@ -50,12 +50,17 @@ namespace Core {
 		m_cmdList->SetComputeRootDescriptorTable(
 			0, m_uavsrvHeap->GetGPUDescriptorHandleForHeapStart() );
 
-		// Slot 1: Root Constant.
-		m_cmdList->SetComputeRoot32BitConstant( 1, dataRT.randomColors, 0 );
+		// Slot 1: Root Constant - random colors.
+		m_cmdList->SetComputeRoot32BitConstant( 1, dataRT.bgColorPacked, 0 );
+		m_cmdList->SetComputeRoot32BitConstant( 1, dataRT.randomColors, 1 );
 
 		// Slot 2: Camera Data.
 		m_cmdList->SetComputeRootConstantBufferView(
 			2, dataRT.camera.cb->GetGPUVirtualAddress() );
+
+
+		// Slot 3: Root Constant - background color.
+		m_cmdList->SetComputeRoot32BitConstant( 3, dataRT.bgColorPacked, 0 );
 
 		dataRT.camera.cbData.cameraPosition = dataRT.camera.position;
 		dataRT.camera.cbData.cameraForward = dataRT.camera.forward;
@@ -120,10 +125,10 @@ namespace Core {
 		rootParams[0].DescriptorTable.NumDescriptorRanges = 2;
 		rootParams[0].DescriptorTable.pDescriptorRanges = ranges;
 
-		// Param 1 - random color root constant.
+		// Param 1 - random color and background color root constants.
 		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[1].Constants.Num32BitValues = 1;
+		rootParams[1].Constants.Num32BitValues = 2;
 		rootParams[1].Constants.ShaderRegister = 0; // b0
 		rootParams[1].Constants.RegisterSpace = 0;
 

@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/icons">
         <file>icons/WolfApp.ico</file>
+        <file>icons/portal-exit_white.png</file>
     </qresource>
 </RCC>

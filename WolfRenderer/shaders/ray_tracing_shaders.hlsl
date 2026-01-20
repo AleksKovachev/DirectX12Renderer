@@ -6,6 +6,7 @@ struct RayPayload {
 };
 
 cbuffer SceneData : register( b0 ) {
+    uint bgColorPacked;
     bool useRandomColors;
 };
 
@@ -23,6 +24,15 @@ cbuffer RTCameraCB : register( b1 ) {
     float _pad1;
 };
 
+/// Unpack an 8-bit color, packed in a uint's bits.
+float4 UnpackColor( uint packed ) {
+    return float4(
+        ( packed & 0xFF ), // R
+        ( packed >> 8 ) & 0xFF, // G
+        ( packed >> 16 ) & 0xFF, // B
+        ( packed >> 24 ) & 0xFF // A
+    ) / 255.0f;
+}
 
 /// Generate a unique ID based on Primitive, geometry
 /// inside a given BLAS and TLAS instance indices.
@@ -168,7 +178,7 @@ void rayGen() {
 [shader("miss")]
 void miss(inout RayPayload payload) {
     // Fill the frame with green color on miss.
-    payload.pixelColor = float4(0.0, 1.0, 0.0, 1.0);
+    payload.pixelColor = UnpackColor( bgColorPacked );
 }
 
 [shader("closesthit")]

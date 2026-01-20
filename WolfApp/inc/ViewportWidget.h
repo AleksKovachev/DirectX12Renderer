@@ -171,8 +171,6 @@ protected:
 				case Qt::Key_Shift: cameraInput.speedModifier = true; break;
 			}
 		}
-		if ( event->key() == Qt::Key_F && !event->isAutoRepeat() )
-			emit ToggleFullscreen();
 
 		// Allow propagation if parent needs events.
 		QWidget::keyPressEvent( event );
