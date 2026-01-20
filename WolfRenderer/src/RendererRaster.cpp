@@ -485,7 +485,11 @@ namespace Core {
 		m_reloadingScene = true;
 		m_isPrepared = false;
 		WaitForGPUSync();
+		// Skip this if you want to add the new scene into the current one (Raster only).
 		scene.Cleanup();
+		// Always clear this one as it will be re-loaded if not cleaned up in the scene above.
+		// If this is not cleared, the same geometry will be loaded again with each reload.
+		m_gpuMeshes.clear();
 		scene.SetRenderScene( scenePath );
 		scene.ParseSceneFile();
 
