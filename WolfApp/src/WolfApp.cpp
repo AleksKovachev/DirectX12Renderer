@@ -2,6 +2,7 @@
 #include "RenderParams.hpp" // RenderMode
 
 #include <QMessageBox>
+#include <QtGui/QShortcut>
 #include <QTimer>
 #include <QtWidgets/QColorDialog>
 #include <QtWidgets/QFileDialog>
@@ -30,8 +31,12 @@ bool WolfApp::init( Core::App* appData ) {
 	m_mainWin->show();
 	m_renderer.PrepareForRendering( m_ui->viewport->GetNativeWindowHandle() );
 
+	SetupAspectRatio();
+
 	SetupFPSTimers();
 	SetInitialSceneFileLocation();
+
+	SetupShortcuts();
 
 	return true;
 }
@@ -39,10 +44,7 @@ bool WolfApp::init( Core::App* appData ) {
 bool WolfApp::InitWindow() {
 	m_mainWin = new WolfMainWindow;
 	m_ui = &m_mainWin->GetUI();
-	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
-	connect( m_mainWin->GetActionExit(), &QAction::triggered, this, [this]() {
-		OnQuit(); QApplication::quit(); } );
-	m_mainWin->SetRenderMode( m_renderer.renderMode );
+	m_ui->viewport->SetRenderMode( m_renderer.renderMode );
 	return true;
 }
 
@@ -66,13 +68,13 @@ void WolfApp::OnRenderModeChanged( bool rayTracingOn ) {
 }
 
 void WolfApp::UpdateRenderStats() {
-	m_mainWin->SetFPS( m_frameIdxAtLastFPSCalc );
+	m_ui->fpsVal->setText( QString::number( m_frameIdxAtLastFPSCalc ) );
 	m_frameIdxAtLastFPSCalc = 0;
 }
 
 void WolfApp::SetRenderMode( Core::RenderMode renderMode ) {
 	m_renderer.SetRenderMode( renderMode );
-	m_mainWin->SetRenderMode( renderMode );
+	m_ui->viewport->SetRenderMode( renderMode );
 }
 
 void WolfApp::SetInitialValues() {
@@ -166,10 +168,11 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->vertexSizeLbl->setHidden( isRTMode );
 	m_ui->vertexSizeSpin->setHidden( isRTMode );
 	m_ui->vertexSizeSpin->setHidden( isRTMode );
+	m_ui->backgroundColorRasterLbl->setHidden( isRTMode );
+	m_ui->backgroundColorRasterBtn->setHidden( isRTMode );
 }
 
 void WolfApp::SetupMainWindowSizeAndPosition() {
-
 	QScreen* screen = m_mainWin->screen();
 	if ( screen == nullptr )
 		screen = QApplication::primaryScreen();
@@ -188,15 +191,16 @@ void WolfApp::SetupMainWindowSizeAndPosition() {
 
 	windowGeometry.moveCenter( screenCenter );
 	m_mainWin->move( windowGeometry.topLeft() );
-
-	// Set aspect ratio value in GUI to the aspect ratio of the viewport, NOT scene.
-	float aspectRatioViewport{ static_cast<float>(
-		m_ui->viewport->width() ) / static_cast<float>( m_ui->viewport->height() ) };
-	m_ui->aspectRatioRasterSpin->setValue( aspectRatioViewport );
-	m_renderer.dataRT.camera.aspectRatio = aspectRatioViewport;
 }
 
 void WolfApp::ConnectUIEvents() {
+	connect( m_mainWin, &WolfMainWindow::requestQuit, this, &WolfApp::OnQuit );
+
+	connect( m_ui->actionExit, &QAction::triggered, this, [this]() {
+		OnQuit(); QApplication::quit(); } );
+	connect( m_ui->actionOpenScene, &QAction::triggered, this, &WolfApp::OpenSceneBtnClicked );
+	connect( m_ui->actionLoadScene, &QAction::triggered, this, &WolfApp::LoadSceneClicked );
+
 	connect( m_ui->viewport, &WolfViewportWidget::ToggleFullscreen, this, &WolfApp::ToggleFullscreen );
 	connect( m_ui->sceneFileBtn, &QPushButton::clicked, this, &WolfApp::OpenSceneBtnClicked );
 	connect( m_ui->loadSceneBtn, &QPushButton::clicked, this, &WolfApp::LoadSceneClicked );
@@ -228,7 +232,16 @@ void WolfApp::ConnectUIEvents() {
 				m_ui->randomColorsRasterSwitch->setChecked( false ); } );
 
 	// Ray Tracing GUI connections.
-	connect( m_mainWin->GetRenderModeSwitch(), &QCheckBox::toggled,
+	connect( m_ui->backgroundColorRTBtn, &QToolButton::clicked,
+	this, [this]() {
+		ColorPickerData data = SetupColorPicker(
+			UnpackColor( m_renderer.dataRT.bgColorPacked ) );
+		if ( !data.color.isValid() )
+			return;
+		m_ui->backgroundColorRTBtn->setStyleSheet( data.style );
+		m_renderer.dataRT.bgColorPacked = PackColor( data.color );
+	} );
+	connect( m_ui->renderModeSwitch, &QCheckBox::toggled,
 		this, &WolfApp::OnRenderModeChanged
 	);
 	connect( m_ui->moveSpeedSlider, &QSlider::valueChanged,
@@ -270,6 +283,22 @@ void WolfApp::ConnectUIEvents() {
 	);
 
 	// Rasterization GUI connections.
+	connect( m_ui->backgroundColorRasterBtn, &QToolButton::clicked,
+		this, [this]() {
+			QColor currColor;
+			float* bgColor{ m_renderer.dataRaster.bgColor };
+			currColor.setRgbF( bgColor[0], bgColor[1], bgColor[2], bgColor[3] );
+
+			ColorPickerData data = SetupColorPicker( currColor );
+			if ( !data.color.isValid() )
+				return;
+			m_ui->backgroundColorRasterBtn->setStyleSheet( data.style );
+
+			bgColor[0] = data.color.redF();
+			bgColor[1] = data.color.greenF();
+			bgColor[2] = data.color.blueF();
+			bgColor[3] = data.color.alphaF();
+	} );
 	connect( m_ui->zoomRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this]() { m_renderer.dataRaster.camera.offsetZ = m_ui->zoomRasterSpin->value(); }
 	);
@@ -322,9 +351,9 @@ void WolfApp::ConnectUIEvents() {
 		this, [this]( bool value ) {
 			m_renderer.dataRaster.renderFaces = value;
 			if ( value || !m_ui->randomColorsRasterSwitch->isChecked() || !m_ui->discoModeRasterSwitch->isChecked() )
-				m_ui->faceColorRasterBtn->setEnabled( false );
-			else
 				m_ui->faceColorRasterBtn->setEnabled( true );
+			else
+				m_ui->faceColorRasterBtn->setEnabled( false );
 		}
 	);
 	connect( m_ui->renderEdgesRasterSwitch, &QCheckBox::toggled,
@@ -412,6 +441,44 @@ QColor WolfApp::UnpackColor( uint32_t packedColor ) {
 	return QColor( red, green, blue, alpha );
 }
 
+void WolfApp::SetupAspectRatio() {
+	// Set aspect ratio value in GUI to the aspect ratio of the viewport, NOT scene.
+	float aspectRatioViewport{ static_cast<float>(
+		m_ui->viewport->width()) / static_cast<float>(m_ui->viewport->height()) };
+	m_ui->aspectRatioRasterSpin->setValue( aspectRatioViewport );
+	m_renderer.dataRT.camera.aspectRatio = aspectRatioViewport;
+}
+
+void WolfApp::SetupShortcuts() {
+	// Toggle Render Mode.
+	QShortcut* toggleRenderMode = new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_R ), m_mainWin );
+	toggleRenderMode->setContext( Qt::ApplicationShortcut );
+	connect( toggleRenderMode, &QShortcut::activated, this, [this]() {
+		SetRenderMode( m_renderer.renderMode == Core::RenderMode::RayTracing ?
+		Core::RenderMode::Rasterization : Core::RenderMode::RayTracing );
+	} );
+
+	// Toggle Fullscreen.
+	QShortcut* toggleFullscreen = new QShortcut( QKeySequence( Qt::Key_F ), m_mainWin );
+	toggleFullscreen->setContext( Qt::ApplicationShortcut );
+	connect( toggleFullscreen, &QShortcut::activated, this, &WolfApp::ToggleFullscreen );
+
+	// Exit.
+	QShortcut* exit = new QShortcut( QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_E ), m_mainWin );
+	exit->setContext( Qt::ApplicationShortcut );
+	connect( exit, &QShortcut::activated, this, [this]() { OnQuit(); QApplication::quit(); } );
+
+	// Open Scene.
+	QShortcut* openScene = new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_O ), m_mainWin );
+	openScene->setContext( Qt::ApplicationShortcut );
+	connect( openScene, &QShortcut::activated, this, &WolfApp::OpenSceneBtnClicked );
+
+	// Load Scene.
+	QShortcut* loadScene = new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_L ), m_mainWin );
+	loadScene->setContext( Qt::ApplicationShortcut );
+	connect( loadScene, &QShortcut::activated, this, &WolfApp::LoadSceneClicked );
+}
+
 void WolfApp::SetupFPSTimers() {
 	m_idleTimer = new QTimer( m_mainWin );
 	connect( m_idleTimer, &QTimer::timeout, this, &WolfApp::OnIdleTick );
@@ -450,7 +517,9 @@ void WolfApp::OnCameraDolly( float offsetZ ) {
 }
 
 void WolfApp::OnCameraFOV( float offset ) {
+	QSignalBlocker blockX( m_ui->FOVRasterSpin );
 	m_renderer.AddToOffsetFOV( offset );
+	m_ui->FOVRasterSpin->setValue( m_ui->FOVRasterSpin->value() + offset );
 }
 
 void WolfApp::OnRotateGeometry( float deltaAngleX, float deltaAngleY ) {
@@ -564,6 +633,7 @@ void WolfApp::ToggleFullscreen() {
 	m_ui->menuBar->setVisible( !m_ui->menuBar->isVisible() );
 	m_ui->renderModeFrame->setVisible( !m_ui->renderModeFrame->isVisible() );
 	m_ui->scrollAreaSettings->setVisible( !m_ui->scrollAreaSettings->isVisible() );
+	OnResize( m_ui->viewport->width(), m_ui->viewport->height() );
 }
 
 ColorPickerData WolfApp::SetupColorPicker( QColor currColor ) {

@@ -16,6 +16,9 @@ If you have any issues building and running the application, you can try it out 
   <img src="docs/gui_raster_wireframe.png" width="45%" />
   <img src="docs/gui_raster.png" width="45%" />
 </p>
+<p float="left">
+  <img src="docs/raster_screenshot2.png" width="45%" />
+</p>
 
 ### Video (Outdated)
 [![Demo video](docs/gui_rt.png)](https://youtu.be/sAdg-p7nPXE)
@@ -53,7 +56,11 @@ If you have any issues building and running the application, you can try it out 
   - Middle Mouse Button (**MMB**) scroll: Zoom camera in/out.
   - Middle Mouse Button (**MMB**) click + mouse drag up/down: Change camera Field Of View (FOV) angle.
 - **General**
-  - Mouse **`Double Click`** / Keyboard **`F`**: Toggle Fullscreen.
+  - **Ctrl + O**: Open Scene File.
+  - **Ctrl + L**: Load Scene File.
+  - **Ctrl + R**: Toggle Render Mode.
+  - **Ctrl + Shift + E**: Quit Application.
+  - Mouse Button **`Double Click`** / Keyboard **`F`**: Toggle Fullscreen.
 
 ## ✨ Features
 

@@ -30,6 +30,7 @@ public slots:
 	/// Close the editor properly, wait for the current GPU tasks.
 	void OnQuit();
 
+	/// Stops FPS and Idle timers, changes render mode and starts the timers.
 	void OnRenderModeChanged( bool );
 
 private: // Functions
@@ -51,19 +52,32 @@ private: // Functions
 	/// Hides the widgets that are irrelevant to the current render mode.
 	void HideIrrelevantWidgets();
 
+	/// Sets the size and position of the main window without the aspect ratio.
 	void SetupMainWindowSizeAndPosition();
 
+	/// All signal->slot connections.
 	void ConnectUIEvents();
 
+	/// Sets up FPS and Idle timers.
 	void SetupFPSTimers();
 
+	/// Fills the scene file entry box with the path to the initial scene.
 	void SetInitialSceneFileLocation();
 
 	/// Packs a QColor into a single uint32_t to save GPU memory.
 	uint32_t PackColor( QColor& );
 
-	/// Unpakcs a uint32_t-packed color in AABBGGRR format to a QColor.
+	/// Unpakcs a uint32_t-packed color to a QColor.
+	/// @param[in] packedColor  An 8-bit color packedin format AABBGGRR.
 	QColor UnpackColor( uint32_t );
+
+	/// Sets up the initial aspect ratio.
+	/// Doing it in SetupMainWindowSizeAndPosition is too early.
+	void SetupAspectRatio();
+
+	/// Sets up application shortcuts.
+	/// Setting them in actions doesn't work with fullscreen on.
+	void SetupShortcuts();
 
 private: // Members
 	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.

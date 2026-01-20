@@ -46,8 +46,7 @@ namespace Core {
 		// Set which Render Target will be used for rendering.
 		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, &dsvHandle );
-		float greenBG[] = { 0.f, 0.2f, 0.f, 1.f };
-		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], greenBG, 0, nullptr );
+		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], dataRaster.bgColor, 0, nullptr );
 		m_cmdList->ClearDepthStencilView( m_dsvHeap->GetCPUDescriptorHandleForHeapStart(),
 			D3D12_CLEAR_FLAG_DEPTH, 0.f, 0, 0, nullptr
 		);
