@@ -24,7 +24,7 @@ namespace RT {
 		int32_t forwardMult;
 
 		DirectX::XMFLOAT3 cameraUp;
-		float _pad1;
+		float _pad0;
 	};
 
 	struct Camera {

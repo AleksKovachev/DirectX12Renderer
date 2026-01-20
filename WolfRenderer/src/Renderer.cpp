@@ -1,4 +1,3 @@
-#include "Geometry.hpp" // Vertex2D, Vertex3D
 #include "Renderer.hpp"
 #include "utils.hpp" // CHECK_HR, wideStrToUTF8
 
@@ -7,7 +6,7 @@
 #include <chrono> // high_resolution_clock, duration
 #include <format> // format
 #include <fstream> // ofstream, ios::binary
-#include <string> // string, wstring
+#include <string> // string
 #include <vector> // vector
 
 using hrClock = std::chrono::high_resolution_clock;

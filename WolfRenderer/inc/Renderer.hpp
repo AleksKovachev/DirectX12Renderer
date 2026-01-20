@@ -46,6 +46,15 @@ namespace Core {
 		Both
 	};
 
+	struct GPUMesh {
+		ComPtr<ID3D12Resource> vertexBuffer;
+		ComPtr<ID3D12Resource> indexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW vbView{};
+		D3D12_INDEX_BUFFER_VIEW ibView{};
+		UINT indexCount{};
+		UINT vertexCount{};
+	};
+
 	// The main Renderer class managing the GPU commands.
 	class WolfRenderer {
 	public: // Memebrs.
@@ -238,9 +247,10 @@ namespace Core {
 		void CreatePipelineState();
 
 		/// Creates the vertices that will be rendered by the pipeline for the frame.
-		/// Uses an upload heap to store the vertices on the CPU memory, the
+		/// Uses upload heaps to store the vertices on the CPU memory, the
 		/// GPU will access them using the PCIe.
-		void CreateVertexBuffer();
+		/// @param[in] mesh  The Mesh object to be uploaded to the GPU.
+		void CreateMeshBuffers( const Mesh& );
 
 		/// Creates the viewport and scissor rectangle for rendering.
 		void CreateViewport();
@@ -355,12 +365,9 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
-		/// The vertices that will be rendered (Stored in GPU Default Heap).
-		ComPtr<ID3D12Resource> m_vertexBuffer{ nullptr };
 		/// The vertices that will be rendered in RT (Stored in GPU Default Heap).
 		ComPtr<ID3D12Resource> m_vertexBufferRT{ nullptr };
 		/// The vertex buffer descriptor.
-		D3D12_VERTEX_BUFFER_VIEW m_vbView{};
 		/// The root signature defining the resources bound to the pipeline.
 		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
 		/// The pipeline state object holding the pipeline configuration for rendering faces.
@@ -433,6 +440,8 @@ namespace Core {
 
 		ComPtr<ID3D12Resource> m_screenDataCB{ nullptr };
 		UINT8* m_screenDataCBMappedPtr = nullptr;
+
+		std::vector<GPUMesh> m_gpuMeshes;
 
 		// General members.
 		size_t m_frameIdx{};        ///< Current frame index.

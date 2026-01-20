@@ -531,21 +531,16 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateVertexBufferRT() {
-		m_vertexCount = scene.GetTriangles().size() * 3;
-		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
-
-		int vertIdxInBuffIdx{};
-		for ( int triIdx{}; triIdx < scene.GetTriangles().size(); ++triIdx ) {
-			Triangle tri{ scene.GetTriangles()[triIdx] };
-			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
-				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
-				vertInBuff.x = tri.GetVertex( vertIdx ).x;
-				vertInBuff.y = tri.GetVertex( vertIdx ).y;
-				vertInBuff.z = tri.GetVertex( vertIdx ).z;
+		std::vector<Vertex> rtVertices;
+		for ( const Mesh& mesh : scene.GetMeshes() ) {
+			for ( uint32_t i : mesh.indices ) {
+				const Vertex& v = mesh.vertices[i];
+				rtVertices.push_back( Vertex{ v.position, {} } );
 			}
 		}
+		m_vertexCount = rtVertices.size();
 
-		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
+		const size_t vertSize{ sizeof( Vertex ) * m_vertexCount };
 
 		// Create the "Intermediate" Upload Buffer (Staging).
 		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
@@ -568,7 +563,7 @@ namespace Core {
 		void* pVertexData;
 		hr = uploadBuffer->Map( 0, nullptr, &pVertexData );
 		CHECK_HR( "Failed to map upload buffer.", hr, log );
-		memcpy( pVertexData, triangleVertices, vertSize );
+		memcpy( pVertexData, rtVertices.data(), vertSize);
 		uploadBuffer->Unmap( 0, nullptr );
 
 		// Create the destination Vertex Buffer (Default Heap).
@@ -614,8 +609,6 @@ namespace Core {
 		// goes out of scope. Otherwise, is's destroyed while the GPU is
 		// trying to read from it, causing a crash/device removal.
 		WaitForGPUSync();
-
-		delete[] triangleVertices;
 
 		log( "[ Ray Tracing ] Vertex buffer successfully uploaded to GPU default heap." );
 	}
@@ -707,7 +700,7 @@ namespace Core {
 		// Describe triangle geometry for BLAS.
 		D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangleDesc{};
 		triangleDesc.VertexBuffer.StartAddress = m_vertexBufferRT->GetGPUVirtualAddress();
-		triangleDesc.VertexBuffer.StrideInBytes = sizeof( Vertex3D );
+		triangleDesc.VertexBuffer.StrideInBytes = sizeof( Vertex );
 		triangleDesc.VertexCount = static_cast<UINT>(m_vertexCount);
 		triangleDesc.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 

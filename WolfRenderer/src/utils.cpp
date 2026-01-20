@@ -26,3 +26,25 @@ std::string wideStrToUTF8( const std::wstring& wide ) {
 float SRGBToLinear( int value ) {
 	return (value <= 0.04045f) ? value / 12.92f : std::pow( (value + 0.055f) / 1.055f, 2.4f );
 }
+
+std::wstring ConvertStringToWstring( const std::string& str ) {
+	if ( str.empty() )
+		return L"";
+
+	// Get the size required for the wide string (including null terminator).
+	int wSize{ MultiByteToWideChar( CP_UTF8, 0, str.c_str(), -1, nullptr, 0 ) };
+
+	if ( wSize == 0 )
+		throw std::runtime_error( "Failed to compute wide string size." );
+
+	// Allocate a std::wstring of the required size (minus 1 for null terminator).
+	std::wstring result( wSize - 1, L'\0' );
+
+	// Perform the conversion.
+	int converted = MultiByteToWideChar( CP_UTF8, 0, str.c_str(), -1, &result[0], wSize);
+
+	if ( converted == 0 )
+		throw std::runtime_error( "Failed to convert UTF-8 string to wide string." );
+
+	return result;
+}

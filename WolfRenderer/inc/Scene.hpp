@@ -1,16 +1,18 @@
 #ifndef SCENE_HPP
 #define SCENE_HPP
 
+#include <DirectXMath.h>
 #include <iostream> // cout
 #include <string> // string
 #include <vector> // vector
 
 #include "rapidjson/document.h" // Document, Value, Value::ConstArray
 
-#include "Geometry.hpp" // Triangle, Vertex3D
+#include "Geometry.hpp" // Vertex
 #include "Logger.hpp" // Logger, LogLevel
 #include "Settings.hpp" // Settings
 
+using rapidjson::Value;
 
 class Scene {
 public:
@@ -25,9 +27,9 @@ public:
 	/// Parse the scene file to get all data.
 	void ParseSceneFile();
 
-	/// Gets all the triangles in the scene.
-	/// @return  A collection of triangles, ready to iterate.
-	const std::vector<Triangle>& GetTriangles() const;
+	/// Gets all the meshes in the scene.
+	/// @return  A collection of meshes, ready to iterate.
+	const std::vector<Mesh>& GetMeshes() const;
 
 	/// Set the name of the scene file to be processed and rendered.
 	/// @param[in] filePath  The path to the scene file.
@@ -40,8 +42,7 @@ public:
 	void Cleanup();
 private:
 	std::string m_filePath{ "../rsc/scene1.crtscene" };
-	std::vector<Triangle> m_triangles; ///< All scene triangles
-	std::vector<int> m_triIndices; ///< Indices of all scene triangles
+	std::vector<Mesh> m_meshes;
 
 // crtscene file parsing (json)
 private:
@@ -53,19 +54,10 @@ private:
 	/// @param[in] doc  A rapidjson document object with the parsed json file.
 	void ParseObjectsTag( const rapidjson::Document& );
 
-	/// Internal function for loading vertices from an array.
-	/// @param[in] arr  The array to traverse.
-	/// @return  A collection of Vertex3D objects representing the vertices.
-	std::vector<Vertex3D> LoadVertices( const rapidjson::Value::ConstArray& );
-
-	/// Loads all triangles of a given mesh.
-	/// @param[in] arr  The array to traverse.
-	/// @param[in] meshVerts  A collection of vertex positions for a given mesh.
-	/// @return  A collection of the mesh's triangles.
-	void LoadMesh(
-		const rapidjson::Value::ConstArray&,
-		const std::vector<Vertex3D>&
-	);
+	/// Loads all vertices and triangle indices of a given mesh.
+	/// @param[in] vertArr  The vertex array to traverse.
+	/// @param[in] indArr  The triangle index array to traverse.
+	void LoadMesh( const Value::ConstArray& , const Value::ConstArray& );
 };
 
 namespace Raster {
