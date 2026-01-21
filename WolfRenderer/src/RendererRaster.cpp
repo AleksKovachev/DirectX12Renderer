@@ -4,8 +4,8 @@
 #include "d3dx12_core.h"
 
 #include "ConstColor.hlsl.h"
-#include "ConstColorVS.hlsl.h"
 #include "ConstColorVertexPass.hlsl.h"
+#include "ConstColorVS.hlsl.h"
 #include "ConstColorWireframePass.hlsl.h"
 #include "GeometryShader.hlsl.h"
 
@@ -23,7 +23,9 @@ namespace Core {
 
 		CreateRootSignature();
 		CreatePipelineState();
-		CreateVertexBuffer();
+		m_gpuMeshesRaster.clear();
+		for ( const Mesh& mesh: scene.GetMeshes() )
+			CreateMeshBuffers(mesh);
 		CreateTransformConstantBuffer();
 		CreateSceneDataConstantBuffer();
 		CreateScreenDataConstantBuffer();
@@ -67,47 +69,51 @@ namespace Core {
 
 		memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
 
-		m_cmdList->IASetVertexBuffers( 0, 1, &m_vbView );
+		for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+			m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
+			m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
-		m_cmdList->RSSetViewports( 1, &m_viewport );
-		m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
+			m_cmdList->RSSetViewports( 1, &m_viewport );
+			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-		// Slot 3: Screen Data.
-		m_cmdList->SetGraphicsRootConstantBufferView( 3, m_screenDataCB->GetGPUVirtualAddress() );
+			// Slot 3: Screen Data.
+			m_cmdList->SetGraphicsRootConstantBufferView( 3, m_screenDataCB->GetGPUVirtualAddress() );
 
-		dataRaster.screenData.viewportSize = { static_cast<float>(scene.settings.renderWidth),
-										  static_cast<float>(scene.settings.renderHeight) };
-		dataRaster.screenData.vertSize = dataRaster.vertexSize;
-		memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
+			dataRaster.screenData.viewportSize = { static_cast<float>(scene.settings.renderWidth),
+											  static_cast<float>(scene.settings.renderHeight) };
+			dataRaster.screenData.vertSize = dataRaster.vertexSize;
+			memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
 
-		if ( dataRaster.renderFaces ) {
-			ID3D12PipelineState* state;
-			if ( dataRaster.showBackfaces )
-				state = m_pipelineStateNoCull.Get();
-			else
-				state = m_pipelineStateFaces.Get();
-			m_cmdList->SetPipelineState( state );
-		}
+			if ( dataRaster.renderFaces ) {
+				ID3D12PipelineState* state;
+				if ( dataRaster.showBackfaces )
+					state = m_pipelineStateNoCull.Get();
+				else
+					state = m_pipelineStateFaces.Get();
+				m_cmdList->SetPipelineState( state );
+			}
 
-		// Slot 4: Edges color.
-		m_cmdList->SetGraphicsRoot32BitConstant( 4, dataRaster.edgeColor, 0 );
+			// Slot 4: Edges color.
+			m_cmdList->SetGraphicsRoot32BitConstant( 4, dataRaster.edgeColor, 0 );
 
-		// Slot 5: Vertex color.
-		m_cmdList->SetGraphicsRoot32BitConstant( 5, dataRaster.vertexColor, 0 );
+			// Slot 5: Vertex color.
+			m_cmdList->SetGraphicsRoot32BitConstant( 5, dataRaster.vertexColor, 0 );
 
-		// IA stands for Input Assembler.
-		m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-		m_cmdList->DrawInstanced( static_cast<UINT>(m_vertexCount), 1, 0, 0 );
+			// IA stands for Input Assembler.
+			m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+			m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
 
-		if ( dataRaster.renderEdges ) {
-			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
-			m_cmdList->DrawInstanced( static_cast<UINT>(m_vertexCount), 1, 0, 0 );
-		}
+			if ( dataRaster.renderEdges ) {
+				m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+				m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
+			}
 
-		if ( dataRaster.renderVerts ) {
-			m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
-			m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_POINTLIST );
-			m_cmdList->DrawInstanced( static_cast<UINT>(m_vertexCount), 1, 0, 0 );
+			if ( dataRaster.renderVerts ) {
+				m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
+				m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_POINTLIST );
+				// Only 1 point is needed per vertex. Use DrawInstanced, otherwise indices will be ignored.
+				m_cmdList->DrawInstanced( static_cast<UINT>(mesh.vertexCount), 1, 0, 0 );
+			}
 		}
 	}
 
@@ -209,6 +215,10 @@ namespace Core {
 		// VSInput's position parameter type must reflect this type: float2 / float3.
 		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+
+			// Required for normals and lighting.
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 		};
 
@@ -266,80 +276,128 @@ namespace Core {
 		log( "[ Rasterization ] Pipeline state created." );
 	}
 
-	void WolfRenderer::CreateVertexBuffer() {
-		m_vertexCount = scene.GetTriangles().size() * 3;
-		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
+	void WolfRenderer::CreateMeshBuffers( const Mesh& mesh ) {
+		const size_t vbSize{ sizeof( Vertex ) * mesh.vertices.size() };
+		const size_t ibSize{ sizeof( uint32_t ) * mesh.indices.size() };
 
-		int vertIdxInBuffIdx{};
-		for ( int triIdx{}; triIdx < scene.GetTriangles().size(); ++triIdx ) {
-			Triangle tri{ scene.GetTriangles()[triIdx] };
-			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
-				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
-				vertInBuff.x = tri.GetVertex( vertIdx ).x;
-				vertInBuff.y = tri.GetVertex( vertIdx ).y;
-				vertInBuff.z = tri.GetVertex( vertIdx ).z;
-			}
-		}
-
-		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
-
-		// Create the "Intermediate" Upload Buffer (Staging).
-		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
+		// Create the "Intermediate" Upload Buffers (Staging).
+		ComPtr<ID3D12Resource> vbUpload{ nullptr };
+		ComPtr<ID3D12Resource> ibUpload{ nullptr };
 
 		// Upload heap used so the CPU can write to it.
 		D3D12_HEAP_PROPERTIES heapPropsUp{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
-		D3D12_RESOURCE_DESC bufferDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
 
-		HRESULT hr{ m_device->CreateCommittedResource(
-			&heapPropsUp,
-			D3D12_HEAP_FLAG_NONE,
-			&bufferDescUp,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS( &uploadBuffer )
-		) };
-		CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+		HRESULT hr{};
+		// Vertex upload buffer.
+		{
+			D3D12_RESOURCE_DESC vbDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
 
-		// Copy data from CPU to Upload Buffer
-		void* pVertexData;
-		hr = uploadBuffer->Map( 0, nullptr, &pVertexData );
-		CHECK_HR( "Failed to map upload buffer.", hr, log );
-		memcpy( pVertexData, triangleVertices, vertSize );
-		uploadBuffer->Unmap( 0, nullptr );
+			hr = m_device->CreateCommittedResource(
+				&heapPropsUp,
+				D3D12_HEAP_FLAG_NONE,
+				&vbDescUp,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS( &vbUpload )
+			);
+			CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+
+			// Copy data from CPU to Upload Buffer
+			void* pVertexData{ nullptr };
+			hr = vbUpload->Map( 0, nullptr, &pVertexData );
+			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			memcpy( pVertexData, mesh.vertices.data(), vbSize );
+			vbUpload->Unmap( 0, nullptr );
+		}
+
+		// Index upload buffer.
+		{
+			D3D12_RESOURCE_DESC ibDescUp{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
+
+			hr = m_device->CreateCommittedResource(
+				&heapPropsUp,
+				D3D12_HEAP_FLAG_NONE,
+				&ibDescUp,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS( &ibUpload )
+			);
+			CHECK_HR( std::string(
+				"Failed to create upload index buffer for mesh: " ) + mesh.name, hr, log);
+
+			// Copy data from CPU to Upload Buffer
+			void* pIndexData{ nullptr };
+			hr = ibUpload->Map( 0, nullptr, &pIndexData );
+			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			memcpy( pIndexData, mesh.indices.data(), ibSize );
+			ibUpload->Unmap( 0, nullptr );
+		}
+
+		Raster::GPUMesh gpuMesh;
+		gpuMesh.vertexCount = static_cast<UINT>(mesh.vertices.size());
+		gpuMesh.indexCount = static_cast<UINT>(mesh.indices.size());
 
 		// Create the destination Vertex Buffer (Default Heap).
 		// Default heap used (GPU VRAM) that CPU can't access directly.
 		D3D12_HEAP_PROPERTIES heapPropsDf{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
-		D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
 
-		hr = m_device->CreateCommittedResource(
-			&heapPropsDf,
-			D3D12_HEAP_FLAG_NONE,
-			&bufferDescDf,
-			// Start in COPY_DEST so data can be copied to it immediately.
-			// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
-			D3D12_RESOURCE_STATE_COMMON,
-			nullptr,
-			IID_PPV_ARGS( &m_vertexBuffer )
-		);
-		CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		// GPU vertex buffer.
+		{
+			D3D12_RESOURCE_DESC vbDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
+
+			hr = m_device->CreateCommittedResource(
+				&heapPropsDf,
+				D3D12_HEAP_FLAG_NONE,
+				&vbDescDf,
+				// Start in COPY_DEST so data can be copied to it immediately.
+				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &gpuMesh.vertexBuffer )
+			);
+			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		}
+		//GPU index buffer.
+		{
+			D3D12_RESOURCE_DESC ibDescDf{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
+
+			hr = m_device->CreateCommittedResource(
+				&heapPropsDf,
+				D3D12_HEAP_FLAG_NONE,
+				&ibDescDf,
+				// Start in COPY_DEST so data can be copied to it immediately.
+				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &gpuMesh.indexBuffer )
+			);
+			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		}
 
 		// Name the buffer for easier debugging using PIX/NSIGHT.
-		m_vertexBuffer->SetName( L"Vertex Buffer Default Resource" );
+		gpuMesh.vertexBuffer->SetName(( std::wstring( L"Vertex Buffer Default Resource for: " )
+			+ ConvertStringToWstring(mesh.name) ).c_str() );
+		gpuMesh.indexBuffer->SetName( (std::wstring( L"Index Buffer Default Resource for: " )
+			+ ConvertStringToWstring( mesh.name )).c_str() );
 
 		ResetCommandAllocatorAndList();
 
 		// Copy data.
-		m_cmdList->CopyBufferRegion( m_vertexBuffer.Get(), 0, uploadBuffer.Get(), 0, vertSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.vertexBuffer.Get(), 0, vbUpload.Get(), 0, vbSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.indexBuffer.Get(), 0, ibUpload.Get(), 0, ibSize );
 
 		// Transition the Default Buffer from COPY_DEST to VERTEX_AND_CONSTANT_BUFFER
 		// so the Input Assembled (IA) can read it during rendering.
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_vertexBuffer.Get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+		D3D12_RESOURCE_BARRIER barriers[2]{};
+		barriers[0].Transition.pResource = gpuMesh.vertexBuffer.Get();
+		barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
 
-		m_cmdList->ResourceBarrier( 1, &barrier );
+		barriers[1].Transition.pResource = gpuMesh.indexBuffer.Get();
+		barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_INDEX_BUFFER;
+
+		m_cmdList->ResourceBarrier( _countof(barriers), barriers );
 
 		hr = m_cmdList->Close();
 		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, log );
@@ -353,13 +411,17 @@ namespace Core {
 		// trying to read from it, causing a crash/device removal.
 		WaitForGPUSync();
 
-		m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vbView.StrideInBytes = sizeof( Vertex3D );
-		m_vbView.SizeInBytes = static_cast<UINT>(vertSize);
+		gpuMesh.vbView.BufferLocation = gpuMesh.vertexBuffer->GetGPUVirtualAddress();
+		gpuMesh.vbView.StrideInBytes = sizeof( Vertex );
+		gpuMesh.vbView.SizeInBytes = static_cast<UINT>(vbSize);
 
-		delete[] triangleVertices;
+		gpuMesh.ibView.BufferLocation = gpuMesh.indexBuffer->GetGPUVirtualAddress();
+		gpuMesh.ibView.Format = DXGI_FORMAT_R32_UINT;
+		gpuMesh.ibView.SizeInBytes = static_cast<UINT>(ibSize);
 
-		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
+		m_gpuMeshesRaster.push_back( gpuMesh );
+
+		log( "[ Rasterization ] Vertex and index buffers uploaded to GPU." );
 	}
 
 	void WolfRenderer::CreateViewport() {
@@ -412,26 +474,6 @@ namespace Core {
 	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
 		dataRaster.camera.targetRotationX += deltaAngleX * dataRaster.camera.rotSens;
 		dataRaster.camera.targetRotationY += deltaAngleY * dataRaster.camera.rotSens;
-	}
-
-	void WolfRenderer::SetAppData( App* appData ) {
-		m_app = appData;
-	}
-
-	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
-		m_reloadingScene = true;
-		m_isPrepared = false;
-		WaitForGPUSync();
-		scene.Cleanup();
-		scene.SetRenderScene( scenePath );
-		scene.ParseSceneFile();
-
-		m_vertexBufferRT.Reset();
-		m_blasResult.Reset();
-		m_tlasResult.Reset();
-
-		PrepareForRendering( winId );
-		m_reloadingScene = false;
 	}
 
 	void WolfRenderer::CreateTransformConstantBuffer() {

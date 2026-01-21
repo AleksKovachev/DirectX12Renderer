@@ -250,7 +250,7 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->moveSpeedMultSpin, &QDoubleSpinBox::editingFinished,
 		this, &WolfApp::MoveSpeedMultChanged
 	);
-	connect( m_ui->moveSpeedSpin, &QDoubleSpinBox::editingFinished,
+	connect( m_ui->moveSpeedSpin, &QDoubleSpinBox::valueChanged,
 		this, &WolfApp::MoveSpeedChangedSpin
 	);
 	connect( m_ui->mouseSensitivityRTSpin, &QDoubleSpinBox::editingFinished,

@@ -16,7 +16,9 @@ namespace Core {
 
 	void WolfRenderer::PrepareForRayTracing() {
 		CreateGlobalRootSignature();
-		CreateVertexBufferRT();
+		m_gpuMeshesRT.clear();
+		for ( const Mesh& mesh : scene.GetMeshes() )
+			CreateMeshBuffersRT( mesh );
 		CreateCameraConstantBuffer();
 		CreateRayTracingPipelineState();
 		CreateRayTracingShaderTexture();
@@ -530,78 +532,134 @@ namespace Core {
 		log( "[ Ray Tracing ] Dispatch ray description prepared." );
 	}
 
-	void WolfRenderer::CreateVertexBufferRT() {
-		m_vertexCount = scene.GetTriangles().size() * 3;
-		Vertex3D* triangleVertices = new Vertex3D[m_vertexCount]{};
+	void WolfRenderer::CreateMeshBuffersRT( const Mesh& mesh ) {
 
-		int vertIdxInBuffIdx{};
-		for ( int triIdx{}; triIdx < scene.GetTriangles().size(); ++triIdx ) {
-			Triangle tri{ scene.GetTriangles()[triIdx] };
-			for ( int vertIdx{}; vertIdx < tri.vertsInTriangle; ++vertIdx ) {
-				Vertex3D& vertInBuff = triangleVertices[vertIdxInBuffIdx++];
-				vertInBuff.x = tri.GetVertex( vertIdx ).x;
-				vertInBuff.y = tri.GetVertex( vertIdx ).y;
-				vertInBuff.z = tri.GetVertex( vertIdx ).z;
-			}
-		}
 
-		const size_t vertSize{ sizeof( Vertex3D ) * m_vertexCount };
+		const size_t vbSize{ sizeof( Vertex ) * mesh.vertices.size() };
+		const size_t ibSize{ sizeof( uint32_t ) * mesh.indices.size() };
 
 		// Create the "Intermediate" Upload Buffer (Staging).
-		ComPtr<ID3D12Resource> uploadBuffer{ nullptr };
+		ComPtr<ID3D12Resource> vbUpload{ nullptr };
+		ComPtr<ID3D12Resource> ibUpload{ nullptr };
 
 		// Upload heap used so the CPU can write to it.
 		D3D12_HEAP_PROPERTIES heapPropsUp{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
-		D3D12_RESOURCE_DESC bufferDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
 
-		HRESULT hr{ m_device->CreateCommittedResource(
-			&heapPropsUp,
-			D3D12_HEAP_FLAG_NONE,
-			&bufferDescUp,
-			D3D12_RESOURCE_STATE_COMMON,
-			nullptr,
-			IID_PPV_ARGS( &uploadBuffer )
-		) };
-		CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+		HRESULT hr;
+		// Vertex upload buffer.
+		{
+			D3D12_RESOURCE_DESC vbDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
 
-		// Copy data from CPU to Upload Buffer
-		void* pVertexData;
-		hr = uploadBuffer->Map( 0, nullptr, &pVertexData );
-		CHECK_HR( "Failed to map upload buffer.", hr, log );
-		memcpy( pVertexData, triangleVertices, vertSize );
-		uploadBuffer->Unmap( 0, nullptr );
+			HRESULT hr{ m_device->CreateCommittedResource(
+				&heapPropsUp,
+				D3D12_HEAP_FLAG_NONE,
+				&vbDescUp,
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &vbUpload )
+			) };
+			CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+
+			// Copy data from CPU to Upload Buffer
+			void* pVertexData = nullptr;
+			hr = vbUpload->Map( 0, nullptr, &pVertexData );
+			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			memcpy( pVertexData, mesh.vertices.data(), vbSize );
+			vbUpload->Unmap( 0, nullptr );
+		}
+
+		// Index upload buffer.
+		{
+			D3D12_RESOURCE_DESC vbDescUp{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
+
+			HRESULT hr{ m_device->CreateCommittedResource(
+				&heapPropsUp,
+				D3D12_HEAP_FLAG_NONE,
+				&vbDescUp,
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &ibUpload )
+			) };
+			CHECK_HR( "Failed to create upload index buffer.", hr, log );
+
+			// Copy data from CPU to Upload Buffer
+			void* pIndexData = nullptr;
+			hr = ibUpload->Map( 0, nullptr, &pIndexData );
+			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			memcpy( pIndexData, mesh.indices.data(), ibSize );
+			ibUpload->Unmap( 0, nullptr );
+		}
+
+		RT::GPUMesh gpuMesh;
+		gpuMesh.vertexCount = static_cast<UINT>(mesh.vertices.size());
+		gpuMesh.indexCount = static_cast<UINT>(mesh.indices.size());
 
 		// Create the destination Vertex Buffer (Default Heap).
 		// Default heap used (GPU VRAM) that CPU can't access directly.
 		D3D12_HEAP_PROPERTIES heapPropsDf{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
-		D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vertSize ) };
 
-		hr = m_device->CreateCommittedResource(
-			&heapPropsDf,
-			D3D12_HEAP_FLAG_NONE,
-			&bufferDescDf,
-			D3D12_RESOURCE_STATE_COMMON,
-			nullptr,
-			IID_PPV_ARGS( &m_vertexBufferRT )
-		);
-		CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		// GPU vertex buffer.
+		{
+			D3D12_RESOURCE_DESC vbDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
+
+			hr = m_device->CreateCommittedResource(
+				&heapPropsDf,
+				D3D12_HEAP_FLAG_NONE,
+				&vbDescDf,
+				// Start in COPY_DEST so data can be copied to it immediately.
+				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &gpuMesh.vertexBuffer )
+			);
+			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		}
+
+		// GPU index buffer.
+		{
+			D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
+
+			hr = m_device->CreateCommittedResource(
+				&heapPropsDf,
+				D3D12_HEAP_FLAG_NONE,
+				&bufferDescDf,
+				// Start in COPY_DEST so data can be copied to it immediately.
+				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &gpuMesh.indexBuffer )
+			);
+			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+		}
 
 		// Name the buffer for easier debugging using PIX/NSIGHT.
-		m_vertexBufferRT->SetName( L"Vertex Buffer RT Default Resource" );
+		gpuMesh.vertexBuffer->SetName( (std::wstring( L"Vertex Buffer Default Resource for: " )
+			+ ConvertStringToWstring( mesh.name )).c_str() );
+		gpuMesh.indexBuffer->SetName( (std::wstring( L"Index Buffer Default Resource for: " )
+			+ ConvertStringToWstring( mesh.name )).c_str() );
 
 		ResetCommandAllocatorAndList();
 
 		// Copy data.
-		m_cmdList->CopyBufferRegion( m_vertexBufferRT.Get(), 0, uploadBuffer.Get(), 0, vertSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.vertexBuffer.Get(), 0, vbUpload.Get(), 0, vbSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.indexBuffer.Get(), 0, ibUpload.Get(), 0, ibSize );
 
 		// Transition the Default Buffer from COPY_DEST to VERTEX_AND_CONSTANT_BUFFER
 		// so the Input Assembled (IA) can read it during rendering.
-		D3D12_RESOURCE_BARRIER barrier{ CD3DX12_RESOURCE_BARRIER::Transition(
-			m_vertexBufferRT.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
-		) };
+		D3D12_RESOURCE_BARRIER barriers[]{
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				gpuMesh.vertexBuffer.Get(),
+				D3D12_RESOURCE_STATE_COPY_DEST,
+				D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
+			),
+			CD3DX12_RESOURCE_BARRIER::Transition(
+				gpuMesh.indexBuffer.Get(),
+				D3D12_RESOURCE_STATE_COPY_DEST,
+				D3D12_RESOURCE_STATE_INDEX_BUFFER
+			),
+		};
 
-		m_cmdList->ResourceBarrier( 1, &barrier );
+		m_cmdList->ResourceBarrier( 2, barriers );
 
 		hr = m_cmdList->Close();
 		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, log );
@@ -615,9 +673,9 @@ namespace Core {
 		// trying to read from it, causing a crash/device removal.
 		WaitForGPUSync();
 
-		delete[] triangleVertices;
+		m_gpuMeshesRT.push_back( gpuMesh );
 
-		log( "[ Ray Tracing ] Vertex buffer successfully uploaded to GPU default heap." );
+		log( "[ Ray Tracing ] Vertex and index buffers uploaded to GPU." );
 	}
 
 	ComPtr<IDxcBlob> WolfRenderer::CompileShader(
@@ -704,96 +762,109 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateBLAS() {
-		// Describe triangle geometry for BLAS.
-		D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangleDesc{};
-		triangleDesc.VertexBuffer.StartAddress = m_vertexBufferRT->GetGPUVirtualAddress();
-		triangleDesc.VertexBuffer.StrideInBytes = sizeof( Vertex3D );
-		triangleDesc.VertexCount = static_cast<UINT>(m_vertexCount);
-		triangleDesc.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+		const std::vector<Mesh>& meshes = scene.GetMeshes();
+		m_BLASes.clear();
+		m_BLASes.resize( meshes.size() );
 
-		D3D12_RAYTRACING_GEOMETRY_DESC geomDesc{};
-		geomDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-		geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-		geomDesc.Triangles = triangleDesc;
-
-		// Build BLAS.
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS blasInputs{};
-		blasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-		blasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-		blasInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-		blasInputs.NumDescs = 1;
-		blasInputs.pGeometryDescs = &geomDesc;
-
-		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO blasPrebuild{};
-		m_device->GetRaytracingAccelerationStructurePrebuildInfo(
-			&blasInputs, &blasPrebuild );
-		assert( blasPrebuild.ResultDataMaxSizeInBytes > 0 );
-
-		// Allocate BLAS and scratch.
-		D3D12_RESOURCE_DESC blasDesc{};
-		blasDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		blasDesc.Alignment = 0;
-		blasDesc.Width = blasPrebuild.ResultDataMaxSizeInBytes;
-		blasDesc.Height = 1;
-		blasDesc.DepthOrArraySize = 1;
-		blasDesc.MipLevels = 1;
-		blasDesc.Format = DXGI_FORMAT_UNKNOWN;
-		blasDesc.SampleDesc.Count = 1;
-		blasDesc.SampleDesc.Quality = 0;
-		blasDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		blasDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-		D3D12_HEAP_PROPERTIES heapProps{};
-		heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		heapProps.CreationNodeMask = 1;
-		heapProps.VisibleNodeMask = 1;
-
-		HRESULT hr{ m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&blasDesc,
-			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
-			nullptr,
-			IID_PPV_ARGS( &m_blasResult )
-		) };
-		CHECK_HR( "Failed to create BLAS buffer.", hr, log );
-
-		// Scratch buffer.
-		D3D12_RESOURCE_DESC scratchDesc{};
-		scratchDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		scratchDesc.Alignment = 0;
-		scratchDesc.Width = blasPrebuild.ScratchDataSizeInBytes;
-		scratchDesc.Height = 1;
-		scratchDesc.DepthOrArraySize = 1;
-		scratchDesc.MipLevels = 1;
-		scratchDesc.Format = DXGI_FORMAT_UNKNOWN;
-		scratchDesc.SampleDesc.Count = 1;
-		scratchDesc.SampleDesc.Quality = 0;
-		scratchDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		scratchDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-		hr = m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&scratchDesc,
-			// D3D12_RESOURCE_STATE_UNORDERED_ACCESS but it's ignored by DirectX. Debug Layer.
-			D3D12_RESOURCE_STATE_COMMON,
-			nullptr,
-			IID_PPV_ARGS( &m_blasScratch )
-		);
-		CHECK_HR( "Failed to create BLAS scratch buffer.", hr, log );
-
-		// Build the BLAS.
 		ResetCommandAllocatorAndList();
 
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasBuild{};
-		blasBuild.Inputs = blasInputs;
-		blasBuild.DestAccelerationStructureData = m_blasResult->GetGPUVirtualAddress();
-		blasBuild.ScratchAccelerationStructureData = m_blasScratch->GetGPUVirtualAddress();
+		HRESULT hr;
+		for ( size_t meshIdx{}; meshIdx < meshes.size(); ++meshIdx ) {
+			const RT::GPUMesh& gpuMesh = m_gpuMeshesRT[meshIdx];
 
-		m_cmdList->BuildRaytracingAccelerationStructure( &blasBuild, 0, nullptr );
+			// Describe triangle geometry for BLAS.
+			D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangleDesc{};
+			triangleDesc.VertexBuffer.StartAddress = gpuMesh.vertexBuffer->GetGPUVirtualAddress();
+			triangleDesc.VertexBuffer.StrideInBytes = sizeof( Vertex );
+			triangleDesc.VertexCount = gpuMesh.vertexCount;
+			triangleDesc.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+			triangleDesc.IndexBuffer = gpuMesh.indexBuffer->GetGPUVirtualAddress();
+			triangleDesc.IndexCount = gpuMesh.indexCount;
+			triangleDesc.IndexFormat = DXGI_FORMAT_R32_UINT;
+			triangleDesc.Transform3x4 = 0; // Per-mesh transform.
+
+			D3D12_RAYTRACING_GEOMETRY_DESC geomDesc{};
+			geomDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+			geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+			geomDesc.Triangles = triangleDesc;
+
+			// Build BLAS.
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS blasInputs{};
+			blasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+			blasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+			blasInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+			blasInputs.NumDescs = 1;
+			blasInputs.pGeometryDescs = &geomDesc;
+
+			D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO blasPrebuild{};
+			m_device->GetRaytracingAccelerationStructurePrebuildInfo(
+				&blasInputs, &blasPrebuild );
+			assert( blasPrebuild.ResultDataMaxSizeInBytes > 0 );
+
+			// Allocate BLAS and scratch.
+			D3D12_RESOURCE_DESC blasDesc{};
+			blasDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			blasDesc.Alignment = 0;
+			blasDesc.Width = blasPrebuild.ResultDataMaxSizeInBytes;
+			blasDesc.Height = 1;
+			blasDesc.DepthOrArraySize = 1;
+			blasDesc.MipLevels = 1;
+			blasDesc.Format = DXGI_FORMAT_UNKNOWN;
+			blasDesc.SampleDesc.Count = 1;
+			blasDesc.SampleDesc.Quality = 0;
+			blasDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			blasDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+			D3D12_HEAP_PROPERTIES heapProps{};
+			heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+			heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+			heapProps.CreationNodeMask = 1;
+			heapProps.VisibleNodeMask = 1;
+
+			HRESULT hr{ m_device->CreateCommittedResource(
+				&heapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&blasDesc,
+				D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+				nullptr,
+				IID_PPV_ARGS( &m_BLASes[meshIdx].result )
+			) };
+			CHECK_HR( "Failed to create BLAS buffer.", hr, log );
+
+			// Scratch buffer.
+			D3D12_RESOURCE_DESC scratchDesc{};
+			scratchDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			scratchDesc.Alignment = 0;
+			scratchDesc.Width = blasPrebuild.ScratchDataSizeInBytes;
+			scratchDesc.Height = 1;
+			scratchDesc.DepthOrArraySize = 1;
+			scratchDesc.MipLevels = 1;
+			scratchDesc.Format = DXGI_FORMAT_UNKNOWN;
+			scratchDesc.SampleDesc.Count = 1;
+			scratchDesc.SampleDesc.Quality = 0;
+			scratchDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			scratchDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+			hr = m_device->CreateCommittedResource(
+				&heapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&scratchDesc,
+				// D3D12_RESOURCE_STATE_UNORDERED_ACCESS but it's ignored by DirectX. Debug Layer.
+				D3D12_RESOURCE_STATE_COMMON,
+				nullptr,
+				IID_PPV_ARGS( &m_BLASes[meshIdx].scratch )
+			);
+			CHECK_HR( "Failed to create BLAS scratch buffer.", hr, log );
+
+			// Build the BLAS.
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasBuild{};
+			blasBuild.Inputs = blasInputs;
+			blasBuild.DestAccelerationStructureData = m_BLASes[meshIdx].result->GetGPUVirtualAddress();
+			blasBuild.ScratchAccelerationStructureData = m_BLASes[meshIdx].scratch->GetGPUVirtualAddress();
+
+			m_cmdList->BuildRaytracingAccelerationStructure( &blasBuild, 0, nullptr );
+		}
 
 		// Wait for all UAV writes before continuing.
 		D3D12_RESOURCE_BARRIER uavBLASBarrier{};
@@ -815,24 +886,37 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateTLAS() {
-		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc{};
-		DirectX::XMStoreFloat3x4(
-			reinterpret_cast<DirectX::XMFLOAT3X4*>(&instanceDesc.Transform),
-			DirectX::XMMatrixIdentity()
-		);
-		instanceDesc.InstanceID = 0;
-		instanceDesc.InstanceMask = 1;
-		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		instanceDesc.InstanceContributionToHitGroupIndex = 0;
-		instanceDesc.AccelerationStructure = m_blasResult->GetGPUVirtualAddress();
+		const UINT instanceCount{ static_cast<UINT>(m_BLASes.size()) };
+		assert( instanceCount > 0 );
 
+		// Create an instance descriptor for each BLAS (mesh).
+		std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instanceDescs( instanceCount );
+
+		for ( UINT i{}; i < instanceCount; ++i ) {
+			D3D12_RAYTRACING_INSTANCE_DESC& instance = instanceDescs[i];
+
+			// Identity transform.
+			DirectX::XMStoreFloat3x4(
+				reinterpret_cast<DirectX::XMFLOAT3X4*>( &instance.Transform ),
+				DirectX::XMMatrixIdentity()
+			);
+
+			instance.InstanceID = i;
+			instance.InstanceMask = 0xFF;
+			instance.InstanceContributionToHitGroupIndex = 0;
+			instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+			instance.AccelerationStructure = m_BLASes[i].result->GetGPUVirtualAddress();
+		}
+
+		const UINT instanceBufferSize = sizeof( D3D12_RAYTRACING_INSTANCE_DESC ) * instanceCount;
+
+		// Create instance upload buffer.
 		ComPtr<ID3D12Resource> instanceBuffer{};
-		const UINT instanceSize{ sizeof( instanceDesc ) };
 
 		D3D12_RESOURCE_DESC instanceDescBuff{};
 		instanceDescBuff.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 		instanceDescBuff.Alignment = 0;
-		instanceDescBuff.Width = instanceSize;
+		instanceDescBuff.Width = instanceBufferSize;
 		instanceDescBuff.Height = 1;
 		instanceDescBuff.DepthOrArraySize = 1;
 		instanceDescBuff.MipLevels = 1;
@@ -864,20 +948,21 @@ namespace Core {
 		void* instData{ nullptr };
 		hr = instanceBuffer->Map( 0, nullptr, &instData );
 		CHECK_HR( "Failed to map TLAS instance buffer.", hr, log );
-		memcpy( instData, &instanceDesc, instanceSize );
+		memcpy( instData, instanceDescs.data(), instanceBufferSize);
 		instanceBuffer->Unmap( 0, nullptr );
 
 		// Build TLAS.
 		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS tlasInputs{};
 		tlasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 		tlasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-		tlasInputs.NumDescs = 1;
+		tlasInputs.NumDescs = instanceCount;
 		tlasInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
 		tlasInputs.InstanceDescs = instanceBuffer->GetGPUVirtualAddress();
 
 		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO tlasPrebuild{};
 		m_device->GetRaytracingAccelerationStructurePrebuildInfo(
 			&tlasInputs, &tlasPrebuild );
+		assert( tlasPrebuild.ResultDataMaxSizeInBytes > 0 );
 
 		// Allocate TLAS and scratch.
 		D3D12_RESOURCE_DESC tlasDesc{};

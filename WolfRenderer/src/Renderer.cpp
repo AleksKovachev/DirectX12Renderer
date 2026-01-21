@@ -1,4 +1,3 @@
-#include "Geometry.hpp" // Vertex2D, Vertex3D
 #include "Renderer.hpp"
 #include "utils.hpp" // CHECK_HR, wideStrToUTF8
 
@@ -7,7 +6,7 @@
 #include <chrono> // high_resolution_clock, duration
 #include <format> // format
 #include <fstream> // ofstream, ios::binary
-#include <string> // string, wstring
+#include <string> // string
 #include <vector> // vector
 
 using hrClock = std::chrono::high_resolution_clock;
@@ -538,5 +537,25 @@ namespace Core {
 		CHECK_HR( "Failed to close command list!", hr, log );
 
 		log( "Texture copy commands added. Command list closed." );
+	}
+
+	void WolfRenderer::SetAppData( App* appData ) {
+		m_app = appData;
+	}
+
+	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
+		m_reloadingScene = true;
+		m_isPrepared = false;
+		WaitForGPUSync();
+		// Skip this if you want to add the new scene into the current one (Raster only).
+		scene.Cleanup();
+		scene.SetRenderScene( scenePath );
+		scene.ParseSceneFile();
+		m_gpuMeshesRaster.clear();
+		m_gpuMeshesRT.clear();
+		m_tlasResult.Reset();
+
+		PrepareForRendering( winId );
+		m_reloadingScene = false;
 	}
 }

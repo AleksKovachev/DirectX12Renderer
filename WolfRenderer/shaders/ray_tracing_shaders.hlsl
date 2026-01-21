@@ -1,6 +1,10 @@
 RaytracingAccelerationStructure sceneBVHAccStruct : register( t0 );
 RWTexture2D<float4> frameTexture : register( u0 );
 
+StructuredBuffer<float3> vertices : register( t1 ); // Vertex positions.
+StructuredBuffer<uint> indices : register( t2 ); // Triangle indices.
+
+
 struct RayPayload {
     float4 pixelColor;
 };

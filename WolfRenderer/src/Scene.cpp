@@ -27,18 +27,18 @@ void Scene::ParseSceneFile() {
 	ParseObjectsTag( doc );
 }
 
-const std::vector<Triangle>& Scene::GetTriangles() const {
-	return m_triangles;
+const std::vector<Mesh>& Scene::GetMeshes() const {
+	return m_meshes;
 }
 
 void Scene::ParseSettingsTag( const rapidjson::Document& doc ) {
 	// JSON Tags to look for.
-	char t_settings[]{ "settings" };
-	char t_bgColor[]{ "background_color" };
-	char t_imgSettings[]{ "image_settings" };
-	char t_width[]{ "width" };
-	char t_height[]{ "height" };
-	char t_bucketSize[]{ "bucket_size" };
+	constexpr char t_settings[]{ "settings" };
+	constexpr char t_bgColor[]{ "background_color" };
+	constexpr char t_imgSettings[]{ "image_settings" };
+	constexpr char t_width[]{ "width" };
+	constexpr char t_height[]{ "height" };
+	constexpr char t_bucketSize[]{ "bucket_size" };
 
 	if ( !doc.HasMember( t_settings ) || !doc[t_settings].IsObject() ) {
 		log( "No settings specified in scene file.", LogLevel::Critical );
@@ -82,9 +82,9 @@ void Scene::ParseSettingsTag( const rapidjson::Document& doc ) {
 
 void Scene::ParseObjectsTag( const rapidjson::Document& doc ) {
 	// JSON Tags to look for
-	char t_objects[]{ "objects" };
-	char t_vertices[]{ "vertices" };
-	char t_triangles[]{ "triangles" };
+	constexpr char t_objects[]{ "objects" };
+	constexpr char t_vertices[]{ "vertices" };
+	constexpr char t_triangles[]{ "triangles" };
 
 	if ( !doc.HasMember( t_objects ) || !doc[t_objects].IsArray() ) {
 		log( "No objects found in scene file.", LogLevel::Critical );
@@ -109,58 +109,42 @@ void Scene::ParseObjectsTag( const rapidjson::Document& doc ) {
 			log( "No/wrong format triangles found. Skipping object.", LogLevel::Error );
 			continue;
 		}
-
-		std::vector<Vertex3D> meshVerts = LoadVertices( mesh[t_vertices].GetArray() );
-		LoadMesh( mesh[t_triangles].GetArray(), meshVerts );
+		LoadMesh( mesh[t_vertices].GetArray(), mesh[t_triangles].GetArray() );
+		m_meshes.back().name = "object_" + std::to_string( i );
 	}
 }
 
-std::vector<Vertex3D> Scene::LoadVertices( const rapidjson::Value::ConstArray& arr ) {
-	std::vector<Vertex3D> verts{};
-	verts.reserve( arr.Size() / 3 );
 
-	for ( unsigned i{}; i + 2 < arr.Size(); i += 3 ) {
-		Vertex3D vertex = {
-			static_cast<float>(arr[i].GetDouble()),
-			static_cast<float>(arr[i + 1].GetDouble()),
-			static_cast<float>(arr[i + 2].GetDouble())
-		};
+void Scene::LoadMesh( const Value::ConstArray& vertArr, const Value::ConstArray& indArr ) {
+	m_meshes.emplace_back();
+	Mesh& mesh = m_meshes.back();
+	mesh.vertices.reserve( vertArr.Size() / 3 );
 
-		verts.push_back( std::move( vertex ) );
+	// Load vertices.
+	for ( unsigned i{}; i + 2 < vertArr.Size(); i += 3 ) {
+		Vertex vertex{ {
+			static_cast<float>(vertArr[i].GetDouble()),
+			static_cast<float>(vertArr[i + 1].GetDouble()),
+			static_cast<float>(vertArr[i + 2].GetDouble())
+		}, {} };
+
+		mesh.vertices.push_back( vertex );
 	}
 
-	return verts;
-}
-
-void Scene::LoadMesh(
-	const rapidjson::Value::ConstArray& arr,
-	const std::vector<Vertex3D>& meshVerts
-) {
-	std::vector<int> tris{};
-	tris.reserve( arr.Size() );
-	size_t vertSize{ meshVerts.size() };
-	size_t trianglesInMesh{ arr.Size() / 3 };
-
-	for ( unsigned i{}; i < arr.Size(); ++i ) {
-		tris.emplace_back( arr[i].GetInt() );
-
-		// Wait until 3 new vertices appear to create a triangle.
-		if ( (i + 1) % 3 != 0 )
+	// Build index buffer.
+	mesh.indices.reserve( indArr.Size() );
+	for ( unsigned i{}; i < indArr.Size(); ++i ) {
+		uint32_t triIdx = indArr[i].GetUint(); // Indices can't be negative.
+		if ( triIdx >= mesh.vertices.size() ) {
+			log( "Triangle index out of bounds. Skipping index: " + std::to_string( triIdx ),
+				LogLevel::Error );
 			continue;
+		}
 
-		Vertex3D v0, v1, v2;
-		int idx0 = tris[tris.size() - 3];
-		int idx1 = tris[tris.size() - 2];
-		int idx2 = tris[tris.size() - 1];
-
-		v0 = meshVerts[idx0];
-		v1 = meshVerts[idx1];
-		v2 = meshVerts[idx2];
-
-		m_triangles.emplace_back( v0, v1, v2 );
-		size_t lastTriIdx = m_triangles.size() - 1;
-		m_triIndices.push_back( static_cast<int>(lastTriIdx) );
+		mesh.indices.push_back( triIdx );
 	}
+
+	mesh.BuildSmoothNormals();
 }
 
 void Scene::SetRenderScene( const std::string& filePath ) {
@@ -172,6 +156,5 @@ const std::string Scene::GetRenderScenePath() const {
 }
 
 void Scene::Cleanup() {
-	m_triangles.clear();
-	m_triIndices.clear();
+	m_meshes.clear();
 }
