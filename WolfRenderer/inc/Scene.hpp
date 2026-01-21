@@ -67,6 +67,9 @@ namespace Raster {
 		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
 		uint32_t disco{ 0 }; // Converted to bool in shader.
 		uint32_t discoSpeed{ 200 };
+
+		uint32_t shadeMode{ 0 }; // Defaults to "Lit".
+		uint32_t _pad[3];
 	};
 }
 

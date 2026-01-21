@@ -1,5 +1,5 @@
-#include "WolfApp.h"
 #include "RenderParams.hpp" // RenderMode
+#include "WolfApp.h"
 
 #include <QMessageBox>
 #include <QtGui/QShortcut>
@@ -9,9 +9,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QStackedLayout>
 
-WolfApp::WolfApp()
-	: m_mainWin{ nullptr }, m_idleTimer{ nullptr }, m_fpsTimer{ nullptr } {
-}
+WolfApp::WolfApp() {}
 
 WolfApp::~WolfApp() {
 	delete m_idleTimer;
@@ -27,6 +25,7 @@ bool WolfApp::init( Core::App* appData ) {
 	SetupMainWindowSizeAndPosition();
 	SetInitialValues();
 	ConnectUIEvents();
+	SetupColorPicker();
 
 	m_mainWin->show();
 	m_renderer.PrepareForRendering( m_ui->viewport->GetNativeWindowHandle() );
@@ -102,6 +101,7 @@ void WolfApp::SetInitialValues() {
 	m_renderer.dataRaster.sceneData.discoSpeed = m_ui->discoModeSpeedSpin->value();
 	m_renderer.dataRaster.camera.coordinateSystem = static_cast<Raster::TransformCoordinateSystem>(
 		m_ui->rotOrientationRasterCombo->currentIndex() );
+	m_renderer.dataRaster.directionalLight.cb.specularStrength = m_ui->specStrengthSpin->value();
 }
 
 void WolfApp::HideIrrelevantWidgets() {
@@ -170,6 +170,15 @@ void WolfApp::HideIrrelevantWidgets() {
 	m_ui->vertexSizeSpin->setHidden( isRTMode );
 	m_ui->backgroundColorRasterLbl->setHidden( isRTMode );
 	m_ui->backgroundColorRasterBtn->setHidden( isRTMode );
+	m_ui->specStrengthLbl->setHidden( isRTMode );
+	m_ui->specStrengthSpin->setHidden( isRTMode );
+	m_ui->dirLightBox->setHidden( isRTMode );
+	m_ui->dirLightIntensityLbl->setHidden( isRTMode );
+	m_ui->dirLightIntensitySpin->setHidden( isRTMode );
+	m_ui->dirLightColorLbl->setHidden( isRTMode );
+	m_ui->dirLightColorBtn->setHidden( isRTMode );
+	m_ui->shadeModeLbl->setHidden( isRTMode );
+	m_ui->shadeModeCombo->setHidden( isRTMode );
 }
 
 void WolfApp::SetupMainWindowSizeAndPosition() {
@@ -233,14 +242,28 @@ void WolfApp::ConnectUIEvents() {
 
 	// Ray Tracing GUI connections.
 	connect( m_ui->backgroundColorRTBtn, &QToolButton::clicked,
-	this, [this]() {
-		ColorPickerData data = SetupColorPicker(
-			UnpackColor( m_renderer.dataRT.bgColorPacked ) );
-		if ( !data.color.isValid() )
-			return;
-		m_ui->backgroundColorRTBtn->setStyleSheet( data.style );
-		m_renderer.dataRT.bgColorPacked = PackColor( data.color );
-	} );
+		this, [this]() {
+			const QColor currColor{ UnpackColor( m_renderer.dataRT.bgColorPacked ) };
+			m_colorDialog->setCurrentColor( currColor );
+
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this]( const QColor& color ) {
+					m_renderer.dataRT.bgColorPacked = PackColor( color );
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this]( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->backgroundColorRTBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor]() {
+					m_renderer.dataRT.bgColorPacked = PackColor( currColor );
+			} );
+
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
+		}
+	);
 	connect( m_ui->renderModeSwitch, &QCheckBox::toggled,
 		this, &WolfApp::OnRenderModeChanged
 	);
@@ -284,21 +307,37 @@ void WolfApp::ConnectUIEvents() {
 
 	// Rasterization GUI connections.
 	connect( m_ui->backgroundColorRasterBtn, &QToolButton::clicked,
-		this, [this]() {
+		this, [this] () {
+			m_colorDialog->setParent( m_ui->backgroundColorRasterBtn->parentWidget(), Qt::Dialog );
 			QColor currColor;
 			float* bgColor{ m_renderer.dataRaster.bgColor };
 			currColor.setRgbF( bgColor[0], bgColor[1], bgColor[2], bgColor[3] );
+			m_colorDialog->setCurrentColor( currColor );
 
-			ColorPickerData data = SetupColorPicker( currColor );
-			if ( !data.color.isValid() )
-				return;
-			m_ui->backgroundColorRasterBtn->setStyleSheet( data.style );
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this, bgColor]( const QColor& color ) {
+					bgColor[0] = color.redF();
+					bgColor[1] = color.greenF();
+					bgColor[2] = color.blueF();
+					bgColor[3] = color.alphaF();
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this]( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->backgroundColorRasterBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor, bgColor]() {
+					bgColor[0] = currColor.redF();
+					bgColor[1] = currColor.greenF();
+					bgColor[2] = currColor.blueF();
+					bgColor[3] = currColor.alphaF();
+			} );
 
-			bgColor[0] = data.color.redF();
-			bgColor[1] = data.color.greenF();
-			bgColor[2] = data.color.blueF();
-			bgColor[3] = data.color.alphaF();
-	} );
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
+		}
+	);
 	connect( m_ui->zoomRasterSpin, &QDoubleSpinBox::valueChanged,
 		this, [this]() { m_renderer.dataRaster.camera.offsetZ = m_ui->zoomRasterSpin->value(); }
 	);
@@ -385,32 +424,74 @@ void WolfApp::ConnectUIEvents() {
 	);
 	connect( m_ui->faceColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker(
-				UnpackColor(m_renderer.dataRaster.sceneData.packedColor ) );
-			if ( !data.color.isValid() )
-				return;
-			m_ui->faceColorRasterBtn->setStyleSheet( data.style );
-			m_renderer.dataRaster.sceneData.packedColor = PackColor( data.color );
+			m_colorDialog->setParent( m_ui->faceColorRasterBtn->parentWidget(), Qt::Dialog);
+			const QColor currColor{ UnpackColor( m_renderer.dataRaster.sceneData.packedColor ) };
+			m_colorDialog->setCurrentColor( currColor );
+
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this]( const QColor& color ) {
+					m_renderer.dataRaster.sceneData.packedColor = PackColor( color );
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this]( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->faceColorRasterBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor]() {
+					m_renderer.dataRaster.sceneData.packedColor = PackColor( currColor );
+			} );
+
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
 		}
 	);
 	connect( m_ui->edgeColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker(
-				UnpackColor( m_renderer.dataRaster.edgeColor ) );
-			if ( !data.color.isValid() )
-				return;
-			m_ui->edgeColorRasterBtn->setStyleSheet( data.style );
-			m_renderer.dataRaster.edgeColor = PackColor( data.color );
+			m_colorDialog->setParent( m_ui->edgeColorRasterBtn->parentWidget(), Qt::Dialog );
+			const QColor currColor{ UnpackColor( m_renderer.dataRaster.edgeColor ) };
+			m_colorDialog->setCurrentColor( currColor );
+
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this]( const QColor& color ) {
+					m_renderer.dataRaster.edgeColor = PackColor( color );
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this]( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->edgeColorRasterBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor]() {
+					m_renderer.dataRaster.edgeColor = PackColor( currColor );
+			} );
+
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
 		}
 	);
 	connect( m_ui->vertexColorRasterBtn, &QToolButton::clicked,
 		this, [this]() {
-			ColorPickerData data = SetupColorPicker(
-				UnpackColor( m_renderer.dataRaster.vertexColor ) );
-			if ( !data.color.isValid() )
-				return;
-			m_ui->vertexColorRasterBtn->setStyleSheet( data.style );
-			m_renderer.dataRaster.vertexColor = PackColor( data.color );
+			m_colorDialog->setParent( m_ui->vertexColorRasterBtn->parentWidget(), Qt::Dialog );
+			const QColor currColor{ UnpackColor( m_renderer.dataRaster.vertexColor ) };
+			m_colorDialog->setCurrentColor( currColor );
+
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this]( const QColor& color ) {
+					m_renderer.dataRaster.vertexColor = PackColor( color );
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this]( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->vertexColorRasterBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor]() {
+					m_renderer.dataRaster.vertexColor = PackColor( currColor );
+			} );
+
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
 		}
 	);
 	connect( m_ui->rotOrientationRasterCombo, &QComboBox::currentIndexChanged,
@@ -421,9 +502,57 @@ void WolfApp::ConnectUIEvents() {
 	connect( m_ui->vertexSizeSpin, &QDoubleSpinBox::valueChanged,
 		this, [this]( double value ) { m_renderer.dataRaster.vertexSize = value; }
 	);
+	connect( m_ui->specStrengthSpin, &QDoubleSpinBox::valueChanged,
+		this, [this]( double value ) {
+			m_renderer.dataRaster.directionalLight.cb.specularStrength = value;
+	} );
+	connect( m_ui->dirLightIntensitySpin, &QDoubleSpinBox::valueChanged,
+		this, [this]( double value ) {
+			m_renderer.dataRaster.directionalLight.cb.intensity = value;
+	} );
+	connect( m_ui->dirLightColorBtn, &QToolButton::clicked,
+		this, [this]() {
+			m_colorDialog->setParent( m_ui->dirLightColorBtn->parentWidget(), Qt::Dialog );
+			const QColor currColor{ UnpackColor( m_renderer.dataRaster.directionalLight.cb.pckedColor ) };
+			m_colorDialog->setCurrentColor( currColor );
+
+			connect( m_colorDialog, &QColorDialog::currentColorChanged, this,
+				[this]( const QColor& color ) {
+					m_renderer.dataRaster.directionalLight.cb.pckedColor = PackColor( color );
+			} );
+			connect( m_colorDialog, &QColorDialog::colorSelected, this,
+				[this] ( const QColor& color ) {
+					QString btnStyle = GetButtonStyle( color );
+					m_ui->dirLightColorBtn->setStyleSheet( btnStyle );
+			} );
+			connect( m_colorDialog, &QColorDialog::rejected, this,
+				[this, currColor] () {
+					m_renderer.dataRaster.directionalLight.cb.pckedColor = PackColor( currColor );
+			} );
+
+			m_colorDialog->exec();
+			m_colorDialog->disconnect(); // removes all signals/slots connections
+		}
+	);
+	connect( m_ui->dirLightXSpin, &QDoubleSpinBox::valueChanged,
+		this, [this]( double value ) {
+			m_renderer.dataRaster.directionalLight.directionWS.x = value;
+	} );
+	connect( m_ui->dirLightYSpin, &QDoubleSpinBox::valueChanged,
+		this, [this]( double value ) {
+			m_renderer.dataRaster.directionalLight.directionWS.y = value;
+	} );
+	connect( m_ui->dirLightZSpin, &QDoubleSpinBox::valueChanged,
+		this, [this]( double value ) {
+			m_renderer.dataRaster.directionalLight.directionWS.z = value;
+	} );
+	connect( m_ui->shadeModeCombo, &QComboBox::currentIndexChanged,
+		this, [this]( int value ) { m_renderer.dataRaster.sceneData.shadeMode = value;
+		}
+	);
 }
 
-uint32_t WolfApp::PackColor( QColor& color ) {
+uint32_t WolfApp::PackColor( const QColor& color ) {
 	uint32_t r32 = static_cast<uint32_t>(color.red());
 	uint32_t g32 = static_cast<uint32_t>(color.green());
 	uint32_t b32 = static_cast<uint32_t>(color.blue());
@@ -432,7 +561,7 @@ uint32_t WolfApp::PackColor( QColor& color ) {
 	return (a32 << 24) | (b32 << 16) | (g32 << 8) | r32;
 }
 
-QColor WolfApp::UnpackColor( uint32_t packedColor ) {
+QColor WolfApp::UnpackColor( const uint32_t packedColor ) {
 	int alpha{ (packedColor >> 24) & 0xFF };
 	int blue{ (packedColor >> 16) & 0xFF };
 	int green{ (packedColor >> 8) & 0xFF };
@@ -477,6 +606,15 @@ void WolfApp::SetupShortcuts() {
 	QShortcut* loadScene = new QShortcut( QKeySequence( Qt::CTRL | Qt::Key_L ), m_mainWin );
 	loadScene->setContext( Qt::ApplicationShortcut );
 	connect( loadScene, &QShortcut::activated, this, &WolfApp::LoadSceneClicked );
+}
+
+void WolfApp::SetupColorPicker() {
+	m_colorDialog = new QColorDialog();
+	m_colorDialog->setOption( QColorDialog::ShowAlphaChannel, true );
+	m_colorDialog->setWindowModality( Qt::ApplicationModal );
+	m_colorDialog->setOption( QColorDialog::DontUseNativeDialog, false );
+
+	m_colorDialog->setWindowTitle( "Select a Color" );
 }
 
 void WolfApp::SetupFPSTimers() {
@@ -636,10 +774,7 @@ void WolfApp::ToggleFullscreen() {
 	OnResize( m_ui->viewport->width(), m_ui->viewport->height() );
 }
 
-ColorPickerData WolfApp::SetupColorPicker( QColor currColor ) {
-	// Open color picker dialog when Color Button is clicked.
-	QColor color = QColorDialog::getColor( currColor, m_mainWin, "Select Geometry Color" );
-
+QString WolfApp::GetButtonStyle( const QColor& color ) {
 	QString hoverColor;
 	if ( color.valueF() > 0.5f )
 		hoverColor = color.darker().name();
@@ -667,5 +802,5 @@ ColorPickerData WolfApp::SetupColorPicker( QColor currColor ) {
 		})"
 	).arg( color.name(), hoverColor );
 
-	return { color, btnStyle };
+	return btnStyle;
 }

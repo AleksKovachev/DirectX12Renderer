@@ -6,7 +6,8 @@
 
 #include "d3d12.h"
 
-#include "Camera.hpp" // Camera, ScreenConstants
+#include "Camera.hpp" // Camera, ScreenConstantsCB
+#include "Lights.hpp" // DirectionalLightCB
 #include "Scene.hpp" // SceneData
 
 namespace Core {
@@ -52,7 +53,7 @@ namespace RT {
 namespace Raster {
 	struct Data {
 		Transformation camera{}; ///< Camera/object transformation data.
-		ScreenConstants screenData{};
+		ScreenConstantsCB screenData{};
 		SceneDataCB sceneData{}; ///< Scene data for Raster mode.
 		bool renderFaces{ true }; ///< Whether to render faces.
 		bool renderEdges{ false }; ///< Whether to render edges.
@@ -62,6 +63,7 @@ namespace Raster {
 		uint32_t edgeColor{}; ///< Default color for rendered edges.
 		uint32_t vertexColor{ 0xFFFF7224 }; ///< Default color for rendered vertices.
 		float bgColor[4] = { 0.1764f, 0.1764f, 0.1764f, 1.f }; ///< Scene background color.
+		DirectionalLight directionalLight;
 	};
 
 	struct GPUMesh {
