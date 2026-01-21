@@ -5,6 +5,7 @@
 #include "Renderer.hpp"
 #include <memory>
 #include <QObject>
+#include <QColorDialog>
 
 struct App;
 
@@ -65,11 +66,11 @@ private: // Functions
 	void SetInitialSceneFileLocation();
 
 	/// Packs a QColor into a single uint32_t to save GPU memory.
-	uint32_t PackColor( QColor& );
+	uint32_t PackColor( const QColor& );
 
 	/// Unpakcs a uint32_t-packed color to a QColor.
 	/// @param[in] packedColor  An 8-bit color packedin format AABBGGRR.
-	QColor UnpackColor( uint32_t );
+	QColor UnpackColor( const uint32_t );
 
 	/// Sets up the initial aspect ratio.
 	/// Doing it in SetupMainWindowSizeAndPosition is too early.
@@ -79,15 +80,23 @@ private: // Functions
 	/// Setting them in actions doesn't work with fullscreen on.
 	void SetupShortcuts();
 
+	/// Sets up the initial parameters for the reused color picker widget.
+	void SetupColorPicker();
+
+	/// Takes a color and generates a style sheet for a QToolButton with
+	/// background color set to it, and a hover color calculated from it.
+	QString GetButtonStyle( const QColor& );
+
 private: // Members
-	Core::WolfRenderer m_renderer; ///< The actual GPU DX12 renderer.
-	WolfMainWindow* m_mainWin;     ///< The main window of the application.
-	QTimer* m_idleTimer;           ///< Timer for implementing the rendering loop.
-	QTimer* m_fpsTimer;            ///< Timer to track the FPS value.
-	int m_frameIdxAtLastFPSCalc{}; ///< Updated each second.
+	Core::WolfRenderer m_renderer;        ///< The actual GPU DX12 renderer.
+	WolfMainWindow* m_mainWin{ nullptr }; ///< The main window of the application.
+	QTimer* m_idleTimer{ nullptr };       ///< Timer for implementing the rendering loop.
+	QTimer* m_fpsTimer{ nullptr };        ///< Timer to track the FPS value.
+	int m_frameIdxAtLastFPSCalc{};        ///< Updated each second.
 	float m_offsetX{};
 	float m_offsetY{};
 	const Ui::AppGUI* m_ui{ nullptr };
+	QColorDialog* m_colorDialog{ nullptr };
 
 private slots:
 	void OnCameraPan( float, float );
@@ -106,7 +115,6 @@ private slots:
 	void OnChangeSpeedMult( float );
 	void OnResize( float, float );
 	void ToggleFullscreen();
-	ColorPickerData SetupColorPicker( QColor );
 };
 
 

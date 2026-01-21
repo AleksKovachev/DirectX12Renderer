@@ -1,3 +1,4 @@
+#include "Lights.hpp"
 #include "Renderer.hpp"
 #include "utils.hpp" // CHECK_HR
 
@@ -21,7 +22,9 @@ namespace Core {
 		unsigned& height = scene.settings.renderHeight;
 		dataRaster.camera.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-		CreateRootSignature();
+		CreateRootSignatureDefault();
+		CreateRootSignatureEdges();
+		CreateRootSignatureVertices();
 		CreatePipelineState();
 		m_gpuMeshesRaster.clear();
 		for ( const Mesh& mesh: scene.GetMeshes() )
@@ -29,6 +32,7 @@ namespace Core {
 		CreateTransformConstantBuffer();
 		CreateSceneDataConstantBuffer();
 		CreateScreenDataConstantBuffer();
+		CreateLightingDataConstantBuffer();
 		CreateViewport();
 		CreateDepthStencil();
 		log( "[ Rasterization ] Successful preparation." );
@@ -36,6 +40,7 @@ namespace Core {
 
 	void WolfRenderer::FrameBeginRasterization() {
 		UpdateSmoothMotion();
+		UpdateDirectionalLight();
 
 		ResetCommandAllocatorAndList();
 
@@ -55,61 +60,96 @@ namespace Core {
 	}
 
 	void WolfRenderer::RenderFrameRasterization() {
-		m_cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
+		// Root signatures can't exist all at the same time.
+		// Draw calls need to be issued before setting a new root signature.
+		if ( dataRaster.renderFaces ) {
+			m_cmdList->SetGraphicsRootSignature( m_rootSignatureDefault.Get() );
 
-		// Slot 0: Mask the offset float values as uint values.
-		m_cmdList->SetGraphicsRoot32BitConstant( 0, static_cast<UINT>(m_frameIdx), 0 );
-
-		// Slot 1:Transform CBV.
-		m_cmdList->SetGraphicsRootConstantBufferView(
-			1, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
-
-		// Slot 2: Scene Data.
-		m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCB->GetGPUVirtualAddress() );
-
-		memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
-
-		for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
-			m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
-			m_cmdList->IASetIndexBuffer( &mesh.ibView );
+			// Needs to be set BEFORE settings root parameters when using
+			// multiple root signatures and PSOs. Sometimes creates issues otherwise.
+			ID3D12PipelineState* state;
+			if ( dataRaster.showBackfaces )
+				state = m_pipelineStateNoCull.Get();
+			else
+				state = m_pipelineStateFaces.Get();
+			m_cmdList->SetPipelineState( state );
 
 			m_cmdList->RSSetViewports( 1, &m_viewport );
 			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-			// Slot 3: Screen Data.
-			m_cmdList->SetGraphicsRootConstantBufferView( 3, m_screenDataCB->GetGPUVirtualAddress() );
+			// Slot b0:Transform CBV (in Vertex shader).
+			m_cmdList->SetGraphicsRootConstantBufferView(
+				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
 
-			dataRaster.screenData.viewportSize = { static_cast<float>(scene.settings.renderWidth),
-											  static_cast<float>(scene.settings.renderHeight) };
-			dataRaster.screenData.vertSize = dataRaster.vertexSize;
-			memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
+			// Slot b1: Mask the offset float values as uint values (in Default Pixel shader).
+			m_cmdList->SetGraphicsRoot32BitConstant( 1, static_cast<UINT>(m_frameIdx), 0 );
 
-			if ( dataRaster.renderFaces ) {
-				ID3D12PipelineState* state;
-				if ( dataRaster.showBackfaces )
-					state = m_pipelineStateNoCull.Get();
-				else
-					state = m_pipelineStateFaces.Get();
-				m_cmdList->SetPipelineState( state );
-			}
+			// Slot b2: Scene Data (in Default Pixel shader).
+			m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCB->GetGPUVirtualAddress() );
+			memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
 
-			// Slot 4: Edges color.
-			m_cmdList->SetGraphicsRoot32BitConstant( 4, dataRaster.edgeColor, 0 );
+			// Slot b3: Lighting data (in Default Pixel shader).
+			m_cmdList->SetGraphicsRootConstantBufferView( 3, m_lightingDataCB->GetGPUVirtualAddress() );
+			memcpy( m_lightingDataCBMappedPtr, &dataRaster.directionalLight.cb, sizeof( dataRaster.directionalLight.cb ) );
+		
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
+				m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
-			// Slot 5: Vertex color.
-			m_cmdList->SetGraphicsRoot32BitConstant( 5, dataRaster.vertexColor, 0 );
-
-			// IA stands for Input Assembler.
-			m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-			m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
-
-			if ( dataRaster.renderEdges ) {
-				m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+				// IA stands for Input Assembler.
+				m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 				m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
 			}
+		}
 
-			if ( dataRaster.renderVerts ) {
-				m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
+		if ( dataRaster.renderEdges ) {
+			m_cmdList->SetGraphicsRootSignature( m_rootSignatureEdges.Get() );
+			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+
+			m_cmdList->RSSetViewports( 1, &m_viewport );
+			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
+
+			// Slot b0:Transform CBV (in Vertex shader).
+			m_cmdList->SetGraphicsRootConstantBufferView(
+				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
+
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
+				m_cmdList->IASetIndexBuffer( &mesh.ibView );
+
+				// Slot b1: Edges color (in Edges Pixel shader).
+				m_cmdList->SetGraphicsRoot32BitConstant( 1, dataRaster.edgeColor, 0 );
+
+				m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
+			}
+		}
+
+		if ( dataRaster.renderVerts ) {
+			m_cmdList->SetGraphicsRootSignature( m_rootSignatureVertices.Get() );
+			m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
+
+			m_cmdList->RSSetViewports( 1, &m_viewport );
+			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
+
+			// Slot b0:Transform CBV (in Vertex shader).
+			m_cmdList->SetGraphicsRootConstantBufferView(
+				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
+
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
+				m_cmdList->IASetIndexBuffer( &mesh.ibView );
+
+				// Slot b1: Screen Data (in Geometry shader).
+				m_cmdList->SetGraphicsRootConstantBufferView( 1, m_screenDataCB->GetGPUVirtualAddress() );
+
+				dataRaster.screenData.viewportSize = { static_cast<float>(scene.settings.renderWidth),
+												  static_cast<float>(scene.settings.renderHeight) };
+				dataRaster.screenData.vertSize = dataRaster.vertexSize;
+				memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
+
+				// Slot b2: Vertex color (in Vertices Pixel shader).
+				m_cmdList->SetGraphicsRoot32BitConstant( 2, dataRaster.vertexColor, 0 );
+
 				m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_POINTLIST );
 				// Only 1 point is needed per vertex. Use DrawInstanced, otherwise indices will be ignored.
 				m_cmdList->DrawInstanced( static_cast<UINT>(mesh.vertexCount), 1, 0, 0 );
@@ -125,48 +165,84 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 	}
 
-	void WolfRenderer::CreateRootSignature() {
-		D3D12_ROOT_PARAMETER1 rootParams[6]{};
+	void WolfRenderer::CreateRootSignatureDefault() {
+		D3D12_ROOT_PARAMETER1 rootParams[4]{};
 		uint8_t shaderRegisterCBV{};
 
-		// Param 0 - frameIdx.
+		// Param b0 - transform matrix.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
+
+		// Param b1 - frameIdx, specStrength.
 		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
 		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
-		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
+		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 2;
 		shaderRegisterCBV++;
 
-		// Param 1 - transform matrix.
+		// Param b2 - Scene data.
 		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
 		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
 		shaderRegisterCBV++;
 
-		// Param 2 - Scene data.
+		// Param b3 - Lighting Data.
 		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
 		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
 		shaderRegisterCBV++;
 
-		// Param 3 - Screen data.
+		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
+		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		rootSignatureDesc.NumParameters = _countof( rootParams );
+		rootSignatureDesc.pParameters = rootParams;
+
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
+		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
+
+		ComPtr<ID3DBlob> signatureBlob;
+		ComPtr<ID3DBlob> errorBlob;
+		HRESULT hr = D3D12SerializeVersionedRootSignature(
+			&rootSigDescVersioned,
+			&signatureBlob,
+			&errorBlob
+		);
+
+		if ( errorBlob ) {
+			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
+			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
+		}
+		CHECK_HR( "Failed to serialize root signature.", hr, log );
+
+		hr = m_device->CreateRootSignature(
+			0,
+			signatureBlob->GetBufferPointer(),
+			signatureBlob->GetBufferSize(),
+			IID_PPV_ARGS( &m_rootSignatureDefault )
+		);
+		CHECK_HR( "CreateRootSignature failed.", hr, log );
+		log( "[ Rasterization ] Root signature created." );
+	}
+
+	void WolfRenderer::CreateRootSignatureEdges() {
+		D3D12_ROOT_PARAMETER1 rootParams[2]{};
+		uint8_t shaderRegisterCBV{};
+
+		// Param b0 - transform matrix.
 		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
 		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
 		shaderRegisterCBV++;
 
-		// Param 4 - Edges color.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
-		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
-		shaderRegisterCBV++;
-
-		// Param 5 - Vertex color.
+		// Param b1 - Edges color.
 		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
@@ -201,7 +277,66 @@ namespace Core {
 			0,
 			signatureBlob->GetBufferPointer(),
 			signatureBlob->GetBufferSize(),
-			IID_PPV_ARGS( &m_rootSignature )
+			IID_PPV_ARGS( &m_rootSignatureEdges )
+		);
+		CHECK_HR( "CreateRootSignature failed.", hr, log );
+		log( "[ Rasterization ] Root signature created." );
+	}
+
+	void WolfRenderer::CreateRootSignatureVertices() {
+		D3D12_ROOT_PARAMETER1 rootParams[3]{};
+		uint8_t shaderRegisterCBV{};
+
+		// Param b0 - transform matrix.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
+
+		// Param b1 - Screen data.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
+		shaderRegisterCBV++;
+
+		// Param b2 - Vertex color.
+		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
+		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
+		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
+		shaderRegisterCBV++;
+
+		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
+		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		rootSignatureDesc.NumParameters = _countof( rootParams );
+		rootSignatureDesc.pParameters = rootParams;
+
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
+		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
+
+		ComPtr<ID3DBlob> signatureBlob;
+		ComPtr<ID3DBlob> errorBlob;
+		HRESULT hr = D3D12SerializeVersionedRootSignature(
+			&rootSigDescVersioned,
+			&signatureBlob,
+			&errorBlob
+		);
+
+		if ( errorBlob ) {
+			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
+			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
+		}
+		CHECK_HR( "Failed to serialize root signature.", hr, log );
+
+		hr = m_device->CreateRootSignature(
+			0,
+			signatureBlob->GetBufferPointer(),
+			signatureBlob->GetBufferSize(),
+			IID_PPV_ARGS( &m_rootSignatureVertices )
 		);
 		CHECK_HR( "CreateRootSignature failed.", hr, log );
 		log( "[ Rasterization ] Root signature created." );
@@ -222,7 +357,7 @@ namespace Core {
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 		};
 
-		psoDesc.pRootSignature = m_rootSignature.Get();
+		psoDesc.pRootSignature = m_rootSignatureDefault.Get();
 		psoDesc.PS = { g_const_color, _countof( g_const_color ) };
 		psoDesc.VS = { g_const_color_vs, _countof( g_const_color_vs ) };
 		psoDesc.InputLayout = { inputLayout, _countof( inputLayout ) };
@@ -252,6 +387,7 @@ namespace Core {
 		);
 		CHECK_HR( "Failed to create pipeline state without backface culling.", hr, log );
 
+		psoDesc.pRootSignature = m_rootSignatureEdges.Get();
 		psoDesc.PS = { g_const_color_wire_ps, _countof( g_const_color_wire_ps ) };
 		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME; // Wireframe.
 		hr = m_device->CreateGraphicsPipelineState(
@@ -260,6 +396,7 @@ namespace Core {
 		);
 		CHECK_HR( "Failed to create pipeline state for edges.", hr, log );
 
+		psoDesc.pRootSignature = m_rootSignatureVertices.Get();
 		psoDesc.PS = { g_const_color_verts_ps, _countof( g_const_color_verts_ps ) };
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
 		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
@@ -528,12 +665,12 @@ namespace Core {
 		CHECK_HR( "Failed to map Scene Data constant buffer.", hr, log );
 
 		memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
-		log( "[ Rasterization ] Transform constant buffer created and mapped." );
+		log( "[ Rasterization ] Scene constant buffer created and mapped." );
 	}
 
 	void WolfRenderer::CreateScreenDataConstantBuffer() {
 		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::ScreenConstants ) );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::ScreenConstantsCB ) );
 
 		HRESULT hr = m_device->CreateCommittedResource(
 			&heapProps,
@@ -551,10 +688,39 @@ namespace Core {
 		CHECK_HR( "Failed to map Screen Data constant buffer.", hr, log );
 
 		memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
-		log( "[ Rasterization ] Transform constant buffer created and mapped." );
+		log( "[ Rasterization ] Screen constant buffer created and mapped." );
+	}
+
+	void WolfRenderer::CreateLightingDataConstantBuffer() {
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::DirectionalLight::CB ) );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &m_lightingDataCB )
+		);
+		CHECK_HR( "Failed to create Screen Data constant buffer.", hr, log );
+
+		// Map permanently for CPU writes
+		hr = m_lightingDataCB->Map(
+			0, nullptr, reinterpret_cast<void**>(&m_lightingDataCBMappedPtr) );
+		CHECK_HR( "Failed to map Screen Data constant buffer.", hr, log );
+
+		memcpy(
+			m_lightingDataCBMappedPtr,
+			&dataRaster.directionalLight.cb,
+			sizeof( dataRaster.directionalLight.cb )
+		);
+		log( "[ Rasterization ] Lighting constant buffer created and mapped." );
 	}
 
 	void WolfRenderer::UpdateSmoothMotion() {
+		using namespace DirectX;
+
 		Raster::Transformation& tr{ dataRaster.camera };
 
 		// Compute smoothing factor for movement (frame-rate independent).
@@ -580,27 +746,29 @@ namespace Core {
 		tr.currOffsetY = std::clamp( tr.currOffsetY, -tr.boundsY, tr.boundsY );
 
 		// Subtracting 0.5 from Y to place camera slightly above ground.
-		DirectX::XMMATRIX Trans = DirectX::XMMatrixTranslation(
+		XMMATRIX Trans = XMMatrixTranslation(
 			tr.currOffsetX, tr.currOffsetY - 0.5f, tr.offsetZ );
 
 		// Using Rotation data for X axis in Qt screen space for MatrixY in
 		// WorldView and vice-versa. Negative currRotation inverts rotation direction.
-		DirectX::XMMATRIX Rot = DirectX::XMMatrixRotationY( -tr.currRotationX ) *
-			DirectX::XMMatrixRotationX( -tr.currRotationY );
+		XMMATRIX Rot = XMMatrixRotationY( -tr.currRotationX ) *
+			XMMatrixRotationX( -tr.currRotationY );
 
 		// Create a world-view matrix. Multiplication order matters! Rotation,
 		// then translation - transform around world origin. Otherwise - around geometry origin.
-		DirectX::XMMATRIX World{};
+		XMMATRIX World{};
 		if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::Local )
 			World = Rot * Trans;
 		else if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::World )
 			World = Trans * Rot;
 
-		DirectX::XMMATRIX View = DirectX::XMMatrixLookAtLH(
-			DirectX::XMVectorSet( 0.f, 0.f, -1.f, 1.f ), // Camera position.
-			DirectX::XMVectorZero(),                     // Look at origin.
-			DirectX::XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // Up.
+		XMMATRIX View = XMMatrixLookAtLH(
+			XMVectorSet( 0.f, 0.f, -1.f, 1.f ), // Camera position.
+			XMVectorZero(),                     // Look at origin.
+			XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // Up.
 		);
+
+		XMStoreFloat4x4( &dataRaster.camera.viewMatrix, XMMatrixTranspose( View ) );
 
 		DirectX::XMMATRIX WorldView = World * View;
 
@@ -675,5 +843,22 @@ namespace Core {
 			m_dsvHeap->GetCPUDescriptorHandleForHeapStart()
 		);
 		log( "[ Rasterization ] Depth Stencil created." );
+	}
+
+	void WolfRenderer::UpdateDirectionalLight() {
+		using namespace DirectX;
+
+		// Direction (world-space).
+		XMFLOAT3& lightDirWorld = dataRaster.directionalLight.directionWS;
+		XMVECTOR dirWS = XMVector3Normalize( XMLoadFloat3( &lightDirWorld ) );
+
+		// Transform to view-space.
+		XMVECTOR dirVS = XMVector3Normalize( XMVector3TransformNormal(
+			dirWS, XMLoadFloat4x4( &dataRaster.camera.viewMatrix ) ) );
+
+		// If instead of converting world-space orientation to view-space was
+		// used directly the camera orientation, the light would always poin in
+		// the same direction as the camera (like a flash light).
+		XMStoreFloat3( &dataRaster.directionalLight.cb.directionVS, dirVS );
 	}
 }

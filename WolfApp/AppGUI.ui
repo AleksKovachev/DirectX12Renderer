@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1887</width>
-    <height>1211</height>
+    <width>2171</width>
+    <height>1450</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -249,9 +249,9 @@ QCheckBox::indicator:checked {
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>-89</y>
+           <y>-15</y>
            <width>264</width>
-           <height>1097</height>
+           <height>1292</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
@@ -278,6 +278,12 @@ QCheckBox::indicator:checked {
             <layout class="QFormLayout" name="formLayout">
              <item row="1" column="0" colspan="2">
               <widget class="QGroupBox" name="cameraPosBox">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>70</height>
+                </size>
+               </property>
                <property name="maximumSize">
                 <size>
                  <width>16777215</width>
@@ -302,6 +308,12 @@ QCheckBox::indicator:checked {
                     <height>16777215</height>
                    </size>
                   </property>
+                  <property name="toolTip">
+                   <string>Camera position on the X axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Camera position on the X axis.</string>
+                  </property>
                   <property name="buttonSymbols">
                    <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
@@ -323,6 +335,12 @@ QCheckBox::indicator:checked {
                     <width>70</width>
                     <height>16777215</height>
                    </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Camera position on the Y axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Camera position on the Y axis.</string>
                   </property>
                   <property name="buttonSymbols">
                    <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
@@ -346,6 +364,12 @@ QCheckBox::indicator:checked {
                     <height>16777215</height>
                    </size>
                   </property>
+                  <property name="toolTip">
+                   <string>Camera position on the Z axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Camera position on the Z axis.</string>
+                  </property>
                   <property name="buttonSymbols">
                    <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
@@ -366,7 +390,7 @@ QCheckBox::indicator:checked {
                </layout>
               </widget>
              </item>
-             <item row="3" column="0">
+             <item row="8" column="0">
               <widget class="QWidget" name="moveSpeedLblBox" native="true">
                <layout class="QVBoxLayout" name="verticalLayout_2">
                 <property name="leftMargin">
@@ -391,7 +415,7 @@ QCheckBox::indicator:checked {
                </layout>
               </widget>
              </item>
-             <item row="3" column="1">
+             <item row="8" column="1">
               <widget class="QWidget" name="moveSpeedControls" native="true">
                <layout class="QVBoxLayout" name="moveSpeedControls_OLD">
                 <property name="leftMargin">
@@ -412,16 +436,16 @@ QCheckBox::indicator:checked {
                    <number>1</number>
                   </property>
                   <property name="maximum">
-                   <number>10</number>
+                   <number>20</number>
                   </property>
                   <property name="pageStep">
                    <number>1</number>
                   </property>
                   <property name="value">
-                   <number>5</number>
+                   <number>10</number>
                   </property>
                   <property name="sliderPosition">
-                   <number>5</number>
+                   <number>10</number>
                   </property>
                   <property name="orientation">
                    <enum>Qt::Orientation::Horizontal</enum>
@@ -436,7 +460,7 @@ QCheckBox::indicator:checked {
                    <enum>QSlider::TickPosition::TicksBothSides</enum>
                   </property>
                   <property name="tickInterval">
-                   <number>1</number>
+                   <number>2</number>
                   </property>
                  </widget>
                 </item>
@@ -449,10 +473,10 @@ QCheckBox::indicator:checked {
                    </size>
                   </property>
                   <property name="toolTip">
-                   <string>Shortcut: RMB + Scroll Up/Down.</string>
+                   <string>The base camera movement speed.</string>
                   </property>
                   <property name="statusTip">
-                   <string>Shortcut: RMB + Scroll Up/Down.</string>
+                   <string>The base camera movement speed.</string>
                   </property>
                   <property name="frame">
                    <bool>true</bool>
@@ -464,24 +488,24 @@ QCheckBox::indicator:checked {
                    <double>1.000000000000000</double>
                   </property>
                   <property name="maximum">
-                   <double>10.000000000000000</double>
+                   <double>20.000000000000000</double>
                   </property>
                   <property name="value">
-                   <double>5.000000000000000</double>
+                   <double>10.000000000000000</double>
                   </property>
                  </widget>
                 </item>
                </layout>
               </widget>
              </item>
-             <item row="4" column="0">
+             <item row="9" column="0">
               <widget class="QLabel" name="moveSpeedMultLbl">
                <property name="text">
                 <string>Speed Multiplier</string>
                </property>
               </widget>
              </item>
-             <item row="4" column="1">
+             <item row="9" column="1">
               <widget class="QDoubleSpinBox" name="moveSpeedMultSpin">
                <property name="maximumSize">
                 <size>
@@ -491,10 +515,11 @@ QCheckBox::indicator:checked {
                </property>
                <property name="toolTip">
                 <string>Use Shift + Move to sprint.
-Sprint speed = Move Speed × Speed Multiplier..</string>
+Sprint speed = Move Speed × Speed Multiplier..
+Shortcut: RMB + Scroll Up/Down.</string>
                </property>
                <property name="statusTip">
-                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier..</string>
+                <string>Use Shift + Move to sprint. Sprint speed = Move Speed × Speed Multiplier.. Shortcut: RMB + Scroll Up/Down.</string>
                </property>
                <property name="buttonSymbols">
                 <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
@@ -516,14 +541,14 @@ Sprint speed = Move Speed × Speed Multiplier..</string>
                </property>
               </widget>
              </item>
-             <item row="6" column="0">
+             <item row="11" column="0">
               <widget class="QLabel" name="mouseSensitivityRTLbl">
                <property name="text">
                 <string>Mouse Sensitivity</string>
                </property>
               </widget>
              </item>
-             <item row="6" column="1">
+             <item row="11" column="1">
               <widget class="QDoubleSpinBox" name="mouseSensitivityRTSpin">
                <property name="maximumSize">
                 <size>
@@ -557,14 +582,14 @@ Sprint speed = Move Speed × Speed Multiplier..</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="0">
+             <item row="12" column="0">
               <widget class="QLabel" name="verticalFOVLbl">
                <property name="text">
                 <string>Vertical FoV</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="1">
+             <item row="12" column="1">
               <widget class="QDoubleSpinBox" name="FOVRTSpin">
                <property name="maximumSize">
                 <size>
@@ -601,14 +626,14 @@ Sprint speed = Move Speed × Speed Multiplier..</string>
                </property>
               </widget>
              </item>
-             <item row="8" column="0">
+             <item row="13" column="0">
               <widget class="QLabel" name="randomColorsRTLbl">
                <property name="text">
                 <string>Random Colors</string>
                </property>
               </widget>
              </item>
-             <item row="8" column="1">
+             <item row="13" column="1">
               <widget class="QCheckBox" name="randomColorsRTSwitch">
                <property name="minimumSize">
                 <size>
@@ -680,7 +705,7 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="9" column="0">
+             <item row="14" column="0">
               <widget class="QLabel" name="rotOrientationRasterLbl">
                <property name="toolTip">
                 <string/>
@@ -693,7 +718,7 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="9" column="1">
+             <item row="14" column="1">
               <widget class="QComboBox" name="rotOrientationRasterCombo">
                <property name="minimumSize">
                 <size>
@@ -740,14 +765,14 @@ QCheckBox::indicator:checked {
                </item>
               </widget>
              </item>
-             <item row="10" column="0">
+             <item row="15" column="0">
               <widget class="QLabel" name="zoomRasterLbl">
                <property name="text">
                 <string>Distance From Scene</string>
                </property>
               </widget>
              </item>
-             <item row="10" column="1">
+             <item row="15" column="1">
               <widget class="QDoubleSpinBox" name="zoomRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -776,14 +801,14 @@ Moves the camera closer/further.</string>
                </property>
               </widget>
              </item>
-             <item row="11" column="0">
+             <item row="16" column="0">
               <widget class="QLabel" name="zoomSensRasterLbl">
                <property name="text">
                 <string>Zoom Sensitivity</string>
                </property>
               </widget>
              </item>
-             <item row="11" column="1">
+             <item row="16" column="1">
               <widget class="QDoubleSpinBox" name="zoomSensRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -818,14 +843,14 @@ change with each mouse scroll.</string>
                </property>
               </widget>
              </item>
-             <item row="12" column="0">
+             <item row="17" column="0">
               <widget class="QLabel" name="panSensRasterLbl">
                <property name="text">
                 <string>Pan Sensitivity</string>
                </property>
               </widget>
              </item>
-             <item row="12" column="1">
+             <item row="17" column="1">
               <widget class="QDoubleSpinBox" name="panSensRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -863,7 +888,7 @@ to mouse movement when panning.</string>
                </property>
               </widget>
              </item>
-             <item row="13" column="0">
+             <item row="18" column="0">
               <widget class="QLabel" name="rotSensRasterLbl">
                <property name="frameShape">
                 <enum>QFrame::Shape::NoFrame</enum>
@@ -873,7 +898,7 @@ to mouse movement when panning.</string>
                </property>
               </widget>
              </item>
-             <item row="13" column="1">
+             <item row="18" column="1">
               <widget class="QDoubleSpinBox" name="rotSensRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -911,14 +936,14 @@ respond to mouse movement when rotating.</string>
                </property>
               </widget>
              </item>
-             <item row="14" column="0">
+             <item row="19" column="0">
               <widget class="QLabel" name="FOVRasterLbl">
                <property name="text">
                 <string>FoV</string>
                </property>
               </widget>
              </item>
-             <item row="14" column="1">
+             <item row="19" column="1">
               <widget class="QDoubleSpinBox" name="FOVRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -949,14 +974,14 @@ respond to mouse movement when rotating.</string>
                </property>
               </widget>
              </item>
-             <item row="15" column="0">
+             <item row="20" column="0">
               <widget class="QLabel" name="FOVSensRasterLbl">
                <property name="text">
                 <string>FoV Sensitivity</string>
                </property>
               </widget>
              </item>
-             <item row="15" column="1">
+             <item row="20" column="1">
               <widget class="QDoubleSpinBox" name="FOVSensRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -994,7 +1019,7 @@ to mouse movement when changing FoV.</string>
                </property>
               </widget>
              </item>
-             <item row="16" column="0">
+             <item row="21" column="0">
               <widget class="QLabel" name="panAnimSpeedRasterLbl">
                <property name="toolTip">
                 <string>Delay</string>
@@ -1004,7 +1029,7 @@ to mouse movement when changing FoV.</string>
                </property>
               </widget>
              </item>
-             <item row="16" column="1">
+             <item row="21" column="1">
               <widget class="QDoubleSpinBox" name="panAnimSpeedRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -1042,7 +1067,7 @@ until reaching the target destination.</string>
                </property>
               </widget>
              </item>
-             <item row="17" column="0">
+             <item row="22" column="0">
               <widget class="QLabel" name="rotAnimSpeedRasterLbl">
                <property name="minimumSize">
                 <size>
@@ -1055,7 +1080,7 @@ until reaching the target destination.</string>
                </property>
               </widget>
              </item>
-             <item row="17" column="1">
+             <item row="22" column="1">
               <widget class="QDoubleSpinBox" name="rotAnimSpeedRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -1093,14 +1118,14 @@ until reaching the target rotation.</string>
                </property>
               </widget>
              </item>
-             <item row="18" column="0">
+             <item row="23" column="0">
               <widget class="QLabel" name="nearZRasterLbl">
                <property name="text">
                 <string>Near Z Plane</string>
                </property>
               </widget>
              </item>
-             <item row="18" column="1">
+             <item row="23" column="1">
               <widget class="QDoubleSpinBox" name="nearZRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -1132,14 +1157,14 @@ the camera won't be able to see objects.</string>
                </property>
               </widget>
              </item>
-             <item row="19" column="0">
+             <item row="24" column="0">
               <widget class="QLabel" name="farZRasterLbl">
                <property name="text">
                 <string>Far Z Plane</string>
                </property>
               </widget>
              </item>
-             <item row="19" column="1">
+             <item row="24" column="1">
               <widget class="QDoubleSpinBox" name="farZRasterSpin">
                <property name="maximumSize">
                 <size>
@@ -1168,20 +1193,20 @@ the camera won't be able to see objects.</string>
                </property>
               </widget>
              </item>
-             <item row="20" column="0">
+             <item row="25" column="0">
               <widget class="QLabel" name="aspectRatioRasterLbl">
                <property name="toolTip">
-                <string>The aspect ratio used for matrix calculation.</string>
+                <string/>
                </property>
                <property name="statusTip">
-                <string>The aspect ratio used for matrix calculation.</string>
+                <string/>
                </property>
                <property name="text">
                 <string>Aspect Ratio</string>
                </property>
               </widget>
              </item>
-             <item row="20" column="1">
+             <item row="25" column="1">
               <widget class="QWidget" name="widget" native="true">
                <layout class="QVBoxLayout" name="verticalLayout_3">
                 <property name="leftMargin">
@@ -1250,14 +1275,14 @@ Automatically resets when window is resized.</string>
                </layout>
               </widget>
              </item>
-             <item row="22" column="0">
+             <item row="27" column="0">
               <widget class="QLabel" name="showBackfacesLbl">
                <property name="text">
                 <string>Show Backfaces</string>
                </property>
               </widget>
              </item>
-             <item row="22" column="1">
+             <item row="27" column="1">
               <widget class="QCheckBox" name="showBackfacesSwitch">
                <property name="toolTip">
                 <string>Disable backface culling and show geometry's front and back.</string>
@@ -1312,14 +1337,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="23" column="0">
+             <item row="28" column="0">
               <widget class="QLabel" name="renderFacesRasterLbl">
                <property name="text">
                 <string>Render Faces</string>
                </property>
               </widget>
              </item>
-             <item row="23" column="1">
+             <item row="28" column="1">
               <widget class="QCheckBox" name="renderFacesRasterSwitch">
                <property name="toolTip">
                 <string>Render geometry faces.</string>
@@ -1377,14 +1402,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="24" column="0">
+             <item row="29" column="0">
               <widget class="QLabel" name="renderEdgesRasterLbl">
                <property name="text">
                 <string>Render Edges</string>
                </property>
               </widget>
              </item>
-             <item row="24" column="1">
+             <item row="29" column="1">
               <widget class="QCheckBox" name="renderEdgesRasterSwitch">
                <property name="toolTip">
                 <string>Render geometry edges.</string>
@@ -1439,14 +1464,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="25" column="0">
+             <item row="30" column="0">
               <widget class="QLabel" name="renderVertsRasterLbl">
                <property name="text">
                 <string>Render Vertices</string>
                </property>
               </widget>
              </item>
-             <item row="25" column="1">
+             <item row="30" column="1">
               <widget class="QCheckBox" name="renderVertsRasterSwitch">
                <property name="toolTip">
                 <string>Render geometry vertices (points).</string>
@@ -1501,14 +1526,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="26" column="0">
+             <item row="31" column="0">
               <widget class="QLabel" name="randomColorsRasterLbl">
                <property name="text">
                 <string>Random Colors</string>
                </property>
               </widget>
              </item>
-             <item row="26" column="1">
+             <item row="31" column="1">
               <widget class="QCheckBox" name="randomColorsRasterSwitch">
                <property name="toolTip">
                 <string>Switch between rendering geometry
@@ -1568,14 +1593,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="27" column="0">
+             <item row="32" column="0">
               <widget class="QLabel" name="discoModeRasterLbl">
                <property name="text">
                 <string>Disco Mode</string>
                </property>
               </widget>
              </item>
-             <item row="27" column="1">
+             <item row="32" column="1">
               <widget class="QCheckBox" name="discoModeRasterSwitch">
                <property name="toolTip">
                 <string>Turn on disco mode!</string>
@@ -1630,14 +1655,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="28" column="0">
+             <item row="33" column="0">
               <widget class="QLabel" name="discoModeSpeedLbl">
                <property name="text">
                 <string>Disco Speed</string>
                </property>
               </widget>
              </item>
-             <item row="28" column="1">
+             <item row="33" column="1">
               <widget class="QSpinBox" name="discoModeSpeedSpin">
                <property name="enabled">
                 <bool>false</bool>
@@ -1674,14 +1699,14 @@ QCheckBox::indicator:checked {
                </property>
               </widget>
              </item>
-             <item row="29" column="0">
+             <item row="34" column="0">
               <widget class="QLabel" name="faceColorRasterLbl">
                <property name="text">
                 <string>Face Color</string>
                </property>
               </widget>
              </item>
-             <item row="29" column="1">
+             <item row="34" column="1">
               <widget class="QToolButton" name="faceColorRasterBtn">
                <property name="enabled">
                 <bool>false</bool>
@@ -1725,14 +1750,14 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
-             <item row="30" column="0">
+             <item row="35" column="0">
               <widget class="QLabel" name="edgeColorRasterLbl">
                <property name="text">
                 <string>Edge Color</string>
                </property>
               </widget>
              </item>
-             <item row="30" column="1">
+             <item row="35" column="1">
               <widget class="QToolButton" name="edgeColorRasterBtn">
                <property name="enabled">
                 <bool>false</bool>
@@ -1776,14 +1801,14 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
-             <item row="31" column="0">
+             <item row="36" column="0">
               <widget class="QLabel" name="vertexColorRasterLbl">
                <property name="text">
                 <string>Vertex Color</string>
                </property>
               </widget>
              </item>
-             <item row="31" column="1">
+             <item row="36" column="1">
               <widget class="QToolButton" name="vertexColorRasterBtn">
                <property name="enabled">
                 <bool>false</bool>
@@ -1824,14 +1849,14 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
-             <item row="32" column="0">
+             <item row="37" column="0">
               <widget class="QLabel" name="vertexSizeLbl">
                <property name="text">
                 <string>Vertex Size</string>
                </property>
               </widget>
              </item>
-             <item row="32" column="1">
+             <item row="37" column="1">
               <widget class="QDoubleSpinBox" name="vertexSizeSpin">
                <property name="minimumSize">
                 <size>
@@ -1865,14 +1890,14 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
-             <item row="33" column="0">
+             <item row="38" column="0">
               <widget class="QLabel" name="matchRTCamLbl">
                <property name="text">
                 <string>Match Camera to Raster</string>
                </property>
               </widget>
              </item>
-             <item row="33" column="1">
+             <item row="38" column="1">
               <widget class="QCheckBox" name="matchRTCamSwitch">
                <property name="toolTip">
                 <string>Changes the camera's coordinate system so that
@@ -2031,6 +2056,314 @@ QToolButton:hover {
                </property>
               </widget>
              </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="specStrengthLbl">
+               <property name="toolTip">
+                <string/>
+               </property>
+               <property name="statusTip">
+                <string/>
+               </property>
+               <property name="text">
+                <string>Specular Strength (Global)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QDoubleSpinBox" name="specStrengthSpin">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Controls the specular property (shineniness) of the geometry in the scene.
+This property is usually controlled per mesh.</string>
+               </property>
+               <property name="statusTip">
+                <string>Controls the specular property (shineniness) of the geometry in the scene. This property is usually controlled per mesh.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="maximum">
+                <double>1024.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>32.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QGroupBox" name="dirLightBox">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>70</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>70</height>
+                </size>
+               </property>
+               <property name="title">
+                <string>Directional Light XYZ</string>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_4">
+                <item>
+                 <widget class="QDoubleSpinBox" name="dirLightXSpin">
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Directional light position on the X axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Directional light position on the X axis.</string>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
+                  <property name="minimum">
+                   <double>-9999999999999999583119736832.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>99999999999999996863366107917975552.000000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>0.010000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>-0.300000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="dirLightYSpin">
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Directional light position on the Y axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Directional light position on the Y axis.</string>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
+                  <property name="minimum">
+                   <double>-9999999999999999583119736832.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>99999999999999996863366107917975552.000000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>0.010000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>-1.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="dirLightZSpin">
+                  <property name="minimumSize">
+                   <size>
+                    <width>70</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Directional light position on the Z axis.</string>
+                  </property>
+                  <property name="statusTip">
+                   <string>Directional light position on the Z axis.</string>
+                  </property>
+                  <property name="buttonSymbols">
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+                  </property>
+                  <property name="decimals">
+                   <number>3</number>
+                  </property>
+                  <property name="minimum">
+                   <double>-9999999999999999583119736832.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>99999999999999996863366107917975552.000000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>0.010000000000000</double>
+                  </property>
+                  <property name="value">
+                   <double>-0.200000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="dirLightIntensityLbl">
+               <property name="text">
+                <string>Directional Light Intensity</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="dirLightIntensitySpin">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Directional light intensity.</string>
+               </property>
+               <property name="statusTip">
+                <string>Directional light intensity.</string>
+               </property>
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+               </property>
+               <property name="decimals">
+                <number>3</number>
+               </property>
+               <property name="maximum">
+                <double>20.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.025000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="dirLightColorLbl">
+               <property name="text">
+                <string>Directional Light Color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QToolButton" name="dirLightColorBtn">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Directional light color.</string>
+               </property>
+               <property name="statusTip">
+                <string>Directional light color.</string>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">QToolButton {
+	background-color:rgb(255, 255, 255);;
+	border-radius: 6px;
+}
+
+QToolButton:hover {
+	background-color: rgb(90, 90, 90);
+	border: 1px;
+	border-radius: 6px;
+}
+</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="shadeModeLbl">
+               <property name="text">
+                <string>Shading mode</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QComboBox" name="shadeModeCombo">
+               <property name="minimumSize">
+                <size>
+                 <width>70</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>70</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Lit</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Unlit</string>
+                </property>
+               </item>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -2069,7 +2402,7 @@ QToolButton:hover {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1887</width>
+     <width>2171</width>
      <height>21</height>
     </rect>
    </property>
@@ -3253,6 +3586,150 @@ QToolButton:hover {
     <hint type="destinationlabel">
      <x>67</x>
      <y>215</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>specStrengthLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>89</x>
+     <y>268</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>specStrengthSpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>200</x>
+     <y>268</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dirLightBox</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>144</x>
+     <y>292</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dirLightIntensityLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>87</x>
+     <y>346</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dirLightIntensitySpin</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>200</x>
+     <y>346</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dirLightColorLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>79</x>
+     <y>374</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>dirLightColorBtn</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>200</x>
+     <y>374</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>shadeModeLbl</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>58</x>
+     <y>417</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>renderModeSwitch</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>shadeModeCombo</receiver>
+   <slot>setHidden(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2126</x>
+     <y>91</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>200</x>
+     <y>417</y>
     </hint>
    </hints>
   </connection>

@@ -1,18 +1,13 @@
 #include "Common.hlsli"
 
-cbuffer ScreenCB : register( b3 ) {
+cbuffer ScreenCB : register( b1 ) {
     float2 viewportSize; // (width, height)
     float vertSize;
     float _padding;
 };
 
-struct GSOutput {
-    float4 position : SV_POSITION;
-    float2 localPos : TEXCOORD0; // [-1, 1] quad space
-};
-
 [maxvertexcount( 4 )]
-void GSMain( point PSInput input[1], inout TriangleStream<GSOutput> outStream ) {
+void GSMain( point VSOutput_Edges_Verts input[1], inout TriangleStream<GSOutput_Verts> outStream ) {
     float4 clipPosition = input[0].position;
 
     // Convert pixel size to clip-space offset.
@@ -25,7 +20,7 @@ void GSMain( point PSInput input[1], inout TriangleStream<GSOutput> outStream ) 
         float2( 1.f, 1.f )
     };
 
-    GSOutput vertex;
+    GSOutput_Verts vertex;
 
     for ( uint i = 0; i < 4; ++i ) {
         vertex.position = clipPosition;

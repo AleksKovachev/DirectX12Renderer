@@ -18,6 +18,7 @@ If you have any issues building and running the application, you can try it out 
 </p>
 <p float="left">
   <img src="docs/raster_screenshot2.png" width="45%" />
+  <img src="docs/raster_screenshot3.png" width="45%" />
 </p>
 
 ### Video (Outdated)
@@ -70,6 +71,8 @@ If you have any issues building and running the application, you can try it out 
 - **Dual Rendering Pipeline**: Seamlessly switch between rasterization and ray tracing at runtime.
 - **Scene Reloading at Runtime**: Pick and load a different scene to render without closing the application.
 - **Rasterization Controls**: Real-time camera panning support via mouse interaction.
+- **Rasterization Lights**: Support for Blinn-Phong directional light.
+- **Rasterization Lights**: Switch dynamically between "Lit" and "Unlit" shading mode.
 - **Ray Tracing Pipeline (DXR) Controls**: Real-time camera panning + WSAD+QE movement support via mouse and keyboard interaction.
 - **Ray Tracing Camera Coordinates Switch**: Switch for the ray tracing camera's coordinate system to mimic the projection matrix of the one used in rasterization mode.
 

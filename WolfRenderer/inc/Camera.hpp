@@ -37,7 +37,7 @@ namespace RT {
 		float pitch{}; ///< Rotation around local X in radians.
 
 		// Movement.
-		float movementSpeed{ 5.f }; ///< Units per second.
+		float movementSpeed{ 10.f }; ///< Units per second.
 		float speedMult{ 3.5f }; ///< Multiplier when speed modifier is active.
 		float mouseSensitivity{ 0.0005f }; ///< Radians per pixel.
 
@@ -141,6 +141,8 @@ namespace Raster {
 
 		TransformCoordinateSystem coordinateSystem{ TransformCoordinateSystem::World };
 
+		DirectX::XMFLOAT4X4 viewMatrix;
+
 		struct alignas(256) TransformDataCB {
 			DirectX::XMFLOAT4X4 mat;
 			DirectX::XMFLOAT4X4 projection;
@@ -151,10 +153,10 @@ namespace Raster {
 		}
 	};
 
-	struct alignas(16) ScreenConstants {
+	struct alignas(16) ScreenConstantsCB {
 		DirectX::XMFLOAT2 viewportSize;
 		float vertSize;
-		float _padding{ 0.f };
+		float _pad0;
 	};
 }
 

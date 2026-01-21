@@ -233,7 +233,13 @@ namespace Core {
 		void FrameEndRasterization();
 
 		/// Creates a root signature, which defines what resources are bound to the pipeline.
-		void CreateRootSignature();
+		void CreateRootSignatureDefault();
+
+		/// Creates another root signature for the Edges (Wireframe) pipeline.
+		void CreateRootSignatureEdges();
+
+		/// Creates another root signature for the Vertices (Points) pipeline.
+		void CreateRootSignatureVertices();
 
 		/// Creates the pipeline state object, which holds the rasterization configuration.
 		void CreatePipelineState();
@@ -256,6 +262,9 @@ namespace Core {
 		/// Creates a constant buffer for screen data.
 		void CreateScreenDataConstantBuffer();
 
+		/// Creates a constant buffer for lighting data.
+		void CreateLightingDataConstantBuffer();
+
 		/// Updates the transform matrix using interpolation from the current
 		/// offset and rotation values to the target ones.
 		void UpdateSmoothMotion();
@@ -265,6 +274,9 @@ namespace Core {
 
 		/// Creates a depth buffer and DSV Heap.
 		void CreateDepthStencil();
+
+		/// Updates directional light parameters.
+		void UpdateDirectionalLight();
 
 		//! Common functions.
 
@@ -357,8 +369,12 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
-		/// The root signature defining the resources bound to the pipeline.
-		ComPtr<ID3D12RootSignature> m_rootSignature{ nullptr };
+		/// The root signature defining the resources bound to the default pipeline.
+		ComPtr<ID3D12RootSignature> m_rootSignatureDefault{ nullptr };
+		/// The root signature defining the resources bound to the edges (wireframe) pipeline.
+		ComPtr<ID3D12RootSignature> m_rootSignatureEdges{ nullptr };
+		/// The root signature defining the resources bound to the vertices( points) pipeline.
+		ComPtr<ID3D12RootSignature> m_rootSignatureVertices{ nullptr };
 		/// The pipeline state object holding the pipeline configuration for rendering faces.
 		ComPtr<ID3D12PipelineState> m_pipelineStateFaces{ nullptr };
 		/// Another pipeline state object without backface culling.
@@ -427,6 +443,9 @@ namespace Core {
 
 		ComPtr<ID3D12Resource> m_screenDataCB{ nullptr };
 		UINT8* m_screenDataCBMappedPtr = nullptr;
+
+		ComPtr<ID3D12Resource> m_lightingDataCB{ nullptr };
+		UINT8* m_lightingDataCBMappedPtr = nullptr;
 
 		std::vector<Raster::GPUMesh> m_gpuMeshesRaster;
 		std::vector<RT::GPUMesh> m_gpuMeshesRT;
