@@ -23,6 +23,7 @@ namespace Core {
 
 		CreateRootSignature();
 		CreatePipelineState();
+		m_gpuMeshesRaster.clear();
 		for ( const Mesh& mesh: scene.GetMeshes() )
 			CreateMeshBuffers(mesh);
 		CreateTransformConstantBuffer();
@@ -68,7 +69,7 @@ namespace Core {
 
 		memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
 
-		for ( const GPUMesh& mesh : m_gpuMeshes ) {
+		for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
 			m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
 			m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
@@ -276,12 +277,12 @@ namespace Core {
 	}
 
 	void WolfRenderer::CreateMeshBuffers( const Mesh& mesh ) {
-		const size_t vertBuffSize{ sizeof( Vertex ) * mesh.vertices.size() };
-		const size_t indexBuffSize{ sizeof( uint32_t ) * mesh.indices.size() };
+		const size_t vbSize{ sizeof( Vertex ) * mesh.vertices.size() };
+		const size_t ibSize{ sizeof( uint32_t ) * mesh.indices.size() };
 
 		// Create the "Intermediate" Upload Buffers (Staging).
-		ComPtr<ID3D12Resource> vertUploadBuffer{ nullptr };
-		ComPtr<ID3D12Resource> indexUploadBuffer{ nullptr };
+		ComPtr<ID3D12Resource> vbUpload{ nullptr };
+		ComPtr<ID3D12Resource> ibUpload{ nullptr };
 
 		// Upload heap used so the CPU can write to it.
 		D3D12_HEAP_PROPERTIES heapPropsUp{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
@@ -289,52 +290,52 @@ namespace Core {
 		HRESULT hr{};
 		// Vertex upload buffer.
 		{
-			D3D12_RESOURCE_DESC bufferDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vertBuffSize ) };
+			D3D12_RESOURCE_DESC vbDescUp{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
 
 			hr = m_device->CreateCommittedResource(
 				&heapPropsUp,
 				D3D12_HEAP_FLAG_NONE,
-				&bufferDescUp,
+				&vbDescUp,
 				D3D12_RESOURCE_STATE_GENERIC_READ,
 				nullptr,
-				IID_PPV_ARGS( &vertUploadBuffer )
+				IID_PPV_ARGS( &vbUpload )
 			);
 			CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
 
 			// Copy data from CPU to Upload Buffer
 			void* pVertexData{ nullptr };
-			hr = vertUploadBuffer->Map( 0, nullptr, &pVertexData );
+			hr = vbUpload->Map( 0, nullptr, &pVertexData );
 			CHECK_HR( "Failed to map upload buffer.", hr, log );
-			memcpy( pVertexData, mesh.vertices.data(), vertBuffSize);
-			vertUploadBuffer->Unmap( 0, nullptr );
+			memcpy( pVertexData, mesh.vertices.data(), vbSize );
+			vbUpload->Unmap( 0, nullptr );
 		}
 
 		// Index upload buffer.
 		{
-			D3D12_RESOURCE_DESC bufferDescUp{ CD3DX12_RESOURCE_DESC::Buffer( indexBuffSize ) };
+			D3D12_RESOURCE_DESC ibDescUp{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
 
 			hr = m_device->CreateCommittedResource(
 				&heapPropsUp,
 				D3D12_HEAP_FLAG_NONE,
-				&bufferDescUp,
+				&ibDescUp,
 				D3D12_RESOURCE_STATE_GENERIC_READ,
 				nullptr,
-				IID_PPV_ARGS( &indexUploadBuffer )
+				IID_PPV_ARGS( &ibUpload )
 			);
 			CHECK_HR( std::string(
 				"Failed to create upload index buffer for mesh: " ) + mesh.name, hr, log);
 
 			// Copy data from CPU to Upload Buffer
 			void* pIndexData{ nullptr };
-			hr = indexUploadBuffer->Map( 0, nullptr, &pIndexData );
+			hr = ibUpload->Map( 0, nullptr, &pIndexData );
 			CHECK_HR( "Failed to map upload buffer.", hr, log );
-			memcpy( pIndexData, mesh.indices.data(), indexBuffSize );
-			indexUploadBuffer->Unmap( 0, nullptr );
+			memcpy( pIndexData, mesh.indices.data(), ibSize );
+			ibUpload->Unmap( 0, nullptr );
 		}
 
-		GPUMesh gpuMesh;
-		gpuMesh.indexCount = static_cast<UINT>(mesh.indices.size());
+		Raster::GPUMesh gpuMesh;
 		gpuMesh.vertexCount = static_cast<UINT>(mesh.vertices.size());
+		gpuMesh.indexCount = static_cast<UINT>(mesh.indices.size());
 
 		// Create the destination Vertex Buffer (Default Heap).
 		// Default heap used (GPU VRAM) that CPU can't access directly.
@@ -342,12 +343,12 @@ namespace Core {
 
 		// GPU vertex buffer.
 		{
-			D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vertBuffSize ) };
+			D3D12_RESOURCE_DESC vbDescDf{ CD3DX12_RESOURCE_DESC::Buffer( vbSize ) };
 
 			hr = m_device->CreateCommittedResource(
 				&heapPropsDf,
 				D3D12_HEAP_FLAG_NONE,
-				&bufferDescDf,
+				&vbDescDf,
 				// Start in COPY_DEST so data can be copied to it immediately.
 				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
 				D3D12_RESOURCE_STATE_COMMON,
@@ -358,12 +359,12 @@ namespace Core {
 		}
 		//GPU index buffer.
 		{
-			D3D12_RESOURCE_DESC bufferDescDf{ CD3DX12_RESOURCE_DESC::Buffer( indexBuffSize ) };
+			D3D12_RESOURCE_DESC ibDescDf{ CD3DX12_RESOURCE_DESC::Buffer( ibSize ) };
 
 			hr = m_device->CreateCommittedResource(
 				&heapPropsDf,
 				D3D12_HEAP_FLAG_NONE,
-				&bufferDescDf,
+				&ibDescDf,
 				// Start in COPY_DEST so data can be copied to it immediately.
 				// D3D12_RESOURCE_STATE_COPY_DEST but it's ignored by DirectX. Debug Layer.
 				D3D12_RESOURCE_STATE_COMMON,
@@ -382,10 +383,8 @@ namespace Core {
 		ResetCommandAllocatorAndList();
 
 		// Copy data.
-		m_cmdList->CopyBufferRegion(
-			gpuMesh.vertexBuffer.Get(), 0, vertUploadBuffer.Get(), 0, vertBuffSize );
-		m_cmdList->CopyBufferRegion(
-			gpuMesh.indexBuffer.Get(), 0, indexUploadBuffer.Get(), 0, indexBuffSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.vertexBuffer.Get(), 0, vbUpload.Get(), 0, vbSize );
+		m_cmdList->CopyBufferRegion( gpuMesh.indexBuffer.Get(), 0, ibUpload.Get(), 0, ibSize );
 
 		// Transition the Default Buffer from COPY_DEST to VERTEX_AND_CONSTANT_BUFFER
 		// so the Input Assembled (IA) can read it during rendering.
@@ -414,15 +413,15 @@ namespace Core {
 
 		gpuMesh.vbView.BufferLocation = gpuMesh.vertexBuffer->GetGPUVirtualAddress();
 		gpuMesh.vbView.StrideInBytes = sizeof( Vertex );
-		gpuMesh.vbView.SizeInBytes = static_cast<UINT>(vertBuffSize);
+		gpuMesh.vbView.SizeInBytes = static_cast<UINT>(vbSize);
 
 		gpuMesh.ibView.BufferLocation = gpuMesh.indexBuffer->GetGPUVirtualAddress();
 		gpuMesh.ibView.Format = DXGI_FORMAT_R32_UINT;
-		gpuMesh.ibView.SizeInBytes = static_cast<UINT>(indexBuffSize);
+		gpuMesh.ibView.SizeInBytes = static_cast<UINT>(ibSize);
 
-		m_gpuMeshes.push_back( gpuMesh );
+		m_gpuMeshesRaster.push_back( gpuMesh );
 
-		log( "[ Rasterization ] Vertex buffer successfully uploaded to GPU default heap." );
+		log( "[ Rasterization ] Vertex and index buffers uploaded to GPU." );
 	}
 
 	void WolfRenderer::CreateViewport() {
@@ -475,30 +474,6 @@ namespace Core {
 	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
 		dataRaster.camera.targetRotationX += deltaAngleX * dataRaster.camera.rotSens;
 		dataRaster.camera.targetRotationY += deltaAngleY * dataRaster.camera.rotSens;
-	}
-
-	void WolfRenderer::SetAppData( App* appData ) {
-		m_app = appData;
-	}
-
-	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
-		m_reloadingScene = true;
-		m_isPrepared = false;
-		WaitForGPUSync();
-		// Skip this if you want to add the new scene into the current one (Raster only).
-		scene.Cleanup();
-		// Always clear this one as it will be re-loaded if not cleaned up in the scene above.
-		// If this is not cleared, the same geometry will be loaded again with each reload.
-		m_gpuMeshes.clear();
-		scene.SetRenderScene( scenePath );
-		scene.ParseSceneFile();
-
-		m_vertexBufferRT.Reset();
-		m_blasResult.Reset();
-		m_tlasResult.Reset();
-
-		PrepareForRendering( winId );
-		m_reloadingScene = false;
 	}
 
 	void WolfRenderer::CreateTransformConstantBuffer() {

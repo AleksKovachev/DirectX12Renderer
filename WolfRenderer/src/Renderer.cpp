@@ -538,4 +538,24 @@ namespace Core {
 
 		log( "Texture copy commands added. Command list closed." );
 	}
+
+	void WolfRenderer::SetAppData( App* appData ) {
+		m_app = appData;
+	}
+
+	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
+		m_reloadingScene = true;
+		m_isPrepared = false;
+		WaitForGPUSync();
+		// Skip this if you want to add the new scene into the current one (Raster only).
+		scene.Cleanup();
+		scene.SetRenderScene( scenePath );
+		scene.ParseSceneFile();
+		m_gpuMeshesRaster.clear();
+		m_gpuMeshesRT.clear();
+		m_tlasResult.Reset();
+
+		PrepareForRendering( winId );
+		m_reloadingScene = false;
+	}
 }

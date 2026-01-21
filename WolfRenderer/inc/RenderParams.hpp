@@ -4,6 +4,8 @@
 #include <cstdint> // uint32_t
 #include <windows.h> // BOOL
 
+#include "d3d12.h"
+
 #include "Camera.hpp" // Camera, ScreenConstants
 #include "Scene.hpp" // SceneData
 
@@ -32,6 +34,19 @@ namespace RT {
 	private:
 		int m_matchRTCamToRaster{ 1 }; ///< Match RT camera to Raster camera. Default 1 = false.
 	};
+
+	struct GPUMesh {
+		ComPtr<ID3D12Resource> vertexBuffer;
+		ComPtr<ID3D12Resource> indexBuffer;
+		UINT indexCount{};
+		UINT vertexCount{};
+	};
+
+	// Structure to hold BLAS resources per mesh
+	struct BLAS {
+		ComPtr<ID3D12Resource> result;   // Acceleration structure buffer
+		ComPtr<ID3D12Resource> scratch;  // Scratch buffer for building
+	};
 }
 
 namespace Raster {
@@ -47,6 +62,15 @@ namespace Raster {
 		uint32_t edgeColor{}; ///< Default color for rendered edges.
 		uint32_t vertexColor{ 0xFFFF7224 }; ///< Default color for rendered vertices.
 		float bgColor[4] = { 0.1764f, 0.1764f, 0.1764f, 1.f }; ///< Scene background color.
+	};
+
+	struct GPUMesh {
+		ComPtr<ID3D12Resource> vertexBuffer;
+		ComPtr<ID3D12Resource> indexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW vbView{};
+		D3D12_INDEX_BUFFER_VIEW ibView{};
+		UINT indexCount{};
+		UINT vertexCount{};
 	};
 }
 
