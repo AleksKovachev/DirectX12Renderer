@@ -6,7 +6,7 @@
 
 #include "d3d12.h"
 
-#include "Camera.hpp" // Camera, ScreenConstantsCB
+#include "Camera.hpp" // Camera, ScreenDataCB
 #include "Lights.hpp" // DirectionalLightCB
 #include "Scene.hpp" // SceneData
 
@@ -29,7 +29,7 @@ namespace RT {
 			m_matchRTCamToRaster = 1 - (2 * match);
 		}
 
-		int GetMatchRTCameraToRaster() {
+		int GetMatchRTCameraToRaster() const {
 			return m_matchRTCamToRaster;
 		}
 	private:
@@ -52,18 +52,21 @@ namespace RT {
 
 namespace Raster {
 	struct Data {
-		Transformation camera{}; ///< Camera/object transformation data.
-		ScreenConstantsCB screenData{};
+		Camera camera{}; ///< Camera/object transformation data.
+		ScreenDataCB screenData{};
 		SceneDataCB sceneData{}; ///< Scene data for Raster mode.
 		bool renderFaces{ true }; ///< Whether to render faces.
 		bool renderEdges{ false }; ///< Whether to render edges.
 		bool renderVerts{ false }; ///< Whether to render vertices.
 		bool showBackfaces{ false }; ///< Whether to render backfaces.
+		ComPtr<ID3D12PipelineState> facesPSO; ///< Holds a PSO for faces pass either with backface culling or not.
 		float vertexSize{ 2.5f }; ///< Size in pixels of the displayed vertices.
-		uint32_t edgeColor{}; ///< Default color for rendered edges.
+		uint32_t edgeColor{}; ///< Default color for rendered edges. 0xAABBGGRR, because of GPU Endiannes.
 		uint32_t vertexColor{ 0xFFFF7224 }; ///< Default color for rendered vertices.
 		float bgColor[4] = { 0.1764f, 0.1764f, 0.1764f, 1.f }; ///< Scene background color.
 		DirectionalLight directionalLight;
+		LightParams lightParams;
+		LightMatricesCB lightMatrices;
 	};
 
 	struct GPUMesh {

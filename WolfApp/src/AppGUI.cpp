@@ -18,14 +18,17 @@ WolfMainWindow::WolfMainWindow( QWidget* parent )
 	QString switchStyle = QString(
 		"QCheckBox:checked { background-color: %1; }").arg( accentColor.name() );
 	m_ui.renderModeSwitch->setStyleSheet( m_ui.renderModeSwitch->styleSheet() + switchStyle );
-	m_ui.randomColorsRTSwitch->setStyleSheet( m_ui.randomColorsRTSwitch->styleSheet() + switchStyle );
-	m_ui.showBackfacesSwitch->setStyleSheet( m_ui.showBackfacesSwitch->styleSheet() + switchStyle );
-	m_ui.renderEdgesRasterSwitch->setStyleSheet( m_ui.renderEdgesRasterSwitch->styleSheet() + switchStyle );
-	m_ui.randomColorsRasterSwitch->setStyleSheet( m_ui.randomColorsRasterSwitch->styleSheet() + switchStyle );
-	m_ui.discoModeRasterSwitch->setStyleSheet( m_ui.discoModeRasterSwitch->styleSheet() + switchStyle );
-	m_ui.renderFacesRasterSwitch->setStyleSheet( m_ui.renderFacesRasterSwitch->styleSheet() + switchStyle );
-	m_ui.renderVertsRasterSwitch->setStyleSheet( m_ui.renderVertsRasterSwitch->styleSheet() + switchStyle );
+	m_ui.randomColorsSwitchRT->setStyleSheet( m_ui.randomColorsSwitchRT->styleSheet() + switchStyle );
+	m_ui.showBackfacesSwitchR->setStyleSheet( m_ui.showBackfacesSwitchR->styleSheet() + switchStyle );
+	m_ui.renderEdgesSwitchR->setStyleSheet( m_ui.renderEdgesSwitchR->styleSheet() + switchStyle );
+	m_ui.randomColorsSwitchR->setStyleSheet( m_ui.randomColorsSwitchR->styleSheet() + switchStyle );
+	m_ui.discoModeSwitchR->setStyleSheet( m_ui.discoModeSwitchR->styleSheet() + switchStyle );
+	m_ui.renderFacesSwitchR->setStyleSheet( m_ui.renderFacesSwitchR->styleSheet() + switchStyle );
+	m_ui.renderVertsSwitchR->setStyleSheet( m_ui.renderVertsSwitchR->styleSheet() + switchStyle );
 	m_ui.matchRTCamSwitch->setStyleSheet( m_ui.matchRTCamSwitch->styleSheet() + switchStyle );
+	m_ui.shadowOverlaySwitchR->setStyleSheet( m_ui.shadowOverlaySwitchR->styleSheet() + switchStyle );
+	m_ui.checkerTextureSwitchR->setStyleSheet( m_ui.checkerTextureSwitchR->styleSheet() + switchStyle );
+	m_ui.gridTextureSwitchR->setStyleSheet( m_ui.gridTextureSwitchR->styleSheet() + switchStyle );
 
 	// Connect the menu action to the render mode switch.
 	connect( m_ui.actionToggleRenderMode, &QAction::triggered, [this]() {

@@ -5,9 +5,10 @@
 
 int main( int argc, char* argv[] ) {
     QApplication app( argc, argv );
-    Core::App appData{};
-    WolfApp wolfApp{};
-    wolfApp.init( &appData );
+    Core::AppData appData{};
+    Core::WolfRenderer renderer( appData );
+    WolfApp wolfApp{ appData, renderer };
+    wolfApp.init();
 
     return app.exec();
 }

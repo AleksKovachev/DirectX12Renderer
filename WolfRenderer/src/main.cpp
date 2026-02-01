@@ -5,7 +5,8 @@
 #include "Renderer.hpp"
 
 int main() {
-	Core::WolfRenderer renderer{};
+	Core::AppData appData{};
+	Core::WolfRenderer renderer{ appData };
 	renderer.SetLoggerMinLevel( LogLevel::Error );
 
 	std::chrono::high_resolution_clock::time_point start{

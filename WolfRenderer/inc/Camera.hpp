@@ -39,7 +39,7 @@ namespace RT {
 		// Movement.
 		float movementSpeed{ 10.f }; ///< Units per second.
 		float speedMult{ 3.5f }; ///< Multiplier when speed modifier is active.
-		float mouseSensitivity{ 0.0005f }; ///< Radians per pixel.
+		float mouseSensMultiplier{ 0.0005f }; ///< Radians per pixel.
 
 		// Projection.
 		float verticalFOV{ DirectX::XMConvertToRadians( 60.f ) }; ///< Radians.
@@ -53,7 +53,7 @@ namespace RT {
 		// Constant buffer.
 		ComPtr<ID3D12Resource> cb{ nullptr };
 		CameraCB cbData{}; ///< Camera constant buffer data for RT mode.
-		UINT8* cbMappedPtr = nullptr;
+		UINT8* cbMappedPtr{ nullptr };
 
 		/// Sets pitch value, clamping it to avoid gimbal lock.
 		void setPitch( float value ) {
@@ -98,16 +98,20 @@ namespace RT {
 }
 
 namespace Raster {
-	enum class TransformCoordinateSystem {
+	enum class CameraCoordinateSystem {
 		Local,
 		World
 	};
 
-	/// Transformation-related data for controlling renderer from the GUI.
-	struct Transformation {
+	/// Camera-related data for controlling renderer from the GUI.
+	struct Camera {
 		/// The transform matrix used in the constant buffer to update object position.
-		ComPtr<ID3D12Resource> const_buffer{ nullptr };
-		UINT8* transformCBMappedPtr = nullptr;
+		ComPtr<ID3D12Resource> cameraCBRes{ nullptr };
+		UINT8* cameraCBMappedPtr{ nullptr };
+
+		/// Shadow map constant buffer for world coordinates.
+		ComPtr<ID3D12Resource> shadowCBRes{ nullptr };
+		UINT8* shadowCBMappedPtr{ nullptr };
 
 		// Members related to geometry transform with mouse movemet.
 		float currOffsetX{}; ///< Camera offset on X axis interpolated to reach targetOffsetX.
@@ -120,7 +124,7 @@ namespace Raster {
 		float boundsX{}; ///< The current X axis screen boundary the geometry isn't allowed to leave.
 		float boundsY{}; ///< The current Y axis screen boundary the geometry isn't allowed to leave.
 
-		float rotSens{ 0.005f }; ///< Rotation sensitivity factor.
+		float rotSensMultiplier{ 5.0f }; ///< Rotation sensitivity factor.
 		float offsetZSens{ 0.5f }; ///< Sensitivity factor for offset on Z axis.
 		float FOVSens{ 0.1f }; ///< Sensitivity factor for controlling the FOV.
 		float offsetXYSens{ 0.01f }; ///< Sensitivity factor for offset on XY axes.
@@ -139,21 +143,24 @@ namespace Raster {
 		float nearZ{ 0.1f }; ///< Camera near clipping plane.
 		float farZ{ 1000.f }; ///< Camera far clipping plane.
 
-		TransformCoordinateSystem coordinateSystem{ TransformCoordinateSystem::World };
+		CameraCoordinateSystem coordinateSystem{ CameraCoordinateSystem::World };
 
-		DirectX::XMFLOAT4X4 viewMatrix;
-
-		struct alignas(256) TransformDataCB {
-			DirectX::XMFLOAT4X4 mat;
+		struct alignas(16) CameraDataCB {
+			DirectX::XMFLOAT4X4 world;
+			DirectX::XMFLOAT4X4 view;
 			DirectX::XMFLOAT4X4 projection;
 		} cbData;
+
+		struct alignas(16) ShadowMapCamCB {
+			DirectX::XMFLOAT4X4 world;
+		} cbShadow;
 
 		void SetFOVDeg( float degrees ) {
 			FOVAngle = DirectX::XMConvertToRadians( degrees );
 		}
 	};
 
-	struct alignas(16) ScreenConstantsCB {
+	struct alignas(16) ScreenDataCB {
 		DirectX::XMFLOAT2 viewportSize;
 		float vertSize;
 		float _pad0;

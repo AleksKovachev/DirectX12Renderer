@@ -17,17 +17,17 @@ namespace Core {
 	void WolfRenderer::PrepareForRayTracing() {
 		CreateGlobalRootSignature();
 		m_gpuMeshesRT.clear();
-		for ( const Mesh& mesh : scene.GetMeshes() )
+		for ( const Mesh& mesh : m_app->scene.GetMeshes() )
 			CreateMeshBuffersRT( mesh );
 		CreateCameraConstantBuffer();
-		CreateRayTracingPipelineState();
-		CreateRayTracingShaderTexture();
+		CreatePipelineStateRT();
+		CreateShaderTextureRT();
 		CreateAccelerationStructures();
 		CreateShaderBindingTable();
-		log( "[ Ray Tracing ] Successful preparation." );
+		m_app->log( "[ Ray Tracing ] Successful preparation." );
 	}
 
-	void WolfRenderer::FrameBeginRayTracing() {
+	void WolfRenderer::FrameBeginRT() {
 		ResetCommandAllocatorAndList();
 
 		D3D12_RESOURCE_BARRIER barrier{};
@@ -37,13 +37,13 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
 		barrier = {};
-		barrier.Transition.pResource = m_raytracingOutput.Get();
+		barrier.Transition.pResource = m_outputRT.Get();
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		m_cmdList->ResourceBarrier( 1, &barrier );
 	}
 
-	void WolfRenderer::RenderFrameRayTracing() {
+	void WolfRenderer::RenderFrameRT() {
 		ID3D12DescriptorHeap* heaps[] = { m_uavsrvHeap.Get() };
 		m_cmdList->SetDescriptorHeaps( _countof( heaps ), heaps );
 		m_cmdList->SetComputeRootSignature( m_globalRootSignature.Get() );
@@ -75,14 +75,14 @@ namespace Core {
 		m_cmdList->DispatchRays( &m_dispatchRaysDesc );
 	}
 
-	void WolfRenderer::FrameEndRayTracing() {
+	void WolfRenderer::FrameEndRT() {
 		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = m_raytracingOutput.Get();
+		barrier.Transition.pResource = m_outputRT.Get();
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
-		m_cmdList->CopyResource( m_renderTargets[m_scFrameIdx].Get(), m_raytracingOutput.Get() );
+		m_cmdList->CopyResource( m_renderTargets[m_scFrameIdx].Get(), m_outputRT.Get() );
 
 		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -95,7 +95,7 @@ namespace Core {
 
 		/* It's very important which range at which position will be placed. This directly
 		 * correlates to the order of creation. Here, since UAV is created first in the
-		 * CreateRayTracingShaderTexture() with the CreateUnorderedAccessView() call, then
+		 * CreateShaderTextureRT() with the CreateUnorderedAccessView() call, then
 		 * the SRV is created in the CreateTLASShaderResourceView() with the
 		 * CreateShaderResourceView() call and the handle which specifically states SRV should
 		 * be created with an offset of 1. */
@@ -159,9 +159,9 @@ namespace Core {
 
 		if ( errorBlob ) {
 			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
-			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
+			m_app->log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
 		}
-		CHECK_HR( "Failed to serialize root signature.", hr, log );
+		CHECK_HR( "Failed to serialize root signature.", hr, m_app->log );
 
 		// Create the root signature on the device.
 		hr = m_device->CreateRootSignature(
@@ -170,12 +170,12 @@ namespace Core {
 			signatureBlob->GetBufferSize(),
 			IID_PPV_ARGS( &m_globalRootSignature )
 		);
-		CHECK_HR( "CreateRootSignature failed.", hr, log );
+		CHECK_HR( "CreateRootSignature failed.", hr, m_app->log );
 
-		log( "[ Ray Tracing ] Global root signature created." );
+		m_app->log( "[ Ray Tracing ] Global root signature created." );
 	}
 
-	void WolfRenderer::CreateRayTracingPipelineState() {
+	void WolfRenderer::CreatePipelineStateRT() {
 		D3D12_STATE_SUBOBJECT rayGenLibSubobject{ CreateRayGenLibSubObject() };
 		D3D12_STATE_SUBOBJECT closestHitLibSubobject{ CreateClosestHitLibSubObject() };
 		D3D12_STATE_SUBOBJECT missLibSubobject{ CreateMissLibSubObject() };
@@ -204,9 +204,9 @@ namespace Core {
 		// Create the ray tracing pipeline state object.
 		HRESULT hr = m_device->CreateStateObject(
 			&rtPSODesc, IID_PPV_ARGS( &m_rtStateObject ) );
-		CHECK_HR( "Failed to create ray tracing pipeline state object.", hr, log );
+		CHECK_HR( "Failed to create ray tracing pipeline state object.", hr, m_app->log );
 
-		log( "[ Ray Tracing ] Pipeline state created." );
+		m_app->log( "[ Ray Tracing ] Pipeline state created." );
 	}
 
 	D3D12_STATE_SUBOBJECT WolfRenderer::CreateRayGenLibSubObject() {
@@ -228,7 +228,7 @@ namespace Core {
 		rayGenLibSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
 		rayGenLibSubobject.pDesc = &m_rayGenLibDesc;
 
-		log( "[ Ray Tracing ] Ray generation library pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Ray generation library pipeline state sub-object created." );
 
 		return rayGenLibSubobject;
 	}
@@ -252,7 +252,7 @@ namespace Core {
 		closestHitLibSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
 		closestHitLibSubobject.pDesc = &m_closestHitLibDesc;
 
-		log( "[ Ray Tracing ] Closest hit library pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Closest hit library pipeline state sub-object created." );
 
 		return closestHitLibSubobject;
 	}
@@ -276,7 +276,7 @@ namespace Core {
 		missLibSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
 		missLibSubobject.pDesc = &m_missLibDesc;
 
-		log( "[ Ray Tracing ] Miss shader library pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Miss shader library pipeline state sub-object created." );
 
 		return missLibSubobject;
 	}
@@ -291,7 +291,7 @@ namespace Core {
 		shaderConfigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
 		shaderConfigSubobject.pDesc = &m_shaderConfig;
 
-		log( "[ Ray Tracing ] Shader configuration pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Shader configuration pipeline state sub-object created." );
 
 		return shaderConfigSubobject;
 	}
@@ -304,7 +304,7 @@ namespace Core {
 		pipelineConfigSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
 		pipelineConfigSubobject.pDesc = &m_pipelineConfig;
 
-		log( "[ Ray Tracing ] Pipeline configuration pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Pipeline configuration pipeline state sub-object created." );
 
 		return pipelineConfigSubobject;
 	}
@@ -316,7 +316,7 @@ namespace Core {
 		rootSignatureSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 		rootSignatureSubobject.pDesc = &m_globalRootSignatureDesc;
 
-		log( "[ Ray Tracing ] Global root signature pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Global root signature pipeline state sub-object created." );
 
 		return rootSignatureSubobject;
 	}
@@ -330,17 +330,17 @@ namespace Core {
 		hitGroupSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
 		hitGroupSubobject.pDesc = &m_hitGroupDesc;
 
-		log( "[ Ray Tracing ] Hit group pipeline state sub-object created." );
+		m_app->log( "[ Ray Tracing ] Hit group pipeline state sub-object created." );
 
 		return hitGroupSubobject;
 	}
 
-	void WolfRenderer::CreateRayTracingShaderTexture() {
+	void WolfRenderer::CreateShaderTextureRT() {
 		// Describe the output texture.
 		D3D12_RESOURCE_DESC texDesc{ CD3DX12_RESOURCE_DESC::Tex2D(
 			DXGI_FORMAT_R8G8B8A8_UNORM,
-			scene.settings.renderWidth,
-			scene.settings.renderHeight,
+			m_app->scene.settings.renderWidth,
+			m_app->scene.settings.renderHeight,
 			1,
 			1
 		) };
@@ -356,9 +356,9 @@ namespace Core {
 			&texDesc,
 			D3D12_RESOURCE_STATE_COPY_SOURCE,
 			nullptr,
-			IID_PPV_ARGS( &m_raytracingOutput )
+			IID_PPV_ARGS( &m_outputRT )
 		);
-		CHECK_HR( "Failed to create ray tracing output texture.", hr, log );
+		CHECK_HR( "Failed to create ray tracing output texture.", hr, m_app->log );
 
 		// Create a descriptor heap and a descriptor for the output texture.
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
@@ -370,7 +370,7 @@ namespace Core {
 			&heapDesc,
 			IID_PPV_ARGS( &m_uavsrvHeap )
 		);
-		CHECK_HR( "Failed to create UAV descriptor heap.", hr, log );
+		CHECK_HR( "Failed to create UAV descriptor heap.", hr, m_app->log );
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 		uavDesc.Format = texDesc.Format;
@@ -378,20 +378,20 @@ namespace Core {
 
 		// Create the descriptor inside the descriptor heap.
 		m_device->CreateUnorderedAccessView(
-			m_raytracingOutput.Get(),
+			m_outputRT.Get(),
 			nullptr,
 			&uavDesc,
 			m_uavsrvHeap->GetCPUDescriptorHandleForHeapStart()
 		);
 
-		log( "[ Ray Tracing ] Shader output texture created." );
+		m_app->log( "[ Ray Tracing ] Shader output texture created." );
 	}
 
 	void WolfRenderer::CreateShaderBindingTable() {
 		// Access the properties of the ray tracing pipeline state object.
 		ComPtr<ID3D12StateObjectProperties> rtStateObjectProps;
 		HRESULT hr{ m_rtStateObject.As( &rtStateObjectProps ) };
-		CHECK_HR( "Failed to access ray tracing state object properties.", hr, log );
+		CHECK_HR( "Failed to access ray tracing state object properties.", hr, m_app->log );
 
 		// Older approach, used in the .As template.
 		//HRESULT hr = m_rtStateObject->QueryInterface( IID_PPV_ARGS( &rtStateObjectProps ) );
@@ -421,7 +421,7 @@ namespace Core {
 		CopySBTDataToDefaultHeap();
 		PrepareDispatchRayDesc( recordSize, rayGenOffset, missOffset, hitGroupOffset );
 
-		log( "[ Ray Tracing ] Shader binding table created." );
+		m_app->log( "[ Ray Tracing ] Shader binding table created." );
 	}
 
 	void WolfRenderer::CreateSBTUploadHeap( UINT sbtSize ) {
@@ -438,9 +438,9 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &m_sbtUploadBuff )
 		);
-		CHECK_HR( "Failed to create SBT upload buffer.", hr, log );
+		CHECK_HR( "Failed to create SBT upload buffer.", hr, m_app->log );
 
-		log( "[ Ray Tracing ] SBT upload heap created." );
+		m_app->log( "[ Ray Tracing ] SBT upload heap created." );
 	}
 
 	void WolfRenderer::CreateSBTDefaultHeap( UINT sbtSize ) {
@@ -457,9 +457,9 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &m_sbtDefaultBuff )
 		);
-		CHECK_HR( "Failed to create SBT upload buffer.", hr, log );
+		CHECK_HR( "Failed to create SBT upload buffer.", hr, m_app->log );
 
-		log( "[ Ray Tracing ] SBT default heap created." );
+		m_app->log( "[ Ray Tracing ] SBT default heap created." );
 	}
 
 	void WolfRenderer::CopySBTDataToUploadHeap(
@@ -468,14 +468,14 @@ namespace Core {
 	) {
 		UINT8* pData{ nullptr };
 		HRESULT hr{ m_sbtUploadBuff->Map( 0, nullptr, reinterpret_cast<void**>(&pData) ) };
-		CHECK_HR( "Failed to map SBT upload buffer.", hr, log );
+		CHECK_HR( "Failed to map SBT upload buffer.", hr, m_app->log );
 
 		memcpy( pData + rayGenOffset, rayGenShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES );
 		memcpy( pData + missOffset, missShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES );
 		memcpy( pData + hitGroupOffset, hitGroupID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES );
 		m_sbtUploadBuff->Unmap( 0, nullptr );
 
-		log( "[ Ray Tracing ] SBT data copied to upload heap." );
+		m_app->log( "[ Ray Tracing ] SBT data copied to upload heap." );
 	}
 
 	void WolfRenderer::CopySBTDataToDefaultHeap() {
@@ -491,13 +491,13 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
 		HRESULT hr{ m_cmdList->Close() };
-		CHECK_HR( "Failed to close command list after copying SBT data.", hr, log );
+		CHECK_HR( "Failed to close command list after copying SBT data.", hr, m_app->log );
 		ID3D12CommandList* ppCmdLists[] = { m_cmdList.Get() };
 		m_cmdQueue->ExecuteCommandLists( _countof( ppCmdLists ), ppCmdLists );
 
 		WaitForGPUSync();
 
-		log( "[ Ray Tracing ] SBT data copied from upload heap to default heap." );
+		m_app->log( "[ Ray Tracing ] SBT data copied from upload heap to default heap." );
 	}
 
 	void WolfRenderer::PrepareDispatchRayDesc(
@@ -520,12 +520,12 @@ namespace Core {
 		m_dispatchRaysDesc.HitGroupTable.SizeInBytes = recordSize;
 		m_dispatchRaysDesc.HitGroupTable.StrideInBytes = recordSize;
 
-		m_dispatchRaysDesc.Width = scene.settings.renderWidth;
-		m_dispatchRaysDesc.Height = scene.settings.renderHeight;
+		m_dispatchRaysDesc.Width = m_app->scene.settings.renderWidth;
+		m_dispatchRaysDesc.Height = m_app->scene.settings.renderHeight;
 		m_dispatchRaysDesc.Depth = 1;
 		m_dispatchRaysDesc.CallableShaderTable = {};
 
-		log( "[ Ray Tracing ] Dispatch ray description prepared." );
+		m_app->log( "[ Ray Tracing ] Dispatch ray description prepared." );
 	}
 
 	void WolfRenderer::CreateMeshBuffersRT( const Mesh& mesh ) {
@@ -554,12 +554,12 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &vbUpload )
 			) };
-			CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create upload vertex buffer.", hr, m_app->log );
 
 			// Copy data from CPU to Upload Buffer
 			void* pVertexData = nullptr;
 			hr = vbUpload->Map( 0, nullptr, &pVertexData );
-			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			CHECK_HR( "Failed to map upload buffer.", hr, m_app->log );
 			memcpy( pVertexData, mesh.vertices.data(), vbSize );
 			vbUpload->Unmap( 0, nullptr );
 		}
@@ -576,12 +576,12 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &ibUpload )
 			) };
-			CHECK_HR( "Failed to create upload index buffer.", hr, log );
+			CHECK_HR( "Failed to create upload index buffer.", hr, m_app->log );
 
 			// Copy data from CPU to Upload Buffer
 			void* pIndexData = nullptr;
 			hr = ibUpload->Map( 0, nullptr, &pIndexData );
-			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			CHECK_HR( "Failed to map upload buffer.", hr, m_app->log );
 			memcpy( pIndexData, mesh.indices.data(), ibSize );
 			ibUpload->Unmap( 0, nullptr );
 		}
@@ -608,7 +608,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &gpuMesh.vertexBuffer )
 			);
-			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create default vertex buffer.", hr, m_app->log );
 		}
 
 		// GPU index buffer.
@@ -625,7 +625,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &gpuMesh.indexBuffer )
 			);
-			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create default vertex buffer.", hr, m_app->log );
 		}
 
 		// Name the buffer for easier debugging using PIX/NSIGHT.
@@ -658,7 +658,7 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 2, barriers );
 
 		hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, log );
+		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, m_app->log );
 
 		// Execute the commands
 		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
@@ -671,7 +671,7 @@ namespace Core {
 
 		m_gpuMeshesRT.push_back( gpuMesh );
 
-		log( "[ Ray Tracing ] Vertex and index buffers uploaded to GPU." );
+		m_app->log( "[ Ray Tracing ] Vertex and index buffers uploaded to GPU." );
 	}
 
 	ComPtr<IDxcBlob> WolfRenderer::CompileShader(
@@ -681,7 +681,7 @@ namespace Core {
 	) {
 		// Initialize the compiler.
 		HRESULT hr{ gDxcDllHelper.Initialize() };
-		CHECK_HR( "Failed to initialize DXC DLL.", hr, log );
+		CHECK_HR( "Failed to initialize DXC DLL.", hr, m_app->log );
 
 		// Legacy version. Modern (recommended) approach uses IDxcCompiler3, no
 		// IDxcLibrary and no IDxcBlobEncoding.
@@ -691,17 +691,20 @@ namespace Core {
 		ComPtr<IDxcBlobEncoding> sourceBlob;
 
 		hr = DxcCreateInstance( CLSID_DxcLibrary, IID_PPV_ARGS( &library ) );
-		CHECK_HR( "Failed to create DXC Library instance.", hr, log );
+		CHECK_HR( "Failed to create DXC Library instance.", hr, m_app->log );
 
 		hr = DxcCreateInstance( CLSID_DxcCompiler, IID_PPV_ARGS( &compiler ) );
-		CHECK_HR( "Failed to create DXC Compiler instance.", hr, log );
+		CHECK_HR( "Failed to create DXC Compiler instance.", hr, m_app->log );
 
 		hr = library->CreateBlobFromFile( filePath.c_str(), nullptr, &sourceBlob );
 		std::string filePathStr{ wideStrToUTF8( filePath ) };
 		std::filesystem::path relPath{ filePath };
 		std::filesystem::path absPath{ std::filesystem::absolute( relPath ) };
-		CHECK_HR( std::format(
-			"Failed to create blob from shader file: {}\nAbsolut Path: {}.", filePathStr, absPath.string() ), hr, log );
+		std::string msg{
+			std::format( "Failed to create blob from shader file: {}\nAbsolut Path: {}.",
+				filePathStr, absPath.string() )
+		};
+		CHECK_HR( msg, hr, m_app->log );
 
 		// Compile shader.
 		LPCWSTR args[] = {
@@ -727,24 +730,24 @@ namespace Core {
 			nullptr,
 			&result
 		);
-		CHECK_HR( "Failed to compile shader.", hr, log );
+		CHECK_HR( "Failed to compile shader.", hr, m_app->log );
 
 		result->GetStatus( &hr );
 		if ( FAILED( hr ) ) {
 			ComPtr<IDxcBlobEncoding> errorBlob{};
 			hr = result->GetErrorBuffer( &errorBlob );
-			CHECK_HR( "Failed to get shader compilation error buffer.", hr, log );
+			CHECK_HR( "Failed to get shader compilation error buffer.", hr, m_app->log );
 
 			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
-			log( std::format( "Shader Compilation Error: {}", msg ), LogLevel::Error );
-			CHECK_HR( "Shader compilation failed.", hr, log );
+			m_app->log( std::format( "Shader Compilation Error: {}", msg ), LogLevel::Error );
+			CHECK_HR( "Shader compilation failed.", hr, m_app->log );
 		}
 
 		ComPtr<IDxcBlob> shaderBlob{};
 		hr = result->GetResult( &shaderBlob );
-		CHECK_HR( "Failed to get compiled shader blob.", hr, log );
+		CHECK_HR( "Failed to get compiled shader blob.", hr, m_app->log );
 
-		log( std::format( "[ Ray Tracing ] Copiled shader: {} with entry point: {}.",
+		m_app->log( std::format( "[ Ray Tracing ] Copiled shader: {} with entry point: {}.",
 			filePathStr, wideStrToUTF8( entryPoint ) ) );
 
 		return shaderBlob;
@@ -754,11 +757,11 @@ namespace Core {
 		CreateBLAS();
 		CreateTLAS();
 		CreateTLASShaderResourceView();
-		log( "[ Ray Tracing ] Acceleration structures created." );
+		m_app->log( "[ Ray Tracing ] Acceleration structures created." );
 	}
 
 	void WolfRenderer::CreateBLAS() {
-		const std::vector<Mesh>& meshes = scene.GetMeshes();
+		const std::vector<Mesh>& meshes = m_app->scene.GetMeshes();
 		m_BLASes.clear();
 		m_BLASes.resize( meshes.size() );
 
@@ -826,7 +829,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &m_BLASes[meshIdx].result )
 			) };
-			CHECK_HR( "Failed to create BLAS buffer.", hr, log );
+			CHECK_HR( "Failed to create BLAS buffer.", hr, m_app->log );
 
 			// Scratch buffer.
 			D3D12_RESOURCE_DESC scratchDesc{};
@@ -851,7 +854,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &m_BLASes[meshIdx].scratch )
 			);
-			CHECK_HR( "Failed to create BLAS scratch buffer.", hr, log );
+			CHECK_HR( "Failed to create BLAS scratch buffer.", hr, m_app->log );
 
 			// Build the BLAS.
 			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasBuild{};
@@ -871,14 +874,14 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &uavBLASBarrier );
 
 		hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close command list after BLAS build.", hr, log );
+		CHECK_HR( "Failed to close command list after BLAS build.", hr, m_app->log );
 
 		ID3D12CommandList* ppCmdLists[] = { m_cmdList.Get() };
 		m_cmdQueue->ExecuteCommandLists( _countof( ppCmdLists ), ppCmdLists );
 
 		WaitForGPUSync();
 
-		log( "[ Ray Tracing ] Bottom-level acceleration structure (BLAS) created." );
+		m_app->log( "[ Ray Tracing ] Bottom-level acceleration structure (BLAS) created." );
 	}
 
 	void WolfRenderer::CreateTLAS() {
@@ -938,12 +941,12 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &instanceBuffer )
 		) };
-		CHECK_HR( "Failed to create TLAS instance buffer.", hr, log );
+		CHECK_HR( "Failed to create TLAS instance buffer.", hr, m_app->log );
 
 		// Copy instance data to the buffer.
 		void* instData{ nullptr };
 		hr = instanceBuffer->Map( 0, nullptr, &instData );
-		CHECK_HR( "Failed to map TLAS instance buffer.", hr, log );
+		CHECK_HR( "Failed to map TLAS instance buffer.", hr, m_app->log );
 		memcpy( instData, instanceDescs.data(), instanceBufferSize);
 		instanceBuffer->Unmap( 0, nullptr );
 
@@ -988,7 +991,7 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &m_tlasResult )
 		);
-		CHECK_HR( "Failed to create TLAS buffer.", hr, log );
+		CHECK_HR( "Failed to create TLAS buffer.", hr, m_app->log );
 
 		// Scratch buffer.
 		D3D12_RESOURCE_DESC tlasScratchDesc{};
@@ -1014,7 +1017,7 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &tlasScratch )
 		);
-		CHECK_HR( "Failed to create TLAS scratch buffer.", hr, log );
+		CHECK_HR( "Failed to create TLAS scratch buffer.", hr, m_app->log );
 
 		// Build the TLAS.
 		ResetCommandAllocatorAndList();
@@ -1034,18 +1037,19 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &uavTLASBarrier );
 
 		hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close command list after TLAS build.", hr, log );
+		CHECK_HR( "Failed to close command list after TLAS build.", hr, m_app->log );
 
 		ID3D12CommandList* ppTLASCommandLists[] = { m_cmdList.Get() };
 		m_cmdQueue->ExecuteCommandLists( _countof( ppTLASCommandLists ), ppTLASCommandLists );
 
 		WaitForGPUSync();
 
-		log( "[ Ray Tracing ] Top-level acceleration structure (TLAS) created." );
+		m_app->log( "[ Ray Tracing ] Top-level acceleration structure (TLAS) created." );
 	}
 
 	void WolfRenderer::CreateTLASShaderResourceView() {
-		UINT handleSize = m_device->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
+		UINT handleSize = m_device->GetDescriptorHandleIncrementSize(
+			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
 
 		// Get the handle for the SECOND slot (offset by 1).
 		CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
@@ -1058,7 +1062,7 @@ namespace Core {
 
 		m_device->CreateShaderResourceView( nullptr, &srvDesc, srvHandle );
 
-		log( "[ Ray Tracing ] TLAS shader resource view created." );
+		m_app->log( "[ Ray Tracing ] TLAS shader resource view created." );
 	}
 
 	void WolfRenderer::UpdateRTCamera( RT::CameraInput& input ) {
@@ -1067,9 +1071,10 @@ namespace Core {
 		float zDir = static_cast<float>(dataRT.GetMatchRTCameraToRaster());
 		assert( zDir == 1.f || zDir == -1.f );
 
-		dataRT.camera.yaw += input.mouseDeltaX * dataRT.camera.mouseSensitivity;
-		dataRT.camera.setPitch(
-			dataRT.camera.pitch + input.mouseDeltaY * dataRT.camera.mouseSensitivity * zDir );
+		float sensitivity = dataRT.camera.mouseSensMultiplier * 0.0001f;
+
+		dataRT.camera.yaw += input.mouseDeltaX * sensitivity;
+		dataRT.camera.setPitch( dataRT.camera.pitch + input.mouseDeltaY * sensitivity * zDir );
 
 		// Reset mouse delta for next frame.
 		input.mouseDeltaX = 0.f;
@@ -1125,14 +1130,14 @@ namespace Core {
 			nullptr,
 			IID_PPV_ARGS( &dataRT.camera.cb )
 		);
-		CHECK_HR( "Failed to create Camera constant buffer", hr, log );
+		CHECK_HR( "Failed to create Camera constant buffer", hr, m_app->log );
 
 		// Map permanently for CPU writes
 		hr = dataRT.camera.cb->Map(
 			0, nullptr, reinterpret_cast<void**>(&dataRT.camera.cbMappedPtr) );
-		CHECK_HR( "Failed to map Camera constant buffer", hr, log );
+		CHECK_HR( "Failed to map Camera constant buffer", hr, m_app->log );
 
 		memcpy( dataRT.camera.cbMappedPtr, &dataRT.camera.cbData, sizeof( dataRT.camera.cbData ) );
-		log( "[ Ray Tracing ] Camera constant buffer created and mapped." );
+		m_app->log( "[ Ray Tracing ] Camera constant buffer created and mapped." );
 	}
 }

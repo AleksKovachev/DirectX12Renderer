@@ -12,9 +12,10 @@
 using hrClock = std::chrono::high_resolution_clock;
 
 namespace Core {
-	WolfRenderer::WolfRenderer( int renderWidth, int renderHeight, UINT bufferCount )
-		: m_bufferCount{ bufferCount } {
-		log( "WolfRenderer instance created." );
+	WolfRenderer::WolfRenderer(
+		AppData& appData, int renderWidth, int renderHeight, UINT bufferCount )
+		: m_bufferCount{ bufferCount }, m_app{ &appData } {
+		m_app->log( "WolfRenderer instance created." );
 #ifdef _DEBUG
 //#define D3D12_ENABLE_DEBUG_LAYER 1
 		// Enable the D3D12 debug layer.
@@ -23,7 +24,7 @@ namespace Core {
 			debugController->EnableDebugLayer();
 			debugController->Release();
 		}
-		log( "Debug layer initialized." );
+		m_app->log( "Debug layer initialized." );
 #endif // _DEBUG
 		// Fill the render targets and RTV handles vectors.
 		for ( UINT i{}; i < bufferCount; ++i ) {
@@ -31,19 +32,20 @@ namespace Core {
 			m_rtvHandles.emplace_back();
 		}
 
-		scene.settings.renderWidth = renderWidth;
-		scene.settings.renderHeight = renderHeight;
-		scene.ParseSceneFile();
+		m_app->scene.settings.renderWidth = renderWidth;
+		m_app->scene.settings.renderHeight = renderHeight;
+		m_app->scene.ParseSceneFile();
 	}
 
 	WolfRenderer::~WolfRenderer() {
-		log( "    => Closing application." );
+		m_app->log( "    => Closing application." );
 		if ( m_fenceEvent != nullptr )
 			CloseHandle( m_fenceEvent );
+		delete m_pipeline;
 	}
 
 	void WolfRenderer::SetLoggerMinLevel( LogLevel level ) {
-		log.SetMinLevel( level );
+		m_app->log.SetMinLevel( level );
 		std::string logLevel{};
 		switch (level) {
 			case LogLevel::Debug:
@@ -62,18 +64,18 @@ namespace Core {
 				logLevel = "Critical";
 				break;
 		}
-		log( "Minimum loggig level set to: " + logLevel);
+		m_app->log( "Minimum loggig level set to: " + logLevel);
 	}
 
 	void WolfRenderer::WriteImageToFile( const char* fileName ) {
 		void* renderData;
 		HRESULT hr = m_readbackBuff->Map( 0, nullptr, &renderData );
-		CHECK_HR( "Failed to map GPU data to CPU pointer!", hr, log );
+		CHECK_HR( "Failed to map GPU data to CPU pointer!", hr, m_app->log );
 
 		// renderData now holds the pointer to the texture data!
 		std::ofstream fileStream( fileName, std::ios::binary );
 		if ( !fileStream.is_open() ) {
-			log( "Couldn't open file.", LogLevel::Error );
+			m_app->log( "Couldn't open file.", LogLevel::Error );
 			return;
 		}
 
@@ -111,19 +113,20 @@ namespace Core {
 	}
 
 	void WolfRenderer::UnmapReadback() {
-		log( "Unmapping readback buffer!" );
+		m_app->log( "Unmapping readback buffer!" );
 		m_readbackBuff->Unmap( 0, nullptr );
 	}
 
 	void WolfRenderer::PrepareForRendering( HWND hWnd ) {
 		if ( m_isPrepared ) {
-			log( "GPU already prepared." );
+			m_app->log( "GPU already prepared." );
 			return;
 		}
-		log( "Starting renderer initialization..." );
+		m_app->log( "Starting renderer initialization..." );
 
 		if ( !m_reloadingScene ) {
 			CreateDevice(); // Creates Factory, Adapter, Device
+			m_pipeline = new Pipeline( m_device, m_app );
 			CreateFence();
 			CreateCommandsManagers(); // Creates Queue, Allocator, List (and closes it)
 			CreateSwapChain( hWnd );
@@ -148,7 +151,7 @@ namespace Core {
 	}
 
 	void WolfRenderer::StopRendering() {
-		log( "Stopping renderer!" );
+		m_app->log( "Stopping renderer!" );
 		WaitForGPUSync();
 	}
 
@@ -162,15 +165,15 @@ namespace Core {
 
 		switch ( renderMode ) {
 			case RenderMode::RayTracing:
-				FrameBeginRayTracing();
+				FrameBeginRT();
 				UpdateRTCamera( cameraInput );
-				RenderFrameRayTracing();
-				FrameEndRayTracing();
+				RenderFrameRT();
+				FrameEndRT();
 				break;
 			case RenderMode::Rasterization:
-				FrameBeginRasterization();
-				RenderFrameRasterization();
-				FrameEndRasterization();
+				FrameBeginR();
+				RenderFrameR();
+				FrameEndR();
 				break;
 		}
 
@@ -202,16 +205,16 @@ namespace Core {
 
 	void WolfRenderer::CreateDevice() {
 		HRESULT hr = CreateDXGIFactory1( IID_PPV_ARGS( &m_dxgiFactory ) );
-		CHECK_HR( "Failed to create DXGI Factory.", hr, log );
-		log( "Factory created." );
+		CHECK_HR( "Failed to create DXGI Factory.", hr, m_app->log );
+		m_app->log( "Factory created." );
 
 		AssignAdapter();
 
 		hr = D3D12CreateDevice(
 			m_adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS( &m_device ) );
-		CHECK_HR( "Failed to create D3D12 Device.", hr, log );
+		CHECK_HR( "Failed to create D3D12 Device.", hr, m_app->log );
 
-		log( "Device created successfully!" );
+		m_app->log( "Device created successfully!" );
 	}
 
 	void WolfRenderer::AssignAdapter() {
@@ -245,7 +248,9 @@ namespace Core {
 			DXGI_ADAPTER_DESC1 desc{};
 			HRESULT hr = adapter->GetDesc1( &desc );
 
-			CHECK_HR( std::format( "Failed to get description for adapter index {}", adapterIdx ), hr, log );
+			std::string msg{
+				"Failed to get description for adapter index " + std::to_string( adapterIdx ) };
+			CHECK_HR( msg, hr, m_app->log );
 
 			// Skip Microsoft's Basic Render Driver (Software adapter).
 			if ( desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ) {
@@ -275,23 +280,23 @@ namespace Core {
 		if ( adapters.size() == 1 ) {
 			m_adapter = adapters.at( 0 );
 		} else if ( adapters.size() < 1 ) {
-			log( "Failed to get description any adapter.", LogLevel::Critical );
+			m_app->log( "Failed to get description any adapter.", LogLevel::Critical );
 			return;
 		} else {
 			//? Choose the one with most memory? Use DedicatedVideoMemory from desc.
-			log( "Multiple adapters found. Choosing the first one." );
+			m_app->log( "Multiple adapters found. Choosing the first one." );
 			m_adapter = adapters.at( 0 );
 		}
 
 		DXGI_ADAPTER_DESC1 desc{};
 		HRESULT hr = m_adapter->GetDesc1( &desc );
-		CHECK_HR( "Failed to get adapter description.", hr, log );
+		CHECK_HR( "Failed to get adapter description.", hr, m_app->log );
 
-		log( wideStrToUTF8( std::format( L"Adapter: {}", desc.Description ) ) );
-		log( std::format( "Dedicated Video Memory: {} MB",
+		m_app->log( wideStrToUTF8( std::format( L"Adapter: {}", desc.Description ) ) );
+		m_app->log( std::format( "Dedicated Video Memory: {} MB",
 			desc.DedicatedVideoMemory / (1024 * 1024) ) );
-		log( std::format( "Device ID: {}", desc.DeviceId ) );
-		log( std::format( "Vendor ID: {}", desc.VendorId ) );
+		m_app->log( std::format( "Device ID: {}", desc.DeviceId ) );
+		m_app->log( std::format( "Vendor ID: {}", desc.VendorId ) );
 	}
 
 	void WolfRenderer::CreateCommandsManagers() {
@@ -314,10 +319,10 @@ namespace Core {
 		queueDesc.NodeMask = 0;
 
 		hr = m_device->CreateCommandQueue( &queueDesc, IID_PPV_ARGS( &m_cmdQueue ) );
-		CHECK_HR( "Failed to create Command Queue.", hr, log );
+		CHECK_HR( "Failed to create Command Queue.", hr, m_app->log );
 
 		hr = m_device->CreateCommandAllocator( queueDesc.Type, IID_PPV_ARGS( &m_cmdAllocator ) );
-		CHECK_HR( "Failed to create Command Allocator.", hr, log );
+		CHECK_HR( "Failed to create Command Allocator.", hr, m_app->log );
 
 		hr = m_device->CreateCommandList(
 			0,                      // NodeMask: 0 for single GPU systems.
@@ -326,29 +331,29 @@ namespace Core {
 			nullptr, // Initial Pipeline State Object (PSO): Commonly set to nullptr at creation.
 			IID_PPV_ARGS( &m_cmdList ) // The Interface ID and output pointer.
 		);
-		CHECK_HR( "Failed to create Command List.", hr, log );
+		CHECK_HR( "Failed to create Command List.", hr, m_app->log );
 
 		// Good practice to close the command list right after creation. Reset() opens it.
 		hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close the Command List.", hr, log );
+		CHECK_HR( "Failed to close the Command List.", hr, m_app->log );
 
-		log( "Command List created." );
+		m_app->log( "Command List created." );
 	}
 
 	void WolfRenderer::CreateFence() {
 		// Create a fence for GPU-CPU synchronization
 		HRESULT hr = m_device->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &m_fence ) );
-		CHECK_HR( "Failed creating a Fence.", hr, log );
+		CHECK_HR( "Failed creating a Fence.", hr, m_app->log );
 
 		// Create an event handle for the fence ( wait )
 		m_fenceEvent = CreateEvent( nullptr, FALSE, FALSE, nullptr );
 
 		if ( m_fenceEvent == nullptr ) {
-			log( "Failed creating Fence Event.", LogLevel::Critical );
+			m_app->log( "Failed creating Fence Event.", LogLevel::Critical );
 			return;
 		}
 
-		log( "Fence and fence event created." );
+		m_app->log( "Fence and fence event created." );
 	}
 
 	void WolfRenderer::WaitForGPUSync() {
@@ -367,8 +372,8 @@ namespace Core {
 
 	void WolfRenderer::CreateSwapChain( HWND hWnd ) {
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
-		swapChainDesc.Width = scene.settings.renderWidth;
-		swapChainDesc.Height = scene.settings.renderHeight;
+		swapChainDesc.Width = m_app->scene.settings.renderWidth;
+		swapChainDesc.Height = m_app->scene.settings.renderHeight;
 		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // 32-bit color
 		swapChainDesc.BufferCount = m_bufferCount; // Double buffering
 		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -385,12 +390,12 @@ namespace Core {
 			nullptr,          // No restrict to output
 			&swapChain1       // The resulting swap chain
 		);
-		CHECK_HR( "Failed to create a Swap Chain.", hr, log );
+		CHECK_HR( "Failed to create a Swap Chain.", hr, m_app->log );
 
 		hr = swapChain1->QueryInterface( IID_PPV_ARGS( &m_swapChain ) );
-		CHECK_HR( "Failed to convert Swap Chain output to newer version.", hr, log );
+		CHECK_HR( "Failed to convert Swap Chain output to newer version.", hr, m_app->log );
 
-		log( "Swap Chain created." );
+		m_app->log( "Swap Chain created." );
 	}
 
 	void WolfRenderer::CreateDescriptorHeapForSwapChain() {
@@ -403,8 +408,8 @@ namespace Core {
 			&rtvHeapDesc,
 			IID_PPV_ARGS( &m_rtvHeap )
 		);
-		CHECK_HR( "Failed creating a descriptor heap for the swap chain.", hr, log );
-		log( "Descriptor heap created for the swap chain." );
+		CHECK_HR( "Failed creating a descriptor heap for the swap chain.", hr, m_app->log );
+		m_app->log( "Descriptor heap created for the swap chain." );
 
 		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(
 			D3D12_DESCRIPTOR_HEAP_TYPE_RTV );
@@ -416,8 +421,8 @@ namespace Core {
 				scBuffIdx,
 				IID_PPV_ARGS( &m_renderTargets[scBuffIdx] )
 			) };
-			CHECK_HR( "Failed getting a buffer.", hr, log );
-			log( "Successfully got a buffer." );
+			CHECK_HR( "Failed getting a buffer.", hr, m_app->log );
+			m_app->log( "Successfully got a buffer." );
 
 			m_rtvHandles[scBuffIdx] = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
 			m_rtvHandles[scBuffIdx].ptr += scBuffIdx * m_rtvDescriptorSize;
@@ -428,7 +433,7 @@ namespace Core {
 				m_rtvHandles[scBuffIdx]
 			);
 		}
-		log( "Render target views created from swap chain." );
+		m_app->log( "Render target views created from swap chain." );
 	}
 
 	void WolfRenderer::ResetCommandAllocatorAndList() {
@@ -449,8 +454,8 @@ namespace Core {
 
 	void WolfRenderer::CreateGPUTexture() {
 		m_textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2D texture.
-		m_textureDesc.Width = scene.settings.renderWidth;    // Width in pixels.
-		m_textureDesc.Height = scene.settings.renderHeight;  // Height in pixels.
+		m_textureDesc.Width = m_app->scene.settings.renderWidth;    // Width in pixels.
+		m_textureDesc.Height = m_app->scene.settings.renderHeight;  // Height in pixels.
 		m_textureDesc.DepthOrArraySize = 1;                  // Single texture (not an array).
 		m_textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;   // 32-bit RGBA format (8-bit per channel).
 		m_textureDesc.SampleDesc.Count = 1;                  // No multisampling
@@ -469,8 +474,8 @@ namespace Core {
 			IID_PPV_ARGS( &m_renderTarget ) // The Interface ID and output pointer.
 		) };
 
-		CHECK_HR( "Failed to create GPU Resource.", hr, log );
-		log( "GPU HEAP and Texture created." );
+		CHECK_HR( "Failed to create GPU Resource.", hr, m_app->log );
+		m_app->log( "GPU HEAP and Texture created." );
 	}
 
 	void WolfRenderer::CreateReadbackBuffer() {
@@ -501,9 +506,9 @@ namespace Core {
 			nullptr,              // Optimized clear value (optional, nullptr if not needed).
 			IID_PPV_ARGS( &m_readbackBuff ) // The Interface ID and output pointer.
 		) };
-		CHECK_HR( "Failed to create GPU Resource.", hr, log );
+		CHECK_HR( "Failed to create GPU Resource.", hr, m_app->log );
 
-		log( "Readback buffer created." );
+		m_app->log( "Readback buffer created." );
 	}
 
 	void WolfRenderer::CopyTexture() {
@@ -534,13 +539,9 @@ namespace Core {
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
 		HRESULT hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close command list!", hr, log );
+		CHECK_HR( "Failed to close command list!", hr, m_app->log );
 
-		log( "Texture copy commands added. Command list closed." );
-	}
-
-	void WolfRenderer::SetAppData( App* appData ) {
-		m_app = appData;
+		m_app->log( "Texture copy commands added. Command list closed." );
 	}
 
 	void WolfRenderer::ReloadScene( std::string& scenePath, HWND winId ) {
@@ -548,10 +549,10 @@ namespace Core {
 		m_isPrepared = false;
 		WaitForGPUSync();
 		// Skip this if you want to add the new scene into the current one (Raster only).
-		scene.Cleanup();
-		scene.SetRenderScene( scenePath );
-		scene.ParseSceneFile();
-		m_gpuMeshesRaster.clear();
+		m_app->scene.Cleanup();
+		m_app->scene.SetRenderScene( scenePath );
+		m_app->scene.ParseSceneFile();
+		m_gpuMeshesR.clear();
 		m_gpuMeshesRT.clear();
 		m_tlasResult.Reset();
 

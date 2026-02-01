@@ -33,6 +33,9 @@
     <ClCompile Include="src\RenderRT.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Pipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Renderer.hpp">
@@ -86,16 +89,23 @@
     <ClInclude Include="inc\Lights.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="inc\Pipeline.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\AppData.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\Common.hlsli" />
     <None Include="shaders\ray_tracing_shaders.hlsl" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="shaders\ConstColor.hlsl" />
-    <FxCompile Include="shaders\ConstColorVS.hlsl" />
-    <FxCompile Include="shaders\ConstColorVertexPass.hlsl" />
-    <FxCompile Include="shaders\GeometryShader.hlsl" />
-    <FxCompile Include="shaders\ConstColorWireframePass.hlsl" />
+    <FxCompile Include="shaders\DefaultPS.hlsl" />
+    <FxCompile Include="shaders\DefaultVS.hlsl" />
+    <FxCompile Include="shaders\VertexPassPS.hlsl" />
+    <FxCompile Include="shaders\VertexPassGS.hlsl" />
+    <FxCompile Include="shaders\EdgesPassPS.hlsl" />
+    <FxCompile Include="shaders\ShadowPassVS.hlsl" />
   </ItemGroup>
 </Project>

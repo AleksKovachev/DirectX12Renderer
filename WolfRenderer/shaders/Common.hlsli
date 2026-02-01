@@ -10,6 +10,7 @@ struct VSOutput_Edges_Verts {
     float4 position : SV_POSITION;
 };
 
+// Vertices.
 struct GSOutput_Verts {
     float4 position : SV_POSITION;
     float2 localPos : TEXCOORD0; // [-1, 1] quad space

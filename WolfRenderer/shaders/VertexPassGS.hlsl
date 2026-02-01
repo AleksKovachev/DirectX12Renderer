@@ -7,7 +7,10 @@ cbuffer ScreenCB : register( b1 ) {
 };
 
 [maxvertexcount( 4 )]
-void GSMain( point VSOutput_Edges_Verts input[1], inout TriangleStream<GSOutput_Verts> outStream ) {
+void GSVertices(
+    point VSOutput_Edges_Verts input[1],
+    inout TriangleStream<GSOutput_Verts> outStream
+) {
     float4 clipPosition = input[0].position;
 
     // Convert pixel size to clip-space offset.

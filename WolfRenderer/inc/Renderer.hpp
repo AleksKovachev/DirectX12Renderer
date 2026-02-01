@@ -13,10 +13,11 @@
 #pragma comment(lib, "dxcompiler.lib")
 // #pragma comment(lib, "dxgi.lib d3d12.lib dxcompiler.lib") is also valid
 
+#include "AppData.hpp"
 #include "Camera.hpp"
 #include "Logger.hpp"
+#include "Pipeline.hpp"
 #include "RenderParams.hpp"
-#include "Scene.hpp"
 
 // Undefine "min" and "max" macros defined in windows.h
 // to avoid conflicts with std::min and std::max.
@@ -31,14 +32,9 @@
  * This allows for more structured project configuration. */
 
 using Microsoft::WRL::ComPtr;
-struct Transformation;
+struct Camera;
 
 namespace Core {
-	/// Application-level settings and data.
-	struct App {
-		float deltaTime{};
-	};
-
 	/// The preparation needed before rendering. Use Both to switch between modes.
 	enum class RenderPreparation {
 		Rasterization,
@@ -50,15 +46,15 @@ namespace Core {
 	class WolfRenderer {
 	public: // Memebrs.
 		RT::Data dataRT{};
-		Raster::Data dataRaster{};
-		Scene scene{};
+		Raster::Data dataR{};
 		RenderMode renderMode{ RenderMode::RayTracing }; ///< Current rendering mode.
 	public: // Functions.
 		/// Constructor
+		/// @param[in] appData       Application data.
 		/// @param[in] renderWidth   Render resolution width.
 		/// @param[in] renderHeight  Render resolution height.
 		/// @param[in] bufferCount   Number of buffers in the swap chain.
-		WolfRenderer( int renderWidth = 800, int renderHeight = 800, UINT bufferCount = 2 );
+		WolfRenderer( AppData&, int renderWidth = 800, int renderHeight = 800, UINT bufferCount = 2 );
 		~WolfRenderer();
 
 		/// Sets the minimum logging level for the logger.
@@ -95,7 +91,7 @@ namespace Core {
 		void AddToOffsetZ( float );
 
 		/// Recieves mouse offset coordinate and adds it to the FOV offset.
-		/// @param[in] offset  The Z-axis offset.
+		/// @param[in] angleRadians  The Z-axis offset.
 		void AddToOffsetFOV( float );
 
 		/// Recieves mouse offset coordinates and adds them to the target rotation.
@@ -103,14 +99,14 @@ namespace Core {
 		/// @param[in] deltaAngleY  The Y-axis offset.
 		void AddToTargetRotation( float, float );
 
-		/// Sets the application-level data member.
-		/// @param[in] appData  App Pointer to the application data.
-		void SetAppData( App* );
-
 		/// Reloads the scene and re-prepares the renderer.
 		/// @param[in] scenePath  Path to the new scene file.
 		/// @param[in] winId      Handle to the application window.
 		void ReloadScene( std::string& scenePath, HWND winId );
+
+		/// Sets the active PSO for the faces pass.
+		/// @param[in] showBackfaces  Whether to use the PSO that doesn't have backface culling.
+		void SetFacePassPSO( bool );
 	private: // Functions
 
 		//! Ray Tracing specific functions.
@@ -119,19 +115,19 @@ namespace Core {
 		void PrepareForRayTracing();
 
 		/// Sets up frame-specific data before rendering with Ray Tracing.
-		void FrameBeginRayTracing();
+		void FrameBeginRT();
 
 		/// Renders a frame using ray tracing.
-		void RenderFrameRayTracing();
+		void RenderFrameRT();
 
 		/// Finalizes the frame rendering for ray tracing.
-		void FrameEndRayTracing();
+		void FrameEndRT();
 
 		/// Creates a global root signature for the ray tracing pipeline.
 		void CreateGlobalRootSignature();
 
 		/// Creates the ray tracing pipeline state object.
-		void CreateRayTracingPipelineState();
+		void CreatePipelineStateRT();
 
 		/// Creates a DXIL library sub-object for the ray generation shader.
 		D3D12_STATE_SUBOBJECT CreateRayGenLibSubObject();
@@ -155,7 +151,7 @@ namespace Core {
 		D3D12_STATE_SUBOBJECT CreateHitGroupSubObject();
 
 		/// Creates the output texture for the ray tracing shader.
-		void CreateRayTracingShaderTexture();
+		void CreateShaderTextureRT();
 
 		/// Creates the shader binding table for ray tracing.
 		void CreateShaderBindingTable();
@@ -224,25 +220,13 @@ namespace Core {
 		void PrepareForRasterization();
 
 		/// Sets up frame-specific data before rendering with Rasterization.
-		void FrameBeginRasterization();
+		void FrameBeginR();
 
 		/// Renders a frame using rasterization.
-		void RenderFrameRasterization();
+		void RenderFrameR();
 
 		/// Finalizes the frame rendering for rasterization.
-		void FrameEndRasterization();
-
-		/// Creates a root signature, which defines what resources are bound to the pipeline.
-		void CreateRootSignatureDefault();
-
-		/// Creates another root signature for the Edges (Wireframe) pipeline.
-		void CreateRootSignatureEdges();
-
-		/// Creates another root signature for the Vertices (Points) pipeline.
-		void CreateRootSignatureVertices();
-
-		/// Creates the pipeline state object, which holds the rasterization configuration.
-		void CreatePipelineState();
+		void FrameEndR();
 
 		/// Creates the vertices that will be rendered by the pipeline for the frame.
 		/// Uses upload heaps to store the vertices on the CPU memory, the
@@ -253,30 +237,37 @@ namespace Core {
 		/// Creates the viewport and scissor rectangle for rendering.
 		void CreateViewport();
 
-		/// Creates a constant buffer for transform matrix.
-		void CreateTransformConstantBuffer();
+		/// Creates all constant buffers used in this project.
+		void CreateConstantBuffers();
 
-		/// Creates a constant buffer for scene data.
-		void CreateSceneDataConstantBuffer();
-
-		/// Creates a constant buffer for screen data.
-		void CreateScreenDataConstantBuffer();
-
-		/// Creates a constant buffer for lighting data.
-		void CreateLightingDataConstantBuffer();
+		/// Creates a constant buffer.
+		/// @param[in] dataSize  The size in bytes of the structure to be uploaded to CB.
+		/// @param[in] outResource  The ComPtr to the ID3D12Resource used for this CB.
+		/// @param[in] mappedPtr  The mapped pointer to the GPU memory where the CB will be copied.
+		/// @param[in] data  An instance of the structure that holds the data to be copied to the GPU.
+		void CreateCB( size_t, ComPtr<ID3D12Resource>&, UINT8**, const void* );
 
 		/// Updates the transform matrix using interpolation from the current
 		/// offset and rotation values to the target ones.
 		void UpdateSmoothMotion();
 
+		/// Updates all camera matrices after with current transform data in Raster mode.
+		void UpdateCameraMatricesR();
+
 		/// Calculates the viewport bounds for clamping the object offset.
 		void CalculateViewportBounds();
 
-		/// Creates a depth buffer and DSV Heap.
-		void CreateDepthStencil();
+		/// Creates a shadow map buffer and DSV Heap.
+		void CreateShadowMap();
 
-		/// Updates directional light parameters.
+		/// Updates all directional light-related data.
 		void UpdateDirectionalLight();
+
+		/// Creates an SRV and a Heap for the shadows pass.
+		void CreateShadowPassSRVAndHeap();
+
+		// Renders the actual shadow map pass.
+		void RenderShadowMapPass();
 
 		//! Common functions.
 
@@ -329,7 +320,7 @@ namespace Core {
 		/// in the command list to copy the texture from GPU.
 		void CopyTexture();
 
-	private: // Members
+	private: // Members. https://learn.microsoft.com/en-us/windows/win32/direct3d12/direct3d-12-interfaces
 		/// Grants access to the GPUs on the machine.
 		ComPtr<IDXGIFactory4> m_dxgiFactory{ nullptr };
 		/// Represents the video card used for rendering.
@@ -353,6 +344,8 @@ namespace Core {
 		std::vector<ComPtr<ID3D12Resource>> m_renderTargets{};
 		/// Descriptor heap to hold the Render Target Descriptor of the swap chain.
 		ComPtr<ID3D12DescriptorHeap> m_rtvHeap{ nullptr };
+		/// Descriptor heap to hold the Shader Resource View of the shadow map.
+		ComPtr<ID3D12DescriptorHeap> m_srvHeapShadowMap{ nullptr };
 		/// CPU descriptor handles for the render targets of the swap chain.
 		std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> m_rtvHandles{};
 
@@ -369,24 +362,9 @@ namespace Core {
 		/// Memory layout information for the texture.
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_renderTargetFootprint{};
 
-		/// The root signature defining the resources bound to the default pipeline.
-		ComPtr<ID3D12RootSignature> m_rootSignatureDefault{ nullptr };
-		/// The root signature defining the resources bound to the edges (wireframe) pipeline.
-		ComPtr<ID3D12RootSignature> m_rootSignatureEdges{ nullptr };
-		/// The root signature defining the resources bound to the vertices( points) pipeline.
-		ComPtr<ID3D12RootSignature> m_rootSignatureVertices{ nullptr };
-		/// The pipeline state object holding the pipeline configuration for rendering faces.
-		ComPtr<ID3D12PipelineState> m_pipelineStateFaces{ nullptr };
-		/// Another pipeline state object without backface culling.
-		ComPtr<ID3D12PipelineState> m_pipelineStateNoCull{ nullptr };
-		/// Another pipeline state object for rendering edges.
-		ComPtr<ID3D12PipelineState> m_pipelineStateEdges{ nullptr };
-		/// Another pipeline state object for rendering vertices.
-		ComPtr<ID3D12PipelineState> m_pipelineStateVertices{ nullptr };
-
-		/// Viewport for rendering.
+		/// Viewport for rendering. https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_viewport
 		D3D12_VIEWPORT m_viewport{};
-		/// Scissor rectangle for rendering.
+		/// Scissor rectangle for rendering. https://learn.microsoft.com/en-us/windows/win32/direct3d12/d3d12-rect
 		D3D12_RECT m_scissorRect{};
 
 		/// The fence value, which the GPU sets when done.
@@ -395,8 +373,9 @@ namespace Core {
 		HANDLE m_fenceEvent{ nullptr };
 
 		/// Handle to the output texture for ray tracing.
-		ComPtr<ID3D12Resource> m_raytracingOutput{ nullptr };
+		ComPtr<ID3D12Resource> m_outputRT{ nullptr };
 
+		// https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nn-d3d12-id3d12descriptorheap
 		/// Handle to the descriptor heap of the output texture.
 		ComPtr<ID3D12DescriptorHeap> m_uavsrvHeap{ nullptr };
 
@@ -431,36 +410,43 @@ namespace Core {
 		ComPtr<ID3D12Resource> m_sbtDefaultBuff{ nullptr };
 		D3D12_DISPATCH_RAYS_DESC m_dispatchRaysDesc{};
 
-		/* Acceleration Structures members. */
+		// Acceleration Structure TLAS.
 		ComPtr<ID3D12Resource> m_tlasResult{ nullptr };
 
-		ComPtr<ID3D12Resource> m_depthStencilBuffer{ nullptr };
-		ComPtr<ID3D12DescriptorHeap> m_dsvHeap{ nullptr };
-		DXGI_FORMAT m_depthFormat{ DXGI_FORMAT_D32_FLOAT };
+		// Shadow map buffer.
+		ComPtr<ID3D12Resource> m_shadowMapBuffer{ nullptr };
+		ComPtr<ID3D12DescriptorHeap> m_dsvHeapShadowMap{ nullptr };
 
-		ComPtr<ID3D12Resource> m_sceneDataCB{ nullptr };
-		UINT8* m_sceneDataCBMappedPtr = nullptr;
+		ComPtr<ID3D12Resource> m_sceneDataCBRes{ nullptr };
+		UINT8* m_sceneDataCBMappedPtr{ nullptr };
 
-		ComPtr<ID3D12Resource> m_screenDataCB{ nullptr };
-		UINT8* m_screenDataCBMappedPtr = nullptr;
+		ComPtr<ID3D12Resource> m_screenDataCBRes{ nullptr };
+		UINT8* m_screenDataCBMappedPtr{ nullptr };
 
-		ComPtr<ID3D12Resource> m_lightingDataCB{ nullptr };
-		UINT8* m_lightingDataCBMappedPtr = nullptr;
+		ComPtr<ID3D12Resource> m_lightDataCBRes{ nullptr };
+		UINT8* m_lightDataCBMappedPtr{ nullptr };
 
-		std::vector<Raster::GPUMesh> m_gpuMeshesRaster;
+		ComPtr<ID3D12Resource> m_lightMatricesCBRes{ nullptr };
+		UINT8* m_lightMatricesCBMappedPtr{ nullptr };
+
+		std::vector<Raster::GPUMesh> m_gpuMeshesR;
 		std::vector<RT::GPUMesh> m_gpuMeshesRT;
 		std::vector<RT::BLAS> m_BLASes;
 
+		D3D12_CPU_DESCRIPTOR_HANDLE m_dsvHandle;
+
+		uint8_t m_facesMSAA{ 8 };
+
 		// General members.
+		Pipeline* m_pipeline; ///< The pipeline object responsible for all pipeline-related operations.
 		size_t m_frameIdx{};        ///< Current frame index.
 		bool m_isPrepared{ false }; ///< Flag indicating if the renderer is prepared.
 		bool m_reloadingScene{ false }; ///< Flag indicating the scene is reloading.
-		Logger log{ std::cout };    ///< Logger instance for logging messages.
 		UINT m_bufferCount{};       ///< Number of buffers in the swap chain.
 		UINT m_rtvDescriptorSize{}; ///< Size of the RTV descriptor.
 		UINT m_scFrameIdx{};        ///< Swap Chain frame index.
 		RenderPreparation m_prepMode{ RenderPreparation::Both }; ///< Current preparation mode.
-		App* m_app{ nullptr }; ///< Pointer to application-level data.
+		AppData* m_app{ nullptr }; ///< Pointer to application-level data.
 	};
 
 	/// Calculates the aligned size for a given size and alignment.

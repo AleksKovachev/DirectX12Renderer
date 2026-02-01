@@ -4,10 +4,12 @@
 #include "AppGUI.h"
 #include "Renderer.hpp"
 #include <memory>
-#include <QObject>
 #include <QColorDialog>
+#include <QObject>
 
-struct App;
+namespace Core {
+	struct AppData;
+}
 
 struct ColorPickerData {
 	QColor color;
@@ -18,11 +20,11 @@ class WolfApp : public QObject {
 	Q_OBJECT
 
 public:
-	WolfApp();
+	WolfApp( Core::AppData&, Core::WolfRenderer& );
 	~WolfApp();
 
 	/// Prepare the application for rendering.
-	bool init( Core::App* appData );
+	bool init();
 
 public slots:
 	/// Initiate frame rendering.
@@ -87,8 +89,33 @@ private: // Functions
 	/// background color set to it, and a hover color calculated from it.
 	QString GetButtonStyle( const QColor& );
 
+	/// Sets up the variable sent to the GPU for the albedo color based on the switches.
+	void SetupOutputAlbedoColor();
+
+	/// Sets up bindings for any color button needed for the dynamic color picker to work.
+	/// @param[in-out] colorVar  A reference to the variable that stores the color.
+	/// @param[in] btn  A pointer to the QToolButton that was clicked to update with new color.
+	void SetupColorButtonConnections( DirectX::XMFLOAT4&, QToolButton* );
+
+	/// Sets up bindings for any color button needed for the dynamic color picker to work.
+	/// Used with packed uint32_t colors.
+	/// @param[in-out] colorVar  A reference to the variable that stores the color.
+	/// @param[in] btn  A pointer to the QToolButton that was clicked to update with new color.
+	void SetupColorButtonConnectionsPacked( uint32_t&, QToolButton* );
+
+	/// Enagles/Disables switches related to the output albedo target.
+	/// @param[in] currWidget  A pointer to the widget that executed this function.
+	void OutputTargetChanged( QCheckBox* );
+
+	/// Enables/Disables the color buttons for the procedural textures/
+	void ToggleTextureColorButtonsEnabled();
+
+	/// Enables/Disables widgets controlling procedural texture parameters.
+	void ToggleProcTextureParamWidgetsEnabled();
+
 private: // Members
-	Core::WolfRenderer m_renderer;        ///< The actual GPU DX12 renderer.
+	Core::AppData* m_appData;             ///< Application data.
+	Core::WolfRenderer* m_renderer;       ///< The actual GPU DX12 renderer.
 	WolfMainWindow* m_mainWin{ nullptr }; ///< The main window of the application.
 	QTimer* m_idleTimer{ nullptr };       ///< Timer for implementing the rendering loop.
 	QTimer* m_fpsTimer{ nullptr };        ///< Timer to track the FPS value.

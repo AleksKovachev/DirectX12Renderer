@@ -169,6 +169,11 @@ If you have any issues building and running the application, you can try it out 
   - Close event handling with renderer cleanup.
   - Menu actions: Exit, Toggle Render Mode.
 
+## 🐞 Known Bugs
+* The application occasionally crashes when playing around with Near Z and Far Z planes
+for the camera and the directional light in Raster mode. Only spotted when Near Z plane
+is placed further than the Far Z plane.
+
 <a id="architecture"></a>
 ## 🏗️ Architecture
 

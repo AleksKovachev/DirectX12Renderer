@@ -4,45 +4,43 @@
 
 #include "d3dx12_core.h"
 
-#include "ConstColor.hlsl.h"
-#include "ConstColorVertexPass.hlsl.h"
-#include "ConstColorVS.hlsl.h"
-#include "ConstColorWireframePass.hlsl.h"
-#include "GeometryShader.hlsl.h"
-
 #include <algorithm> // clamp
 #include <cmath> // abs, exp, tan
-#include <format> // format
 #include <string> // string
 
 namespace Core {
 	void WolfRenderer::PrepareForRasterization() {
 		// Calculate aspect ratio for the transform CB.
-		unsigned& width = scene.settings.renderWidth;
-		unsigned& height = scene.settings.renderHeight;
-		dataRaster.camera.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		unsigned& width = m_app->scene.settings.renderWidth;
+		unsigned& height = m_app->scene.settings.renderHeight;
+		dataR.camera.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-		CreateRootSignatureDefault();
-		CreateRootSignatureEdges();
-		CreateRootSignatureVertices();
-		CreatePipelineState();
-		m_gpuMeshesRaster.clear();
-		for ( const Mesh& mesh: scene.GetMeshes() )
+		m_pipeline->CreateRootSignatureDefault();
+		m_pipeline->CreateRootSignatureEdges();
+		m_pipeline->CreateRootSignatureVertices();
+		m_pipeline->CreateRootSignatureShadows();
+
+		m_pipeline->CreatePipelineStates();
+		m_gpuMeshesR.clear();
+		for ( const Mesh& mesh: m_app->scene.GetMeshes() )
 			CreateMeshBuffers(mesh);
-		CreateTransformConstantBuffer();
-		CreateSceneDataConstantBuffer();
-		CreateScreenDataConstantBuffer();
-		CreateLightingDataConstantBuffer();
+
+		CreateConstantBuffers();
+
+		CreateShadowMap();
+		CreateShadowPassSRVAndHeap();
 		CreateViewport();
-		CreateDepthStencil();
-		log( "[ Rasterization ] Successful preparation." );
+		m_pipeline->CreateDepthStencil();
+		m_app->log( "[ Rasterization ] Successful preparation." );
 	}
 
-	void WolfRenderer::FrameBeginRasterization() {
+	void WolfRenderer::FrameBeginR() {
 		UpdateSmoothMotion();
-		UpdateDirectionalLight();
-
+		UpdateCameraMatricesR();
 		ResetCommandAllocatorAndList();
+
+		UpdateDirectionalLight();
+		RenderShadowMapPass();
 
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
@@ -50,49 +48,61 @@ namespace Core {
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		m_cmdList->ResourceBarrier( 1, &barrier );
 
+		barrier.Transition.pResource = m_shadowMapBuffer.Get();
+		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+		m_cmdList->ResourceBarrier( 1, &barrier );
+
 		// Set which Render Target will be used for rendering.
-		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = 
+			m_pipeline->dsvHeapDepthStencil->GetCPUDescriptorHandleForHeapStart();
 		m_cmdList->OMSetRenderTargets( 1, &m_rtvHandles[m_scFrameIdx], FALSE, &dsvHandle );
-		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], dataRaster.bgColor, 0, nullptr );
-		m_cmdList->ClearDepthStencilView( m_dsvHeap->GetCPUDescriptorHandleForHeapStart(),
+		m_cmdList->ClearRenderTargetView( m_rtvHandles[m_scFrameIdx], dataR.bgColor, 0, nullptr );
+		m_cmdList->ClearDepthStencilView(
+			m_pipeline->dsvHeapDepthStencil->GetCPUDescriptorHandleForHeapStart(),
 			D3D12_CLEAR_FLAG_DEPTH, 0.f, 0, 0, nullptr
 		);
 	}
 
-	void WolfRenderer::RenderFrameRasterization() {
+	void WolfRenderer::RenderFrameR() {
 		// Root signatures can't exist all at the same time.
 		// Draw calls need to be issued before setting a new root signature.
-		if ( dataRaster.renderFaces ) {
-			m_cmdList->SetGraphicsRootSignature( m_rootSignatureDefault.Get() );
+		if ( dataR.renderFaces ) {
+			m_cmdList->SetGraphicsRootSignature( m_pipeline->rootSignatureDefault.Get() );
 
 			// Needs to be set BEFORE settings root parameters when using
 			// multiple root signatures and PSOs. Sometimes creates issues otherwise.
-			ID3D12PipelineState* state;
-			if ( dataRaster.showBackfaces )
-				state = m_pipelineStateNoCull.Get();
-			else
-				state = m_pipelineStateFaces.Get();
-			m_cmdList->SetPipelineState( state );
+			m_cmdList->SetPipelineState( dataR.facesPSO.Get() );
 
 			m_cmdList->RSSetViewports( 1, &m_viewport );
 			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
-			// Slot b0:Transform CBV (in Vertex shader).
+			// Slot b0: Transform CBV (in Default VS).
 			m_cmdList->SetGraphicsRootConstantBufferView(
-				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
+				0, dataR.camera.cameraCBRes->GetGPUVirtualAddress() );
 
-			// Slot b1: Mask the offset float values as uint values (in Default Pixel shader).
+			// Slot b1: Root constants. Mask the offset float values as uint values (in Default PS).
 			m_cmdList->SetGraphicsRoot32BitConstant( 1, static_cast<UINT>(m_frameIdx), 0 );
 
-			// Slot b2: Scene Data (in Default Pixel shader).
-			m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCB->GetGPUVirtualAddress() );
-			memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
+			// Slot b2: Scene Data (in Default PS).
+			m_cmdList->SetGraphicsRootConstantBufferView( 2, m_sceneDataCBRes->GetGPUVirtualAddress() );
+			memcpy( m_sceneDataCBMappedPtr, &dataR.sceneData, sizeof( dataR.sceneData ) );
 
-			// Slot b3: Lighting data (in Default Pixel shader).
-			m_cmdList->SetGraphicsRootConstantBufferView( 3, m_lightingDataCB->GetGPUVirtualAddress() );
-			memcpy( m_lightingDataCBMappedPtr, &dataRaster.directionalLight.cb, sizeof( dataRaster.directionalLight.cb ) );
-		
-			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+			// Slot b3: Lighting data (in Default PS).
+			m_cmdList->SetGraphicsRootConstantBufferView( 3, m_lightDataCBRes->GetGPUVirtualAddress() );
+			memcpy( m_lightDataCBMappedPtr, &dataR.directionalLight.cb, sizeof( dataR.directionalLight.cb ) );
+
+			// Slot b4: Light Matrices Data (in Default PS and Shadow Map VS).
+			m_cmdList->SetGraphicsRootConstantBufferView( 4, m_lightMatricesCBRes->GetGPUVirtualAddress() );
+
+			// Slot t0: Shadow map.
+			ID3D12DescriptorHeap* heaps[] = { m_srvHeapShadowMap.Get() };
+			m_cmdList->SetDescriptorHeaps( 1, heaps );
+			m_cmdList->SetGraphicsRootDescriptorTable(
+				5, m_srvHeapShadowMap->GetGPUDescriptorHandleForHeapStart() );
+
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesR ) {
 				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
 				m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
@@ -102,53 +112,55 @@ namespace Core {
 			}
 		}
 
-		if ( dataRaster.renderEdges ) {
-			m_cmdList->SetGraphicsRootSignature( m_rootSignatureEdges.Get() );
-			m_cmdList->SetPipelineState( m_pipelineStateEdges.Get() );
+		if ( dataR.renderEdges ) {
+			m_cmdList->SetGraphicsRootSignature( m_pipeline->rootSignatureEdges.Get() );
+			m_cmdList->SetPipelineState( m_pipeline->stateEdges.Get() );
 
 			m_cmdList->RSSetViewports( 1, &m_viewport );
 			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
 			// Slot b0:Transform CBV (in Vertex shader).
 			m_cmdList->SetGraphicsRootConstantBufferView(
-				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
+				0, dataR.camera.cameraCBRes->GetGPUVirtualAddress() );
 
-			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesR ) {
 				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
 				m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
 				// Slot b1: Edges color (in Edges Pixel shader).
-				m_cmdList->SetGraphicsRoot32BitConstant( 1, dataRaster.edgeColor, 0 );
+				m_cmdList->SetGraphicsRoot32BitConstant( 1, dataR.edgeColor, 0 );
 
 				m_cmdList->DrawIndexedInstanced( static_cast<UINT>(mesh.indexCount), 1, 0, 0, 0 );
 			}
 		}
 
-		if ( dataRaster.renderVerts ) {
-			m_cmdList->SetGraphicsRootSignature( m_rootSignatureVertices.Get() );
-			m_cmdList->SetPipelineState( m_pipelineStateVertices.Get() );
+		if ( dataR.renderVerts ) {
+			m_cmdList->SetGraphicsRootSignature( m_pipeline->rootSignatureVertices.Get() );
+			m_cmdList->SetPipelineState( m_pipeline->stateVertices.Get() );
 
 			m_cmdList->RSSetViewports( 1, &m_viewport );
 			m_cmdList->RSSetScissorRects( 1, &m_scissorRect );
 
 			// Slot b0:Transform CBV (in Vertex shader).
 			m_cmdList->SetGraphicsRootConstantBufferView(
-				0, dataRaster.camera.const_buffer->GetGPUVirtualAddress() );
+				0, dataR.camera.cameraCBRes->GetGPUVirtualAddress() );
 
-			for ( const Raster::GPUMesh& mesh : m_gpuMeshesRaster ) {
+			for ( const Raster::GPUMesh& mesh : m_gpuMeshesR ) {
 				m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
 				m_cmdList->IASetIndexBuffer( &mesh.ibView );
 
 				// Slot b1: Screen Data (in Geometry shader).
-				m_cmdList->SetGraphicsRootConstantBufferView( 1, m_screenDataCB->GetGPUVirtualAddress() );
+				m_cmdList->SetGraphicsRootConstantBufferView( 1, m_screenDataCBRes->GetGPUVirtualAddress() );
 
-				dataRaster.screenData.viewportSize = { static_cast<float>(scene.settings.renderWidth),
-												  static_cast<float>(scene.settings.renderHeight) };
-				dataRaster.screenData.vertSize = dataRaster.vertexSize;
-				memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
+				dataR.screenData.viewportSize = {
+					static_cast<float>(m_app->scene.settings.renderWidth),
+					static_cast<float>(m_app->scene.settings.renderHeight)
+				};
+				dataR.screenData.vertSize = dataR.vertexSize;
+				memcpy( m_screenDataCBMappedPtr, &dataR.screenData, sizeof( dataR.screenData ) );
 
 				// Slot b2: Vertex color (in Vertices Pixel shader).
-				m_cmdList->SetGraphicsRoot32BitConstant( 2, dataRaster.vertexColor, 0 );
+				m_cmdList->SetGraphicsRoot32BitConstant( 2, dataR.vertexColor, 0 );
 
 				m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_POINTLIST );
 				// Only 1 point is needed per vertex. Use DrawInstanced, otherwise indices will be ignored.
@@ -157,260 +169,21 @@ namespace Core {
 		}
 	}
 
-	void WolfRenderer::FrameEndRasterization() {
+	void WolfRenderer::FrameEndR() {
+		// Transition render targets state.
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Transition.pResource = m_renderTargets[m_scFrameIdx].Get();
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		m_cmdList->ResourceBarrier( 1, &barrier );
-	}
 
-	void WolfRenderer::CreateRootSignatureDefault() {
-		D3D12_ROOT_PARAMETER1 rootParams[4]{};
-		uint8_t shaderRegisterCBV{};
+		// Transition shadow map buffer state.
+		barrier.Transition.pResource = m_shadowMapBuffer.Get();
+		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
-		// Param b0 - transform matrix.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		// Param b1 - frameIdx, specStrength.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
-		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 2;
-		shaderRegisterCBV++;
-
-		// Param b2 - Scene data.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		// Param b3 - Lighting Data.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
-		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSignatureDesc.NumParameters = _countof( rootParams );
-		rootSignatureDesc.pParameters = rootParams;
-
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
-		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
-
-		ComPtr<ID3DBlob> signatureBlob;
-		ComPtr<ID3DBlob> errorBlob;
-		HRESULT hr = D3D12SerializeVersionedRootSignature(
-			&rootSigDescVersioned,
-			&signatureBlob,
-			&errorBlob
-		);
-
-		if ( errorBlob ) {
-			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
-			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
-		}
-		CHECK_HR( "Failed to serialize root signature.", hr, log );
-
-		hr = m_device->CreateRootSignature(
-			0,
-			signatureBlob->GetBufferPointer(),
-			signatureBlob->GetBufferSize(),
-			IID_PPV_ARGS( &m_rootSignatureDefault )
-		);
-		CHECK_HR( "CreateRootSignature failed.", hr, log );
-		log( "[ Rasterization ] Root signature created." );
-	}
-
-	void WolfRenderer::CreateRootSignatureEdges() {
-		D3D12_ROOT_PARAMETER1 rootParams[2]{};
-		uint8_t shaderRegisterCBV{};
-
-		// Param b0 - transform matrix.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		// Param b1 - Edges color.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
-		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
-		shaderRegisterCBV++;
-
-		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
-		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSignatureDesc.NumParameters = _countof( rootParams );
-		rootSignatureDesc.pParameters = rootParams;
-
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
-		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
-
-		ComPtr<ID3DBlob> signatureBlob;
-		ComPtr<ID3DBlob> errorBlob;
-		HRESULT hr = D3D12SerializeVersionedRootSignature(
-			&rootSigDescVersioned,
-			&signatureBlob,
-			&errorBlob
-		);
-
-		if ( errorBlob ) {
-			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
-			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
-		}
-		CHECK_HR( "Failed to serialize root signature.", hr, log );
-
-		hr = m_device->CreateRootSignature(
-			0,
-			signatureBlob->GetBufferPointer(),
-			signatureBlob->GetBufferSize(),
-			IID_PPV_ARGS( &m_rootSignatureEdges )
-		);
-		CHECK_HR( "CreateRootSignature failed.", hr, log );
-		log( "[ Rasterization ] Root signature created." );
-	}
-
-	void WolfRenderer::CreateRootSignatureVertices() {
-		D3D12_ROOT_PARAMETER1 rootParams[3]{};
-		uint8_t shaderRegisterCBV{};
-
-		// Param b0 - transform matrix.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		// Param b1 - Screen data.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Descriptor.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Descriptor.RegisterSpace = 0;
-		shaderRegisterCBV++;
-
-		// Param b2 - Vertex color.
-		rootParams[shaderRegisterCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		rootParams[shaderRegisterCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParams[shaderRegisterCBV].Constants.ShaderRegister = shaderRegisterCBV;
-		rootParams[shaderRegisterCBV].Constants.RegisterSpace = 0;
-		rootParams[shaderRegisterCBV].Constants.Num32BitValues = 1;
-		shaderRegisterCBV++;
-
-		D3D12_ROOT_SIGNATURE_DESC1 rootSignatureDesc{};
-		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSignatureDesc.NumParameters = _countof( rootParams );
-		rootSignatureDesc.pParameters = rootParams;
-
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDescVersioned{};
-		rootSigDescVersioned.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		rootSigDescVersioned.Desc_1_1 = rootSignatureDesc;
-
-		ComPtr<ID3DBlob> signatureBlob;
-		ComPtr<ID3DBlob> errorBlob;
-		HRESULT hr = D3D12SerializeVersionedRootSignature(
-			&rootSigDescVersioned,
-			&signatureBlob,
-			&errorBlob
-		);
-
-		if ( errorBlob ) {
-			const char* msg{ static_cast<char*>(errorBlob->GetBufferPointer()) };
-			log( std::format( "Root Signature Error: {}", msg ), LogLevel::Error );
-		}
-		CHECK_HR( "Failed to serialize root signature.", hr, log );
-
-		hr = m_device->CreateRootSignature(
-			0,
-			signatureBlob->GetBufferPointer(),
-			signatureBlob->GetBufferSize(),
-			IID_PPV_ARGS( &m_rootSignatureVertices )
-		);
-		CHECK_HR( "CreateRootSignature failed.", hr, log );
-		log( "[ Rasterization ] Root signature created." );
-	}
-
-	void WolfRenderer::CreatePipelineState() {
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
-
-		// This tells the rasterizer to take 2D or 3D vertex data.
-		// Use DXGI_FORMAT_R32G32_FLOAT for 2D and DXGI_FORMAT_R32G32B32_FLOAT for 3D.
-		// VSInput's position parameter type must reflect this type: float2 / float3.
-		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-
-			// Required for normals and lighting.
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-		};
-
-		psoDesc.pRootSignature = m_rootSignatureDefault.Get();
-		psoDesc.PS = { g_const_color, _countof( g_const_color ) };
-		psoDesc.VS = { g_const_color_vs, _countof( g_const_color_vs ) };
-		psoDesc.InputLayout = { inputLayout, _countof( inputLayout ) };
-		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
-		psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
-		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC( D3D12_DEFAULT ); // DepthEnable = TRUE
-		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-		psoDesc.DSVFormat = m_depthFormat;
-		psoDesc.SampleMask = UINT_MAX;
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc.Count = 1; // MSAA multiplier. 1x - No MSAA. (2x, 4x, 8x).
-		psoDesc.SampleDesc.Quality = 0;
-
-		HRESULT hr = m_device->CreateGraphicsPipelineState(
-			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineStateFaces )
-		);
-		CHECK_HR( "Failed to create pipeline state for faces.", hr, log );
-
-		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // Disable backface culling.
-
-		hr = m_device->CreateGraphicsPipelineState(
-			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineStateNoCull )
-		);
-		CHECK_HR( "Failed to create pipeline state without backface culling.", hr, log );
-
-		psoDesc.pRootSignature = m_rootSignatureEdges.Get();
-		psoDesc.PS = { g_const_color_wire_ps, _countof( g_const_color_wire_ps ) };
-		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME; // Wireframe.
-		hr = m_device->CreateGraphicsPipelineState(
-			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineStateEdges )
-		);
-		CHECK_HR( "Failed to create pipeline state for edges.", hr, log );
-
-		psoDesc.pRootSignature = m_rootSignatureVertices.Get();
-		psoDesc.PS = { g_const_color_verts_ps, _countof( g_const_color_verts_ps ) };
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-		psoDesc.GS = { g_geometry_shader_gs, _countof( g_geometry_shader_gs ) };
-		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-
-		hr = m_device->CreateGraphicsPipelineState(
-			&psoDesc,
-			IID_PPV_ARGS( &m_pipelineStateVertices )
-		);
-		CHECK_HR( "Failed to create pipeline state for verteices.", hr, log );
-
-		log( "[ Rasterization ] Pipeline state created." );
+		m_cmdList->ResourceBarrier( 1, &barrier );
 	}
 
 	void WolfRenderer::CreateMeshBuffers( const Mesh& mesh ) {
@@ -422,6 +195,7 @@ namespace Core {
 		ComPtr<ID3D12Resource> ibUpload{ nullptr };
 
 		// Upload heap used so the CPU can write to it.
+		// https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_heap_properties
 		D3D12_HEAP_PROPERTIES heapPropsUp{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ) };
 
 		HRESULT hr{};
@@ -437,12 +211,12 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &vbUpload )
 			);
-			CHECK_HR( "Failed to create upload vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create upload vertex buffer.", hr, m_app->log );
 
 			// Copy data from CPU to Upload Buffer
 			void* pVertexData{ nullptr };
 			hr = vbUpload->Map( 0, nullptr, &pVertexData );
-			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			CHECK_HR( "Failed to map upload buffer.", hr, m_app->log );
 			memcpy( pVertexData, mesh.vertices.data(), vbSize );
 			vbUpload->Unmap( 0, nullptr );
 		}
@@ -459,13 +233,13 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &ibUpload )
 			);
-			CHECK_HR( std::string(
-				"Failed to create upload index buffer for mesh: " ) + mesh.name, hr, log);
+			std::string msg{ "Failed to create upload index buffer for mesh: " };
+			CHECK_HR( msg + mesh.name, hr, m_app->log);
 
 			// Copy data from CPU to Upload Buffer
 			void* pIndexData{ nullptr };
 			hr = ibUpload->Map( 0, nullptr, &pIndexData );
-			CHECK_HR( "Failed to map upload buffer.", hr, log );
+			CHECK_HR( "Failed to map upload buffer.", hr, m_app->log );
 			memcpy( pIndexData, mesh.indices.data(), ibSize );
 			ibUpload->Unmap( 0, nullptr );
 		}
@@ -492,7 +266,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &gpuMesh.vertexBuffer )
 			);
-			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create default vertex buffer.", hr, m_app->log );
 		}
 		//GPU index buffer.
 		{
@@ -508,7 +282,7 @@ namespace Core {
 				nullptr,
 				IID_PPV_ARGS( &gpuMesh.indexBuffer )
 			);
-			CHECK_HR( "Failed to create default vertex buffer.", hr, log );
+			CHECK_HR( "Failed to create default vertex buffer.", hr, m_app->log );
 		}
 
 		// Name the buffer for easier debugging using PIX/NSIGHT.
@@ -537,7 +311,7 @@ namespace Core {
 		m_cmdList->ResourceBarrier( _countof(barriers), barriers );
 
 		hr = m_cmdList->Close();
-		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, log );
+		CHECK_HR( "Failed to close command list for Vertex Buffer upload..", hr, m_app->log );
 
 		// Execute the commands
 		ID3D12CommandList* ppCommandLists[] = { m_cmdList.Get() };
@@ -556,268 +330,236 @@ namespace Core {
 		gpuMesh.ibView.Format = DXGI_FORMAT_R32_UINT;
 		gpuMesh.ibView.SizeInBytes = static_cast<UINT>(ibSize);
 
-		m_gpuMeshesRaster.push_back( gpuMesh );
+		m_gpuMeshesR.push_back( gpuMesh );
 
-		log( "[ Rasterization ] Vertex and index buffers uploaded to GPU." );
+		m_app->log( "[ Rasterization ] Vertex and index buffers uploaded to GPU." );
 	}
 
 	void WolfRenderer::CreateViewport() {
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<FLOAT>(scene.settings.renderWidth);
-		m_viewport.Height = static_cast<FLOAT>(scene.settings.renderHeight);
+		m_viewport.Width = static_cast<FLOAT>(m_app->scene.settings.renderWidth);
+		m_viewport.Height = static_cast<FLOAT>(m_app->scene.settings.renderHeight);
 		m_viewport.MinDepth = 0.0f;
 		m_viewport.MaxDepth = 1.0f;
 
 		m_scissorRect.left = 0;
 		m_scissorRect.top = 0;
-		m_scissorRect.right = scene.settings.renderWidth;
-		m_scissorRect.bottom = scene.settings.renderHeight;
-		log( "[ Rasterization ] Viewport set up." );
+		m_scissorRect.right = m_app->scene.settings.renderWidth;
+		m_scissorRect.bottom = m_app->scene.settings.renderHeight;
+		m_app->log( "[ Rasterization ] Viewport set up." );
+	}
+
+	void WolfRenderer::CreateConstantBuffers() {
+		// Initialize to identity matrix
+		DirectX::XMStoreFloat4x4( &dataR.camera.cbData.world, DirectX::XMMatrixIdentity() );
+		DirectX::XMStoreFloat4x4( &dataR.camera.cbData.view, DirectX::XMMatrixIdentity() );
+		DirectX::XMStoreFloat4x4( &dataR.camera.cbShadow.world, DirectX::XMMatrixIdentity() );
+
+		Raster::Data& data = dataR;
+		Raster::Camera& cam = data.camera;
+
+		size_t cbSize{};
+
+		cbSize =  sizeof( Raster::Camera::CameraDataCB );
+		CreateCB( cbSize, cam.cameraCBRes, &cam.cameraCBMappedPtr, &cam.cbData );
+		cbSize = sizeof( Raster::SceneDataCB );
+		CreateCB( cbSize, m_sceneDataCBRes, &m_sceneDataCBMappedPtr, &data.sceneData );
+		cbSize = sizeof( Raster::ScreenDataCB );
+		CreateCB( cbSize, m_screenDataCBRes, &m_screenDataCBMappedPtr, &data.screenData );
+		cbSize = sizeof( Raster::DirectionalLight::CB );
+		CreateCB( cbSize, m_lightDataCBRes, &m_lightDataCBMappedPtr, &data.directionalLight.cb );
+		cbSize = sizeof( Raster::LightMatricesCB );
+		CreateCB( cbSize, m_lightMatricesCBRes, &m_lightMatricesCBMappedPtr, &data.lightMatrices );
+		cbSize = sizeof( Raster::Camera::ShadowMapCamCB );
+		CreateCB( cbSize, cam.shadowCBRes, &cam.shadowCBMappedPtr, &cam.cbShadow );
+	}
+
+	void WolfRenderer::CreateCB(
+		size_t dataSize, ComPtr<ID3D12Resource>& outResource, UINT8** mappedPtr, const void* data
+	) {
+		// Constant buffer must be 256-byte aligned. This is a precaution, should already be 256 bytes.
+		const UINT64 cbAlignedSize = (dataSize + 255) & ~255ULL;
+		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
+		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbAlignedSize );
+
+		HRESULT hr = m_device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS( &outResource )
+		);
+		CHECK_HR( "Failed to create constant buffer.", hr, m_app->log );
+
+		// Map permanently for CPU writes
+		hr = outResource->Map(
+			0, nullptr, reinterpret_cast<void**>(mappedPtr) );
+		CHECK_HR( "Failed to map constant buffer.", hr, m_app->log );
+
+		memcpy( *mappedPtr, data, dataSize );
+		m_app->log( "[ Rasterization ] Constant buffer created and mapped." );
 	}
 
 	void WolfRenderer::AddToTargetOffset( float dx, float dy ) {
 		// Add mouse offset to target offset.
 		// Clamp values to prevent offscreen value accumulation.
-		Raster::Transformation& tr = dataRaster.camera;
+		Raster::Camera& cam = dataR.camera;
 
 		CalculateViewportBounds();
 
 		// Predict next target.
-		float candidateX = tr.targetOffsetX + dx * tr.offsetXYSens;
-		float candidateY = tr.targetOffsetY + dy * tr.offsetXYSens;
+		float candidateX = cam.targetOffsetX + dx * cam.offsetXYSens;
+		float candidateY = cam.targetOffsetY + dy * cam.offsetXYSens;
 
-		tr.targetOffsetX = std::clamp( candidateX, -tr.boundsX, tr.boundsX );
-		tr.targetOffsetY = std::clamp( candidateY, -tr.boundsY, tr.boundsY );
+		cam.targetOffsetX = std::clamp( candidateX, -cam.boundsX, cam.boundsX );
+		cam.targetOffsetY = std::clamp( candidateY, -cam.boundsY, cam.boundsY );
 	}
 
 	void WolfRenderer::AddToOffsetZ( float dz ) {
-		dataRaster.camera.offsetZ += dz * dataRaster.camera.offsetZSens;
-		dataRaster.camera.offsetZ += dz * dataRaster.camera.offsetZSens;
+		dataR.camera.offsetZ += dz * dataR.camera.offsetZSens;
 	}
 
-	void WolfRenderer::AddToOffsetFOV( float offset ) {
-		float angleRadians{ DirectX::XMConvertToRadians(
-			offset * dataRaster.camera.FOVSens ) };
-		dataRaster.camera.FOVAngle += angleRadians;
+	void WolfRenderer::AddToOffsetFOV( float angleRadians ) {
+		dataR.camera.FOVAngle += angleRadians;
 
 		// A value near 0 causes division by 0 and crashes the application.
 		// Clamping the value stops FOV at max zoom. Adding it again makes it
 		// go over to the negative numbers, causing inverted projection.
-		if ( DirectX::XMScalarNearEqual( dataRaster.camera.FOVAngle, 0.f, 0.00001f * 2.f ) )
-			dataRaster.camera.FOVAngle += angleRadians;
+		if ( DirectX::XMScalarNearEqual( dataR.camera.FOVAngle, 0.f, 0.00001f * 2.f ) )
+			dataR.camera.FOVAngle += angleRadians;
 	}
 
 	void WolfRenderer::AddToTargetRotation( float deltaAngleX, float deltaAngleY ) {
-		dataRaster.camera.targetRotationX += deltaAngleX * dataRaster.camera.rotSens;
-		dataRaster.camera.targetRotationY += deltaAngleY * dataRaster.camera.rotSens;
-	}
-
-	void WolfRenderer::CreateTransformConstantBuffer() {
-		// Constant buffer must be 256-byte aligned. This is a precaution, should already be 256 bytes.
-		const UINT cbSize = (sizeof( Raster::Transformation::TransformDataCB ) + 255) & ~255;
-
-		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( cbSize );
-
-		HRESULT hr = m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS( &dataRaster.camera.const_buffer )
-		);
-		CHECK_HR( "Failed to create Transform constant buffer.", hr, log );
-
-		// Map permanently for CPU writes
-		hr = dataRaster.camera.const_buffer->Map(
-			0, nullptr, reinterpret_cast<void**>(&dataRaster.camera.transformCBMappedPtr) );
-		CHECK_HR( "Failed to map Transform constant buffer.", hr, log );
-
-		// Initialize to identity matrix
-		DirectX::XMStoreFloat4x4( &dataRaster.camera.cbData.mat, DirectX::XMMatrixIdentity() );
-		memcpy(
-			dataRaster.camera.transformCBMappedPtr,
-			&dataRaster.camera.cbData,
-			sizeof( dataRaster.camera.cbData )
-		);
-		log( "[ Rasterization ] Transform constant buffer created and mapped." );
-	}
-
-	void WolfRenderer::CreateSceneDataConstantBuffer() {
-		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::SceneDataCB ) );
-
-		HRESULT hr = m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS( &m_sceneDataCB )
-		);
-		CHECK_HR( "Failed to create Scene Data constant buffer.", hr, log );
-
-		// Map permanently for CPU writes
-		hr = m_sceneDataCB->Map(
-			0, nullptr, reinterpret_cast<void**>(&m_sceneDataCBMappedPtr) );
-		CHECK_HR( "Failed to map Scene Data constant buffer.", hr, log );
-
-		memcpy( m_sceneDataCBMappedPtr, &dataRaster.sceneData, sizeof( dataRaster.sceneData ) );
-		log( "[ Rasterization ] Scene constant buffer created and mapped." );
-	}
-
-	void WolfRenderer::CreateScreenDataConstantBuffer() {
-		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::ScreenConstantsCB ) );
-
-		HRESULT hr = m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS( &m_screenDataCB )
-		);
-		CHECK_HR( "Failed to create Screen Data constant buffer.", hr, log );
-
-		// Map permanently for CPU writes
-		hr = m_screenDataCB->Map(
-			0, nullptr, reinterpret_cast<void**>(&m_screenDataCBMappedPtr) );
-		CHECK_HR( "Failed to map Screen Data constant buffer.", hr, log );
-
-		memcpy( m_screenDataCBMappedPtr, &dataRaster.screenData, sizeof( dataRaster.screenData ) );
-		log( "[ Rasterization ] Screen constant buffer created and mapped." );
-	}
-
-	void WolfRenderer::CreateLightingDataConstantBuffer() {
-		D3D12_HEAP_PROPERTIES heapProps = CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD );
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer( sizeof( Raster::DirectionalLight::CB ) );
-
-		HRESULT hr = m_device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS( &m_lightingDataCB )
-		);
-		CHECK_HR( "Failed to create Screen Data constant buffer.", hr, log );
-
-		// Map permanently for CPU writes
-		hr = m_lightingDataCB->Map(
-			0, nullptr, reinterpret_cast<void**>(&m_lightingDataCBMappedPtr) );
-		CHECK_HR( "Failed to map Screen Data constant buffer.", hr, log );
-
-		memcpy(
-			m_lightingDataCBMappedPtr,
-			&dataRaster.directionalLight.cb,
-			sizeof( dataRaster.directionalLight.cb )
-		);
-		log( "[ Rasterization ] Lighting constant buffer created and mapped." );
+		float sensitivity = dataR.camera.rotSensMultiplier * 0.0001f;
+		dataR.camera.targetRotationX += deltaAngleX * sensitivity;
+		dataR.camera.targetRotationY += deltaAngleY * sensitivity;
 	}
 
 	void WolfRenderer::UpdateSmoothMotion() {
-		using namespace DirectX;
-
-		Raster::Transformation& tr{ dataRaster.camera };
+		Raster::Camera& cam{ dataR.camera };
 
 		// Compute smoothing factor for movement (frame-rate independent).
-		const float sTransFactor = 1.f - std::exp( -tr.smoothOffsetLerp * m_app->deltaTime );
+		const float sTransFactor = 1.f - std::exp( -cam.smoothOffsetLerp * m_app->deltaTime );
 
 		// Linear interpolation toward the target.
-		tr.currOffsetX += (tr.targetOffsetX - tr.currOffsetX) * sTransFactor;
-		tr.currOffsetY += (tr.targetOffsetY - tr.currOffsetY) * sTransFactor;
+		cam.currOffsetX += (cam.targetOffsetX - cam.currOffsetX) * sTransFactor;
+		cam.currOffsetY += (cam.targetOffsetY - cam.currOffsetY) * sTransFactor;
 
 		// Compute smoothing factor for rotation (frame-rate independent).
-		const float sRotFactor = 1.f - std::exp( -tr.smoothRotationLambda * m_app->deltaTime );
+		const float sRotFactor = 1.f - std::exp( -cam.smoothRotationLambda * m_app->deltaTime );
 
 		// Linear interpolation toward the target.
-		tr.currRotationX += (tr.targetRotationX - tr.currRotationX) * sRotFactor;
-		tr.currRotationY += (tr.targetRotationY - tr.currRotationY) * sRotFactor;
+		cam.currRotationX += (cam.targetRotationX - cam.currRotationX) * sRotFactor;
+		cam.currRotationY += (cam.targetRotationY - cam.currRotationY) * sRotFactor;
 
 		// Don't allow the center of the "screen sphere" to leave the screen
 		// when moving around, independent of zoom and FOV.
 		// Recalculate bounds to make object stay inside.
 		CalculateViewportBounds();
 
-		tr.currOffsetX = std::clamp( tr.currOffsetX, -tr.boundsX, tr.boundsX );
-		tr.currOffsetY = std::clamp( tr.currOffsetY, -tr.boundsY, tr.boundsY );
+		cam.currOffsetX = std::clamp( cam.currOffsetX, -cam.boundsX, cam.boundsX );
+		cam.currOffsetY = std::clamp( cam.currOffsetY, -cam.boundsY, cam.boundsY );
+	}
+
+	void WolfRenderer::UpdateCameraMatricesR() {
+		using namespace DirectX;
+		Raster::Camera& cam{ dataR.camera };
 
 		// Subtracting 0.5 from Y to place camera slightly above ground.
 		XMMATRIX Trans = XMMatrixTranslation(
-			tr.currOffsetX, tr.currOffsetY - 0.5f, tr.offsetZ );
+			cam.currOffsetX, cam.currOffsetY - 0.5f, cam.offsetZ );
 
 		// Using Rotation data for X axis in Qt screen space for MatrixY in
 		// WorldView and vice-versa. Negative currRotation inverts rotation direction.
-		XMMATRIX Rot = XMMatrixRotationY( -tr.currRotationX ) *
-			XMMatrixRotationX( -tr.currRotationY );
+		XMMATRIX Rot = XMMatrixRotationY( -cam.currRotationX ) *
+			XMMatrixRotationX( -cam.currRotationY );
 
-		// Create a world-view matrix. Multiplication order matters! Rotation,
-		// then translation - transform around world origin. Otherwise - around geometry origin.
-		XMMATRIX World{};
-		if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::Local )
-			World = Rot * Trans;
-		else if ( tr.coordinateSystem == Raster::TransformCoordinateSystem::World )
-			World = Trans * Rot;
+		// Rotation * translation - transform around world origin. Otherwise - around geometry origin.
+		// This is NOT true View space. This makes the World rotate while the Camera stays still!
+		XMMATRIX View{};
+		if ( cam.coordinateSystem == Raster::CameraCoordinateSystem::Local )
+			View = Rot * Trans;
+		else if ( cam.coordinateSystem == Raster::CameraCoordinateSystem::World )
+			View = Trans * Rot;
 
-		XMMATRIX View = XMMatrixLookAtLH(
-			XMVectorSet( 0.f, 0.f, -1.f, 1.f ), // Camera position.
-			XMVectorZero(),                     // Look at origin.
-			XMVectorSet( 0.f, 1.f, 0.f, 0.f )   // Up.
-		);
-
-		XMStoreFloat4x4( &dataRaster.camera.viewMatrix, XMMatrixTranspose( View ) );
-
+		XMMATRIX World = XMLoadFloat4x4( &cam.cbData.world );
+		// Create a world-view matrix.
 		DirectX::XMMATRIX WorldView = World * View;
 
 		// Create projection matrix (for simulating a camera).
 		// Swap nearZ and farZ to use "reverse-Z" for better precision.
 		DirectX::XMMATRIX Proj = DirectX::XMMatrixPerspectiveFovLH(
-			tr.FOVAngle, tr.aspectRatio, tr.farZ, tr.nearZ );
+			cam.FOVAngle, cam.aspectRatio, cam.farZ, cam.nearZ );
 
-		XMStoreFloat4x4( &tr.cbData.mat, DirectX::XMMatrixTranspose( WorldView ) );
-		XMStoreFloat4x4( &tr.cbData.projection, DirectX::XMMatrixTranspose( Proj ) );
+		XMStoreFloat4x4( &cam.cbData.world, World );
+		XMStoreFloat4x4( &cam.cbData.view, View );
+		XMStoreFloat4x4( &cam.cbData.projection, Proj );
 
-		memcpy( tr.transformCBMappedPtr, &tr.cbData, sizeof( tr.cbData ) );
+		memcpy( cam.cameraCBMappedPtr, &cam.cbData, sizeof( cam.cbData ) );
 	}
 
 	void WolfRenderer::CalculateViewportBounds() {
-		float depth = std::abs( dataRaster.camera.offsetZ );
+		float depth = std::abs( dataR.camera.offsetZ );
 
-		float halfHeight = depth * std::tan( dataRaster.camera.FOVAngle * 0.5f );
-		float halfWidth = halfHeight * dataRaster.camera.aspectRatio;
+		float halfHeight = depth * std::tan( dataR.camera.FOVAngle * 0.5f );
+		float halfWidth = halfHeight * dataR.camera.aspectRatio;
 
 		// If the object does not fit, lock movement instead of exploding.
-		dataRaster.camera.boundsX = std::abs( halfWidth - dataRaster.camera.dummyObjectRadius );
-		dataRaster.camera.boundsY = std::abs( halfHeight - dataRaster.camera.dummyObjectRadius );
+		dataR.camera.boundsX = std::abs( halfWidth - dataR.camera.dummyObjectRadius );
+		dataR.camera.boundsY = std::abs( halfHeight - dataR.camera.dummyObjectRadius );
 	}
 
-	void WolfRenderer::CreateDepthStencil() {
+	void WolfRenderer::CreateShadowPassSRVAndHeap() {
+		// Create SRV heap.
+		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+		srvHeapDesc.NumDescriptors = 1;
+		srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		HRESULT hr{ m_device->CreateDescriptorHeap(
+			&srvHeapDesc, IID_PPV_ARGS( &m_srvHeapShadowMap ) ) };
+		CHECK_HR( "Failed to create shadow SRV heap.", hr, m_app->log );
+
+		// Create SRV.
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		// The depth buffer is created as D32_FLOAT. When reading a depth-only
+		// texture as a shader resource, that single depth channel is usually
+		// mapped to the Red (R) channel, hence R32.
+		srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		// If set to TEXTURECUBE, the shader would expect to sample it using a
+		// 3D vector (useful for point light shadows).
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Texture2D.MipLevels = 1;
+
+		m_device->CreateShaderResourceView( m_shadowMapBuffer.Get(), &srvDesc,
+			m_srvHeapShadowMap->GetCPUDescriptorHandleForHeapStart() );
+	}
+
+	void WolfRenderer::CreateShadowMap() {
 		// DSV Heap.
 		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
 		dsvHeapDesc.NumDescriptors = 1;
 		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-		HRESULT hr{ m_device->CreateDescriptorHeap( &dsvHeapDesc, IID_PPV_ARGS( &m_dsvHeap ) ) };
-		CHECK_HR( "Failed to create DSV Heap.", hr, log );
+		HRESULT hr{ m_device->CreateDescriptorHeap(
+			&dsvHeapDesc, IID_PPV_ARGS( &m_dsvHeapShadowMap ) ) };
+		CHECK_HR( "Failed to create DSV Heap.", hr, m_app->log );
 
 		// Depth texture.
-		D3D12_RESOURCE_DESC depthDesc{};
-		depthDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		depthDesc.Width = scene.settings.renderWidth;
-		depthDesc.Height = scene.settings.renderHeight;
-		depthDesc.DepthOrArraySize = 1;
-		depthDesc.MipLevels = 1;
-		depthDesc.Format = m_depthFormat;
-		depthDesc.SampleDesc.Count = 1;
-		depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		D3D12_RESOURCE_DESC shadowMapDesc{ CD3DX12_RESOURCE_DESC::Tex2D(
+			DXGI_FORMAT_R32_TYPELESS, // MUST be typeless depth -> float.
+			dataR.lightParams.shadowMapSize,
+			dataR.lightParams.shadowMapSize
+		)};
+		shadowMapDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 		D3D12_CLEAR_VALUE clearValue{};
-		clearValue.Format = m_depthFormat;
-		clearValue.DepthStencil.Depth = 0.f;
+		clearValue.Format = DXGI_FORMAT_D32_FLOAT;;
+		clearValue.DepthStencil.Depth = 0.f; // reverse-Z
 		clearValue.DepthStencil.Stencil = 0;
 
 		D3D12_HEAP_PROPERTIES heapProps{ CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ) };
@@ -825,40 +567,124 @@ namespace Core {
 		hr = m_device->CreateCommittedResource(
 			&heapProps,
 			D3D12_HEAP_FLAG_NONE,
-			&depthDesc,
+			&shadowMapDesc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&clearValue,
-			IID_PPV_ARGS( &m_depthStencilBuffer )
+			IID_PPV_ARGS( &m_shadowMapBuffer )
 		);
 
 		// Create DSV.
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
-		dsvDesc.Format = m_depthFormat;
+		dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 
 		m_device->CreateDepthStencilView(
-			m_depthStencilBuffer.Get(),
+			m_shadowMapBuffer.Get(),
 			&dsvDesc,
-			m_dsvHeap->GetCPUDescriptorHandleForHeapStart()
+			m_dsvHeapShadowMap->GetCPUDescriptorHandleForHeapStart()
 		);
-		log( "[ Rasterization ] Depth Stencil created." );
+		m_app->log( "[ Rasterization ] Shadow map created." );
 	}
 
 	void WolfRenderer::UpdateDirectionalLight() {
 		using namespace DirectX;
 
+		Raster::DirectionalLight& dirLight = dataR.directionalLight;
+
 		// Direction (world-space).
-		XMFLOAT3& lightDirWorld = dataRaster.directionalLight.directionWS;
-		XMVECTOR dirWS = XMVector3Normalize( XMLoadFloat3( &lightDirWorld ) );
+		XMVECTOR dirWS = XMLoadFloat3( &dirLight.directionWS );
+		dirWS = XMVector3Normalize( dirWS );
 
-		// Transform to view-space.
-		XMVECTOR dirVS = XMVector3Normalize( XMVector3TransformNormal(
-			dirWS, XMLoadFloat4x4( &dataRaster.camera.viewMatrix ) ) );
+		XMStoreFloat3( &dirLight.cb.directionVS, dirWS );
 
-		// If instead of converting world-space orientation to view-space was
-		// used directly the camera orientation, the light would always poin in
-		// the same direction as the camera (like a flash light).
-		XMStoreFloat3( &dataRaster.directionalLight.cb.directionVS, dirVS );
+		// Center shadow frustum around camera/world offset
+		XMVECTOR target = XMVectorSet(
+			dataR.camera.targetOffsetX,
+			dataR.camera.targetOffsetY,
+			dataR.camera.offsetZ,
+			1.0f
+		);
+
+		// Position the light very far so it covers the whole scene.
+		XMVECTOR lightDirWS = XMLoadFloat3( &dirLight.directionWS );
+		lightDirWS = XMVector3Normalize( lightDirWS );
+
+		XMVECTOR lightPos = target - lightDirWS * 500;
+
+		// Build light view matrix.
+		// Flickering starts if lightDir = (0, +-1, 0) and upVec = (0, 1, 0).
+		// Dynamically change up vector to avoid this.
+		constexpr float parallelThreshold = 0.99f;
+		XMVECTOR worldUp = XMVectorSet( 0.f, 1.f, 0.f, 0.f );
+		XMVECTOR alternateUp = XMVectorSet( 0.f, 0.f, 1.f, 0.f );
+
+		float dotRes = std::fabsf( XMVectorGetX( XMVector3Dot( lightDirWS, worldUp ) ) );
+		XMVECTOR upVec = (dotRes > parallelThreshold) ? alternateUp : worldUp;
+
+		XMMATRIX lightView = XMMatrixLookAtLH( lightPos, target, upVec );
+
+		// Build orthographic projection.
+		XMMATRIX lightProj = XMMatrixOrthographicLH(
+			dirLight.shadowExtent, dirLight.shadowExtent, dirLight.farZ, dirLight.nearZ );
+
+		// Combine.
+		XMMATRIX lightViewProj = lightView * lightProj;
+
+		XMStoreFloat4x4( &dataR.lightMatrices.dirLightViewProjMatrix, lightViewProj );
+	}
+
+	void WolfRenderer::RenderShadowMapPass() {
+		// Set shadow viewport.
+		D3D12_VIEWPORT viewport{};
+		viewport.Width  = static_cast<float>(dataR.lightParams.shadowMapSize);
+		viewport.Height = static_cast<float>(dataR.lightParams.shadowMapSize);
+		viewport.MinDepth = 0.f;
+		viewport.MaxDepth = 1.f;
+
+		D3D12_RECT scissor{ 0, 0, (LONG)viewport.Width, (LONG)viewport.Height };
+
+		m_cmdList->RSSetViewports( 1, &viewport );
+		m_cmdList->RSSetScissorRects( 1, &scissor );
+
+		// Bind shadow DSV.
+		m_dsvHandle = m_dsvHeapShadowMap->GetCPUDescriptorHandleForHeapStart();
+		m_cmdList->OMSetRenderTargets( 0, nullptr, FALSE, &m_dsvHandle );
+
+		m_cmdList->ClearDepthStencilView(
+			m_dsvHeapShadowMap->GetCPUDescriptorHandleForHeapStart(),
+			D3D12_CLEAR_FLAG_DEPTH,
+			0.f, // Must match creation of clear value. 0.f because of reverse-Z.
+			0,
+			0,
+			nullptr
+		);
+
+		m_cmdList->SetGraphicsRootSignature( m_pipeline->rootSignatureShadows.Get() );
+		m_cmdList->SetPipelineState( m_pipeline->stateShadows.Get() );
+
+		// Slot b0: Bind light matrix.
+		m_cmdList->SetGraphicsRootConstantBufferView( 0, m_lightMatricesCBRes->GetGPUVirtualAddress() );
+		memcpy( m_lightMatricesCBMappedPtr, &dataR.lightMatrices, sizeof( dataR.lightMatrices ) );
+
+		// Slot b1: Bind world matrix.
+		m_cmdList->SetGraphicsRootConstantBufferView(
+			1, dataR.camera.shadowCBRes->GetGPUVirtualAddress() );
+
+		memcpy(
+			dataR.camera.shadowCBMappedPtr,
+			&dataR.camera.cbShadow, sizeof( dataR.camera.cbShadow )
+		);
+
+		for ( const Raster::GPUMesh& mesh : m_gpuMeshesR ) {
+			m_cmdList->IASetVertexBuffers( 0, 1, &mesh.vbView );
+			m_cmdList->IASetIndexBuffer( &mesh.ibView );
+			m_cmdList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+			m_cmdList->DrawIndexedInstanced( mesh.indexCount, 1, 0, 0, 0 );
+		}
+	}
+
+	void WolfRenderer::SetFacePassPSO( bool showBackfaces ) {
+		dataR.facesPSO = showBackfaces ? m_pipeline->stateNoCull : m_pipeline->stateFaces;
 	}
 }

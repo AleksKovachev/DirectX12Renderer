@@ -61,15 +61,27 @@ private:
 };
 
 namespace Raster {
+	enum class OutputAlbedoPS : uint32_t {
+		Face,				///< Get albedo color from face color / texture.
+		RandomColors,		///< Color every triangle in a random color.
+		DiscoMode,			///< Quickly switch between 2 colors every N frames.
+		ShadowOverlayDebug,	///< Render black and white image to show the shadows only.
+		UVChecker,			///< Render a checker texture on all meshes.
+		UVGrid				///< Render a grid texture on all meshes.
+	};
+
 	struct alignas(16) SceneDataCB {
-		uint32_t packedColor{ 0xFFFFFFFF }; // 0xAABBGGRR, because of GPU Endiannes.
-
-		uint32_t useRandomColors{ 1 }; // Converted to bool in shader.
-		uint32_t disco{ 0 }; // Converted to bool in shader.
+		// Not worth it packing colors in CBV unless there are a lot of colors.
+		DirectX::XMFLOAT4 geometryColor{ 1.f, 1.f, 1.f, 1.f };
+		DirectX::XMFLOAT4 textureColorA{ 1.f, 1.f, 1.f, 1.f };
+		DirectX::XMFLOAT4 textureColorB{ 0.f, 0.f, 0.f, 1.f };
+		uint32_t outputAlbedo{ static_cast<uint32_t>(OutputAlbedoPS::Face) };
 		uint32_t discoSpeed{ 200 };
-
 		uint32_t shadeMode{ 0 }; // Defaults to "Lit".
-		uint32_t _pad[3];
+		float textureTiling{ 0.1f };
+		float textureProportionsX{ 0.5f };
+		float textureProportionsY{ 0.5f };
+		uint32_t _pad[2];
 	};
 }
 
